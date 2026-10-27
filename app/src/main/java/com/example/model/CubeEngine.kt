@@ -133,12 +133,34 @@ enum class CubeMove(
             return byNotation[normalized]
         }
 
+        /**
+         * Converte uma string de notação de movimentos (ex.: "F U R U' R' F'") em uma lista ordenada de [CubeMove].
+         * Valida explicitamente todos os tokens separados por espaços, tabulações ou quebras de linha.
+         * Lança [InvalidCubeNotationException] caso qualquer token não seja reconhecido, impedindo
+         * descarte silencioso ou execução parcial de sequências inválidas.
+         */
         fun parseSequence(sequence: String): List<CubeMove> {
             if (sequence.isBlank()) return emptyList()
-            return sequence.trim()
-                .split(Regex("\\s+"))
-                .mapNotNull { fromNotation(it) }
+            val rawTokens = sequence.trim().split(Regex("\\s+"))
+            val parsedMoves = ArrayList<CubeMove>(rawTokens.size)
+            for ((index, token) in rawTokens.withIndex()) {
+                val move = fromNotation(token)
+                    ?: throw InvalidCubeNotationException(
+                        invalidToken = token,
+                        tokenIndex = index,
+                        rawSequence = sequence
+                    )
+                parsedMoves.add(move)
+            }
+            return parsedMoves
         }
+
+        /**
+         * Variante segura para entradas externas em tempo de execução que retorna [Result]
+         * contendo a lista validada ou a [InvalidCubeNotationException] correspondente.
+         */
+        fun parseSequenceResult(sequence: String): Result<List<CubeMove>> =
+            runCatching { parseSequence(sequence) }
 
         fun invertSequence(moves: List<CubeMove>): List<CubeMove> =
             moves.asReversed().map { it.inverse() }
@@ -147,6 +169,18 @@ enum class CubeMove(
             moves.joinToString(" ") { it.notation }
     }
 }
+
+/**
+ * Exceção identificável lançada quando [CubeMove.parseSequence] encontra um token inválido.
+ * Informa o token rejeitado ([invalidToken]), seu índice 0-based ([tokenIndex]) e a sequência original ([rawSequence]).
+ */
+class InvalidCubeNotationException(
+    val invalidToken: String,
+    val tokenIndex: Int,
+    val rawSequence: String
+) : IllegalArgumentException(
+    "Token de movimento inválido '$invalidToken' na posição $tokenIndex (1-based: ${tokenIndex + 1}) da sequência \"$rawSequence\"."
+)
 
 /**
  * Tipo estrutural de peça do cubo 3x3.

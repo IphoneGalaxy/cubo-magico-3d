@@ -74,7 +74,27 @@ object ExploreRecompositionTracker {
     }
 }
 
-private val EXPLORE_FAMILIES = listOf("F", "R", "U", "L", "D", "B", "M", "E", "S")
+internal val EXPLORE_FAMILIES = listOf("F", "R", "U", "L", "D", "B", "M", "E", "S")
+
+/**
+ * Resolve explicitamente o movimento do cubo a partir da família estática do Modo Explorar
+ * e do modo modificador (0 = normal, 1 = inverso ', 2 = 180° 2).
+ * Falha de forma explícita (IllegalArgumentException via requireNotNull) caso haja erro de
+ * configuração estática interna, evitando ocultar silenciosamente botões na interface.
+ */
+internal fun resolveExploreMove(family: String, modifierMode: Int): CubeMove {
+    val notation = when (modifierMode) {
+        0 -> family
+        1 -> "$family'"
+        2 -> "${family}2"
+        else -> throw IllegalArgumentException(
+            "Modo modificador inválido no Modo Explorar: $modifierMode (esperado 0, 1 ou 2)."
+        )
+    }
+    return requireNotNull(CubeMove.fromNotation(notation)) {
+        "Configuração interna inválida em EXPLORE_FAMILIES: notação '$notation' (família='$family', modificador=$modifierMode) não corresponde a um CubeMove válido."
+    }
+}
 
 @Composable
 fun ExploreScreen(
@@ -349,12 +369,7 @@ private fun ExploreControlsCard(
                     .horizontalScroll(rememberScrollState())
             ) {
                 EXPLORE_FAMILIES.forEach { fam ->
-                    val notation = when (modifierMode) {
-                        1 -> "$fam'"
-                        2 -> "${fam}2"
-                        else -> fam
-                    }
-                    val move = CubeMove.fromNotation(notation) ?: CubeMove.R
+                    val move = resolveExploreMove(fam, modifierMode)
                     Surface(
                         color = MaterialTheme.colorScheme.surface,
                         shape = RoundedCornerShape(12.dp),
