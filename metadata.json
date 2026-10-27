@@ -1,0 +1,6 @@
+{
+  "name": "Cubo Mestre 3D",
+  "description": "Aplicativo Android interativo em 3D para aprender a resolver o Cubo Mágico 3x3 pelo método de camadas em 7 etapas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

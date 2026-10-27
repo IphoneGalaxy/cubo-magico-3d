@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">Cubo Mestre 3D</string>
+    <string name="home_subtitle">Aprenda a resolver o cubo mágico, um movimento de cada vez.</string>
+    <string name="btn_start_learning">Começar a aprender</string>
+    <string name="btn_continue_learning">Continuar de onde parou</string>
+    <string name="btn_explore_cube">Explorar Cubo</string>
+    <string name="btn_notation_guide">Guia de Notação</string>
+    <string name="course_title">Método de Camadas (7 Etapas)</string>
+    <string name="mode_learn">Aprender</string>
+    <string name="mode_practice">Praticar</string>
+    <string name="status_not_started">Não iniciada</string>
+    <string name="status_in_progress">Em andamento</string>
+    <string name="status_completed">Concluída</string>
+    <string name="action_reset_camera">Recentralizar câmera</string>
+    <string name="action_reset_cube">Restaurar cubo</string>
+    <string name="action_scramble">Embaralhar</string>
+    <string name="action_undo">Desfazer</string>
+</resources>

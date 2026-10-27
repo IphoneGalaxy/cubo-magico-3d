@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Isometric 3D Rubik's Cube Silhouette inside 66dp safe zone -->
+    <!-- Top face (White/Turquoise glow) -->
+    <path
+        android:fillColor="#FF00E5CC"
+        android:pathData="M54,24 L80,39 L54,54 L28,39 Z" />
+    <!-- Left face (Red/Orange) -->
+    <path
+        android:fillColor="#FFFF3B5C"
+        android:pathData="M26,42 L52,57 L52,85 L26,70 Z" />
+    <!-- Right face (Violet/Blue) -->
+    <path
+        android:fillColor="#FF7C4DFF"
+        android:pathData="M56,57 L82,42 L82,70 L56,85 Z" />
+    <!-- Grid lines on Top Face -->
+    <path
+        android:strokeColor="#FF090D1A"
+        android:strokeWidth="2.2"
+        android:pathData="M45.3,29 L71.3,44 M36.6,34 L62.6,49 M62.6,29 L36.6,44 M71.3,34 L45.3,49" />
+    <!-- Grid lines on Left Face -->
+    <path
+        android:strokeColor="#FF090D1A"
+        android:strokeWidth="2.2"
+        android:pathData="M34.6,47 L34.6,75 M43.3,52 L43.3,80 M26,51.3 L52,66.3 M26,60.6 L52,75.6" />
+    <!-- Grid lines on Right Face -->
+    <path
+        android:strokeColor="#FF090D1A"
+        android:strokeWidth="2.2"
+        android:pathData="M64.6,52 L64.6,80 M73.3,47 L73.3,75 M56,66.3 L82,51.3 M56,75.6 L82,60.6" />
+</vector>
