@@ -51,11 +51,55 @@ data class CubeTouchHit(
 )
 
 /**
+ * Abstração fina sobre as chamadas de shader/programa do OpenGL ES 2.0.
+ * Em produção delega 1:1 para [GLES20]; em testes unitários JVM permite validar
+ * determinísticamente todos os caminhos de erro (glCreateShader=0, GL_COMPILE_STATUS=0
+ * com log vazio ou preenchido, glCreateProgram=0, GL_LINK_STATUS=0 com log vazio ou preenchido).
+ */
+interface GlShaderBackend {
+    fun glCreateShader(type: Int): Int
+    fun glShaderSource(shader: Int, string: String)
+    fun glCompileShader(shader: Int)
+    fun glGetShaderiv(shader: Int, pname: Int, params: IntArray, offset: Int)
+    fun glGetShaderInfoLog(shader: Int): String?
+    fun glDeleteShader(shader: Int)
+    fun glCreateProgram(): Int
+    fun glAttachShader(program: Int, shader: Int)
+    fun glLinkProgram(program: Int)
+    fun glGetProgramiv(program: Int, pname: Int, params: IntArray, offset: Int)
+    fun glGetProgramInfoLog(program: Int): String?
+    fun glDetachShader(program: Int, shader: Int)
+    fun glDeleteProgram(program: Int)
+    fun glUseProgram(program: Int)
+}
+
+object DefaultGLES20ShaderBackend : GlShaderBackend {
+    override fun glCreateShader(type: Int): Int = GLES20.glCreateShader(type)
+    override fun glShaderSource(shader: Int, string: String) = GLES20.glShaderSource(shader, string)
+    override fun glCompileShader(shader: Int) = GLES20.glCompileShader(shader)
+    override fun glGetShaderiv(shader: Int, pname: Int, params: IntArray, offset: Int) =
+        GLES20.glGetShaderiv(shader, pname, params, offset)
+    override fun glGetShaderInfoLog(shader: Int): String? = GLES20.glGetShaderInfoLog(shader)
+    override fun glDeleteShader(shader: Int) = GLES20.glDeleteShader(shader)
+    override fun glCreateProgram(): Int = GLES20.glCreateProgram()
+    override fun glAttachShader(program: Int, shader: Int) = GLES20.glAttachShader(program, shader)
+    override fun glLinkProgram(program: Int) = GLES20.glLinkProgram(program)
+    override fun glGetProgramiv(program: Int, pname: Int, params: IntArray, offset: Int) =
+        GLES20.glGetProgramiv(program, pname, params, offset)
+    override fun glGetProgramInfoLog(program: Int): String? = GLES20.glGetProgramInfoLog(program)
+    override fun glDetachShader(program: Int, shader: Int) = GLES20.glDetachShader(program, shader)
+    override fun glDeleteProgram(program: Int) = GLES20.glDeleteProgram(program)
+    override fun glUseProgram(program: Int) = GLES20.glUseProgram(program)
+}
+
+/**
  * Renderizador 3D OpenGL ES 2.0 nativo para o Cubo Mágico 3x3.
  * Renderiza 27 peças tridimensionais independentes com corpo de plástico ABS preto chanfrado,
  * adesivos coloridos em alto-relevo com iluminação de estúdio Blinn-Phong e sombras suaves.
  */
-class CubeGLRenderer : GLSurfaceView.Renderer {
+class CubeGLRenderer(
+    private val shaderBackend: GlShaderBackend = DefaultGLES20ShaderBackend
+) : GLSurfaceView.Renderer {
 
     private val sceneStateLock = Any()
 
@@ -229,15 +273,27 @@ class CubeGLRenderer : GLSurfaceView.Renderer {
     private val stickerColorBuffer = FloatArray(4)
 
     private var shaderProgram = 0
-    private var aPositionLoc = 0
-    private var aNormalLoc = 0
-    private var uMvpMatrixLoc = 0
-    private var uModelMatrixLoc = 0
-    private var uColorLoc = 0
-    private var uLightDirLoc = 0
-    private var uViewPosLoc = 0
-    private var uSpecularStrengthLoc = 0
-    private var uShininessLoc = 0
+    private var aPositionLoc = -1
+    private var aNormalLoc = -1
+    private var uMvpMatrixLoc = -1
+    private var uModelMatrixLoc = -1
+    private var uColorLoc = -1
+    private var uLightDirLoc = -1
+    private var uViewPosLoc = -1
+    private var uSpecularStrengthLoc = -1
+    private var uShininessLoc = -1
+
+    val shaderProgramForAudit: Int
+        get() = shaderProgram
+
+    val isShaderProgramValidForAudit: Boolean
+        get() = shaderProgram > 0
+
+    var lastShaderDiagnosticForAudit: String? = null
+        private set
+
+    var skippedDrawFramesDueToInvalidProgramForAudit: Int = 0
+        private set
 
     // Buffers de geometria 3D
     private lateinit var cubieBodyBuffer: FloatBuffer
@@ -279,16 +335,34 @@ class CubeGLRenderer : GLSurfaceView.Renderer {
 
         // Em OpenGL ES 2.0, onSurfaceCreated ocorre em um novo contexto EGL; nunca chame glDeleteProgram
         // em IDs do contexto anterior já descartado. Recria o programa e atualiza os ponteiros de atributos/uniforms.
-        shaderProgram = createProgram(VERTEX_SHADER_CODE, FRAGMENT_SHADER_CODE)
-        aPositionLoc = GLES20.glGetAttribLocation(shaderProgram, "aPosition")
-        aNormalLoc = GLES20.glGetAttribLocation(shaderProgram, "aNormal")
-        uMvpMatrixLoc = GLES20.glGetUniformLocation(shaderProgram, "uMVPMatrix")
-        uModelMatrixLoc = GLES20.glGetUniformLocation(shaderProgram, "uModelMatrix")
-        uColorLoc = GLES20.glGetUniformLocation(shaderProgram, "uColor")
-        uLightDirLoc = GLES20.glGetUniformLocation(shaderProgram, "uLightDir")
-        uViewPosLoc = GLES20.glGetUniformLocation(shaderProgram, "uViewPos")
-        uSpecularStrengthLoc = GLES20.glGetUniformLocation(shaderProgram, "uSpecularStrength")
-        uShininessLoc = GLES20.glGetUniformLocation(shaderProgram, "uShininess")
+        lastShaderDiagnosticForAudit = null
+        shaderProgram = createProgram(
+            vertexSource = VERTEX_SHADER_CODE,
+            fragmentSource = FRAGMENT_SHADER_CODE,
+            backend = shaderBackend,
+            onDiagnostic = { diag -> lastShaderDiagnosticForAudit = diag }
+        )
+        if (shaderProgram > 0) {
+            aPositionLoc = GLES20.glGetAttribLocation(shaderProgram, "aPosition")
+            aNormalLoc = GLES20.glGetAttribLocation(shaderProgram, "aNormal")
+            uMvpMatrixLoc = GLES20.glGetUniformLocation(shaderProgram, "uMVPMatrix")
+            uModelMatrixLoc = GLES20.glGetUniformLocation(shaderProgram, "uModelMatrix")
+            uColorLoc = GLES20.glGetUniformLocation(shaderProgram, "uColor")
+            uLightDirLoc = GLES20.glGetUniformLocation(shaderProgram, "uLightDir")
+            uViewPosLoc = GLES20.glGetUniformLocation(shaderProgram, "uViewPos")
+            uSpecularStrengthLoc = GLES20.glGetUniformLocation(shaderProgram, "uSpecularStrength")
+            uShininessLoc = GLES20.glGetUniformLocation(shaderProgram, "uShininess")
+        } else {
+            aPositionLoc = -1
+            aNormalLoc = -1
+            uMvpMatrixLoc = -1
+            uModelMatrixLoc = -1
+            uColorLoc = -1
+            uLightDirLoc = -1
+            uViewPosLoc = -1
+            uSpecularStrengthLoc = -1
+            uShininessLoc = -1
+        }
 
         buildGeometryBuffers()
     }
@@ -462,7 +536,11 @@ class CubeGLRenderer : GLSurfaceView.Renderer {
             eyePosBuffer[2] = dist * cos(pitchRad) * cos(yawRad)
         }
 
-        GLES20.glUseProgram(shaderProgram)
+        if (shaderProgram <= 0) {
+            skippedDrawFramesDueToInvalidProgramForAudit++
+            return
+        }
+        shaderBackend.glUseProgram(shaderProgram)
 
         // Luz principal de estúdio posicionada acima e à frente da câmera
         val lightX = eyePosBuffer[0] * 0.8f + 3.0f
@@ -1231,49 +1309,91 @@ class CubeGLRenderer : GLSurfaceView.Renderer {
             }
         """
 
-        private fun createProgram(vertexSource: String, fragmentSource: String): Int {
-            val vertexShader = loadShader(GLES20.GL_VERTEX_SHADER, vertexSource)
-            val fragmentShader = loadShader(GLES20.GL_FRAGMENT_SHADER, fragmentSource)
-            val program = GLES20.glCreateProgram()
-            if (program != 0) {
-                if (vertexShader != 0) GLES20.glAttachShader(program, vertexShader)
-                if (fragmentShader != 0) GLES20.glAttachShader(program, fragmentShader)
-                GLES20.glLinkProgram(program)
-                val linkStatus = IntArray(1)
-                GLES20.glGetProgramiv(program, GLES20.GL_LINK_STATUS, linkStatus, 0)
-                if (vertexShader != 0) {
-                    GLES20.glDetachShader(program, vertexShader)
-                    GLES20.glDeleteShader(vertexShader)
+        private const val TAG = "CubeGLRenderer"
+
+        fun createProgram(
+            vertexSource: String = VERTEX_SHADER_CODE,
+            fragmentSource: String = FRAGMENT_SHADER_CODE,
+            backend: GlShaderBackend = DefaultGLES20ShaderBackend,
+            onDiagnostic: ((String) -> Unit)? = null
+        ): Int {
+            val vertexShader = loadShader(GLES20.GL_VERTEX_SHADER, vertexSource, backend, onDiagnostic)
+            if (vertexShader == 0) {
+                return 0
+            }
+            val fragmentShader = loadShader(GLES20.GL_FRAGMENT_SHADER, fragmentSource, backend, onDiagnostic)
+            if (fragmentShader == 0) {
+                backend.glDeleteShader(vertexShader)
+                return 0
+            }
+            val program = backend.glCreateProgram()
+            if (program == 0) {
+                val msg = "Falha ao criar programa GLSL: glCreateProgram retornou 0."
+                android.util.Log.e(TAG, msg)
+                onDiagnostic?.invoke(msg)
+                backend.glDeleteShader(vertexShader)
+                backend.glDeleteShader(fragmentShader)
+                return 0
+            }
+            backend.glAttachShader(program, vertexShader)
+            backend.glAttachShader(program, fragmentShader)
+            backend.glLinkProgram(program)
+            val linkStatus = IntArray(1)
+            backend.glGetProgramiv(program, GLES20.GL_LINK_STATUS, linkStatus, 0)
+            backend.glDetachShader(program, vertexShader)
+            backend.glDeleteShader(vertexShader)
+            backend.glDetachShader(program, fragmentShader)
+            backend.glDeleteShader(fragmentShader)
+            if (linkStatus[0] == 0) {
+                val rawLog = backend.glGetProgramInfoLog(program)
+                val detail = if (rawLog.isNullOrBlank()) {
+                    "GL_LINK_STATUS=0 (sem detalhes retornados por glGetProgramInfoLog)"
+                } else {
+                    rawLog.trim()
                 }
-                if (fragmentShader != 0) {
-                    GLES20.glDetachShader(program, fragmentShader)
-                    GLES20.glDeleteShader(fragmentShader)
-                }
-                if (linkStatus[0] == 0) {
-                    val infoLog = GLES20.glGetProgramInfoLog(program)
-                    if (!infoLog.isNullOrEmpty()) {
-                        GLES20.glDeleteProgram(program)
-                        return 0
-                    }
-                }
+                val msg = "Falha na vinculação do programa GLSL (id=$program): $detail"
+                android.util.Log.e(TAG, msg)
+                onDiagnostic?.invoke(msg)
+                backend.glDeleteProgram(program)
+                return 0
             }
             return program
         }
 
-        private fun loadShader(type: Int, shaderCode: String): Int {
-            val shader = GLES20.glCreateShader(type)
-            if (shader != 0) {
-                GLES20.glShaderSource(shader, shaderCode)
-                GLES20.glCompileShader(shader)
-                val compiled = IntArray(1)
-                GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compiled, 0)
-                if (compiled[0] == 0) {
-                    val infoLog = GLES20.glGetShaderInfoLog(shader)
-                    if (!infoLog.isNullOrEmpty()) {
-                        GLES20.glDeleteShader(shader)
-                        return 0
-                    }
+        fun loadShader(
+            type: Int,
+            shaderCode: String,
+            backend: GlShaderBackend = DefaultGLES20ShaderBackend,
+            onDiagnostic: ((String) -> Unit)? = null
+        ): Int {
+            val shaderTypeName = when (type) {
+                GLES20.GL_VERTEX_SHADER -> "GL_VERTEX_SHADER"
+                GLES20.GL_FRAGMENT_SHADER -> "GL_FRAGMENT_SHADER"
+                else -> "GL_SHADER($type)"
+            }
+            val shader = backend.glCreateShader(type)
+            if (shader == 0) {
+                val msg = "Falha ao criar shader ($shaderTypeName): glCreateShader retornou 0."
+                android.util.Log.e(TAG, msg)
+                onDiagnostic?.invoke(msg)
+                return 0
+            }
+            backend.glShaderSource(shader, shaderCode)
+            backend.glCompileShader(shader)
+            val compiled = IntArray(1)
+            backend.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compiled, 0)
+            if (compiled[0] == 0) {
+                val rawLog = backend.glGetShaderInfoLog(shader)
+                val detail = if (rawLog.isNullOrBlank()) {
+                    "GL_COMPILE_STATUS=0 (sem detalhes retornados por glGetShaderInfoLog)"
+                } else {
+                    rawLog.trim()
                 }
+                val msg = "Falha na compilação de $shaderTypeName (id=$shader): $detail"
+                android.util.Log.e(TAG, msg)
+                onDiagnostic?.invoke(msg)
+                backend.glDeleteShader(shader)
+                return 0
             }
             return shader
         }

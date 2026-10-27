@@ -1524,14 +1524,26 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun stopAllAnimations() {
+    val activeDemoTargetEndIndexForAudit: Int?
+        get() = activeDemoTargetEndIndex
+
+    val activeDemoPhaseNumberForAudit: Int?
+        get() = activeDemoPhaseNumber
+
+    fun stopAllAnimations(preserveDemoPhaseConfig: Boolean = false) {
         lessonSessionEpoch++
         exploreSessionEpoch++
         homeSessionEpoch++
         notationSessionEpoch++
         pauseRequested = false
-        activeDemoTargetEndIndex = null
-        activeDemoPhaseNumber = null
+        val targetEnd = activeDemoTargetEndIndex
+        val shouldKeepPhaseConfig = preserveDemoPhaseConfig &&
+            targetEnd != null &&
+            _lessonState.value.currentMoveIndex < targetEnd
+        if (!shouldKeepPhaseConfig) {
+            activeDemoTargetEndIndex = null
+            activeDemoPhaseNumber = null
+        }
         lessonStepQueue.clear()
         practiceMoveQueue.clear()
         exploreMoveQueue.clear()
@@ -1567,12 +1579,14 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
      * Interrompe todas as animações em curso de maneira transacional, garantindo que:
      * - nenhuma corrotina continue emitindo quadros em background;
      * - nenhum movimento incompleto seja aplicado ao CubeState nem avance currentMoveIndex;
+     * - a configuração da fase pedagógica em andamento (Fase 1, Fase 2 ou sequência completa)
+     *   seja preservada para que o botão Reproduzir continue até o fim da fase correspondente;
      * - o estado matemático confirmado (CubeState, histórico e progresso DataStore) seja preservado
      *   integralmente para retomada previsível ao voltar para o primeiro plano.
      */
     fun onAppBackgrounded() {
         isAppInForeground = false
-        stopAllAnimations()
+        stopAllAnimations(preserveDemoPhaseConfig = true)
     }
 
     /**
