@@ -112,14 +112,47 @@ class CubeGLRenderer : GLSurfaceView.Renderer {
     @Volatile
     private var viewportHeight: Int = 1
 
+    @Volatile
+    var auditTelemetryEnabled: Boolean =
+        android.os.Build.FINGERPRINT.equals("robolectric", ignoreCase = true)
+        private set
+
+    var surfaceCreationCountForAudit: Int = 0
+        private set
+
+    var lastViewportDimensionsForAudit: Pair<Int, Int> = 360 to 360
+        private set
+
     private val recordedAnglesLock = Any()
-    private val recordedAnimationAngles = mutableListOf<Float>()
+    private val recordedAnimationAngles = ArrayDeque<Float>()
 
     private val projMatrix = FloatArray(16)
     private val viewMatrix = FloatArray(16)
     private val vpMatrix = FloatArray(16)
     private val invVpMatrix = FloatArray(16)
     private val vpLock = Any()
+
+    fun setAuditTelemetryEnabled(enabled: Boolean) {
+        auditTelemetryEnabled = enabled
+        if (!enabled) {
+            clearRecordedAnimationAnglesForAudit()
+        }
+    }
+
+    private fun recordAnimationAngleIfAuditEnabled(angleDegrees: Float, deduplicateLast: Boolean) {
+        if (!auditTelemetryEnabled) return
+        synchronized(recordedAnglesLock) {
+            if (deduplicateLast && recordedAnimationAngles.isNotEmpty() &&
+                abs(recordedAnimationAngles.last() - angleDegrees) < 1e-4f
+            ) {
+                return
+            }
+            if (recordedAnimationAngles.size >= MAX_AUDIT_RECORDED_ANGLES) {
+                recordedAnimationAngles.removeFirst()
+            }
+            recordedAnimationAngles.addLast(angleDegrees)
+        }
+    }
 
     fun onUserTouchStart() {
         isUserTouching = true
@@ -173,9 +206,7 @@ class CubeGLRenderer : GLSurfaceView.Renderer {
             }
         }
         if (newAnimation != null) {
-            synchronized(recordedAnglesLock) {
-                recordedAnimationAngles.add(newAnimation.currentAngleDegrees)
-            }
+            recordAnimationAngleIfAuditEnabled(newAnimation.currentAngleDegrees, deduplicateLast = false)
         }
     }
 
@@ -222,6 +253,7 @@ class CubeGLRenderer : GLSurfaceView.Renderer {
     fun configureViewport(width: Int, height: Int) {
         viewportWidth = width.coerceAtLeast(1)
         viewportHeight = height.coerceAtLeast(1)
+        lastViewportDimensionsForAudit = viewportWidth to viewportHeight
         val ratio = viewportWidth.toFloat() / viewportHeight.toFloat()
         // Garante que o campo de visão (FOV) mínimo (horizontal e vertical) seja sempre >= 40°,
         // mantendo o cubo 3D inteiramente visível tanto em telas retrato estreitas quanto em paisagem/tablets.
@@ -240,10 +272,13 @@ class CubeGLRenderer : GLSurfaceView.Renderer {
     }
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
+        surfaceCreationCountForAudit++
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
         GLES20.glDepthFunc(GLES20.GL_LEQUAL)
         GLES20.glDisable(GLES20.GL_CULL_FACE)
 
+        // Em OpenGL ES 2.0, onSurfaceCreated ocorre em um novo contexto EGL; nunca chame glDeleteProgram
+        // em IDs do contexto anterior já descartado. Recria o programa e atualiza os ponteiros de atributos/uniforms.
         shaderProgram = createProgram(VERTEX_SHADER_CODE, FRAGMENT_SHADER_CODE)
         aPositionLoc = GLES20.glGetAttribLocation(shaderProgram, "aPosition")
         aNormalLoc = GLES20.glGetAttribLocation(shaderProgram, "aNormal")
@@ -259,8 +294,10 @@ class CubeGLRenderer : GLSurfaceView.Renderer {
     }
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
-        GLES20.glViewport(0, 0, width.coerceAtLeast(1), height.coerceAtLeast(1))
-        configureViewport(width, height)
+        val safeW = width.coerceAtLeast(1)
+        val safeH = height.coerceAtLeast(1)
+        GLES20.glViewport(0, 0, safeW, safeH)
+        configureViewport(safeW, safeH)
     }
 
     private fun updateViewProjectionLocked() {
@@ -393,9 +430,7 @@ class CubeGLRenderer : GLSurfaceView.Renderer {
         }
 
         if (animSnapshot != null) {
-            synchronized(recordedAnglesLock) {
-                recordedAnimationAngles.add(animSnapshot.currentAngleDegrees)
-            }
+            recordAnimationAngleIfAuditEnabled(animSnapshot.currentAngleDegrees, deduplicateLast = true)
         }
 
         // Rotação automática permitida EXCLUSIVAMENTE quando autoRotateIdle == true (Home),
@@ -404,6 +439,10 @@ class CubeGLRenderer : GLSurfaceView.Renderer {
             android.os.SystemClock.uptimeMillis() >= resumeAutoRotateAfterUptimeMs
         ) {
             cameraYaw = (cameraYaw + 0.35f) % 360f
+        }
+
+        if (!::cubieBodyBuffer.isInitialized || stickerBuffers.size < CubeFace.entries.size) {
+            buildGeometryBuffers()
         }
 
         if (darkBgSnapshot) {
@@ -437,15 +476,17 @@ class CubeGLRenderer : GLSurfaceView.Renderer {
         val touchedHit = previewTouchHit
 
         for (cubie in stateSnapshot.cubies) {
-            val isRotatingNow = animSnapshot != null && animSnapshot.move.affectsCubie(cubie)
             Matrix.setIdentityM(layerRotMatrix, 0)
-            if (isRotatingNow && animSnapshot != null) {
+            val isRotatingNow = if (animSnapshot != null && animSnapshot.move.affectsCubie(cubie)) {
                 val angle = animSnapshot.currentAngleDegrees
                 when (animSnapshot.move.axis) {
                     RotationAxis.X -> Matrix.rotateM(layerRotMatrix, 0, angle, 1f, 0f, 0f)
                     RotationAxis.Y -> Matrix.rotateM(layerRotMatrix, 0, angle, 0f, 1f, 0f)
                     RotationAxis.Z -> Matrix.rotateM(layerRotMatrix, 0, angle, 0f, 0f, 1f)
                 }
+                true
+            } else {
+                false
             }
 
             Matrix.setIdentityM(translateMatrix, 0)
@@ -541,6 +582,19 @@ class CubeGLRenderer : GLSurfaceView.Renderer {
      * do corpo de cada peça (Cubie) e as placas octogonais em relevo dos 6 adesivos.
      */
     fun buildGeometryBuffers() {
+        // Reutiliza os FloatBuffers nativos (DirectByteBuffer) caso já estejam inicializados e íntegros,
+        // evitando realocação de memória nativa em múltiplas recriações de superfície (onSurfaceCreated).
+        if (::cubieBodyBuffer.isInitialized &&
+            cubieBodyVertexCount == 132 &&
+            stickerVertexCount == 24 &&
+            stickerBuffers.size == CubeFace.entries.size
+        ) {
+            cubieBodyBuffer.position(0)
+            for (buf in stickerBuffers.values) {
+                buf.position(0)
+            }
+            return
+        }
         val bodyVertices = mutableListOf<Float>()
         val half = 0.465f
         val bevel = 0.425f
@@ -1132,6 +1186,7 @@ class CubeGLRenderer : GLSurfaceView.Renderer {
         const val DEFAULT_DISTANCE = 7.6f
         const val MIN_DISTANCE = 5.4f
         const val MAX_DISTANCE = 10.5f
+        const val MAX_AUDIT_RECORDED_ANGLES = 1024
 
         private const val VERTEX_SHADER_CODE = """
             uniform mat4 uMVPMatrix;
@@ -1180,16 +1235,46 @@ class CubeGLRenderer : GLSurfaceView.Renderer {
             val vertexShader = loadShader(GLES20.GL_VERTEX_SHADER, vertexSource)
             val fragmentShader = loadShader(GLES20.GL_FRAGMENT_SHADER, fragmentSource)
             val program = GLES20.glCreateProgram()
-            GLES20.glAttachShader(program, vertexShader)
-            GLES20.glAttachShader(program, fragmentShader)
-            GLES20.glLinkProgram(program)
+            if (program != 0) {
+                if (vertexShader != 0) GLES20.glAttachShader(program, vertexShader)
+                if (fragmentShader != 0) GLES20.glAttachShader(program, fragmentShader)
+                GLES20.glLinkProgram(program)
+                val linkStatus = IntArray(1)
+                GLES20.glGetProgramiv(program, GLES20.GL_LINK_STATUS, linkStatus, 0)
+                if (vertexShader != 0) {
+                    GLES20.glDetachShader(program, vertexShader)
+                    GLES20.glDeleteShader(vertexShader)
+                }
+                if (fragmentShader != 0) {
+                    GLES20.glDetachShader(program, fragmentShader)
+                    GLES20.glDeleteShader(fragmentShader)
+                }
+                if (linkStatus[0] == 0) {
+                    val infoLog = GLES20.glGetProgramInfoLog(program)
+                    if (!infoLog.isNullOrEmpty()) {
+                        GLES20.glDeleteProgram(program)
+                        return 0
+                    }
+                }
+            }
             return program
         }
 
         private fun loadShader(type: Int, shaderCode: String): Int {
             val shader = GLES20.glCreateShader(type)
-            GLES20.glShaderSource(shader, shaderCode)
-            GLES20.glCompileShader(shader)
+            if (shader != 0) {
+                GLES20.glShaderSource(shader, shaderCode)
+                GLES20.glCompileShader(shader)
+                val compiled = IntArray(1)
+                GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compiled, 0)
+                if (compiled[0] == 0) {
+                    val infoLog = GLES20.glGetShaderInfoLog(shader)
+                    if (!infoLog.isNullOrEmpty()) {
+                        GLES20.glDeleteShader(shader)
+                        return 0
+                    }
+                }
+            }
             return shader
         }
     }

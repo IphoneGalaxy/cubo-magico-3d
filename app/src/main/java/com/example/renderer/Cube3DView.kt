@@ -50,6 +50,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.curriculum.HighlightMode
 import com.example.model.CubeMove
 import com.example.model.CubeState
@@ -472,6 +475,11 @@ fun InteractiveCube3DView(
         Build.FINGERPRINT.equals("robolectric", ignoreCase = true)
     }
 
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var isLifecycleResumed by remember(lifecycleOwner) {
+        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+    }
+
     val renderer = remember { CubeGLRenderer() }
     var glSurfaceViewRef by remember { mutableStateOf<CubeTouchGLSurfaceView?>(null) }
     var localResetCount by remember { mutableIntStateOf(0) }
@@ -492,19 +500,19 @@ fun InteractiveCube3DView(
             newHighlightMode = highlightMode,
             newHighlightEnabled = highlightEnabled,
             newIsDarkBackground = isDarkTheme,
-            newAutoRotateIdle = autoRotateIdle,
+            newAutoRotateIdle = autoRotateIdle && isLifecycleResumed,
             newCelebrationPulse = celebrationPulse
         )
         glSurfaceViewRef?.let { glView ->
-            val desiredMode = if (autoRotateIdle || activeAnimation != null || celebrationPulse > 0f) {
+            val desiredMode = if (isLifecycleResumed && (autoRotateIdle || activeAnimation != null || celebrationPulse > 0f)) {
                 GLSurfaceView.RENDERMODE_CONTINUOUSLY
             } else {
                 GLSurfaceView.RENDERMODE_WHEN_DIRTY
             }
-            if (glView.renderMode != desiredMode) {
-                glView.renderMode = desiredMode
+            glView.updateDesiredRenderMode(desiredMode)
+            if (isLifecycleResumed) {
+                glView.requestRender()
             }
-            glView.requestRender()
         }
     }
 
@@ -548,7 +556,7 @@ fun InteractiveCube3DView(
                         newHighlightMode = highlightMode,
                         newHighlightEnabled = highlightEnabled,
                         newIsDarkBackground = isDarkTheme,
-                        newAutoRotateIdle = autoRotateIdle,
+                        newAutoRotateIdle = autoRotateIdle && isLifecycleResumed,
                         newCelebrationPulse = celebrationPulse
                     )
                     CubeTouchGLSurfaceView(
@@ -559,6 +567,15 @@ fun InteractiveCube3DView(
                         touchModeProvider = { currentTouchMode },
                         onSwipeMove = { move -> currentOnMoveSwiped(move) }
                     ).also { glView ->
+                        val initialDesiredMode = if (autoRotateIdle || activeAnimation != null || celebrationPulse > 0f) {
+                            GLSurfaceView.RENDERMODE_CONTINUOUSLY
+                        } else {
+                            GLSurfaceView.RENDERMODE_WHEN_DIRTY
+                        }
+                        glView.updateDesiredRenderMode(initialDesiredMode)
+                        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                            glView.handleLifecycleResume()
+                        }
                         glSurfaceViewRef = glView
                     }
                 },
@@ -569,13 +586,6 @@ fun InteractiveCube3DView(
                 },
                 modifier = Modifier.fillMaxSize()
             )
-
-            DisposableEffect(Unit) {
-                glSurfaceViewRef?.onResume()
-                onDispose {
-                    glSurfaceViewRef?.onPause()
-                }
-            }
         } else {
             // Ambiente de teste local JVM (Robolectric): exibe marcador determinístico sem exigir GPU EGL nativa
             Box(
@@ -588,6 +598,41 @@ fun InteractiveCube3DView(
                     text = "Cubo 3D (${cubeState.cubies.size} peças)",
                     style = MaterialTheme.typography.labelLarge
                 )
+            }
+        }
+
+        DisposableEffect(lifecycleOwner, glSurfaceViewRef) {
+            val observer = LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_START, Lifecycle.Event.ON_RESUME -> {
+                        isLifecycleResumed = true
+                        glSurfaceViewRef?.handleLifecycleResume()
+                    }
+                    Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP, Lifecycle.Event.ON_DESTROY -> {
+                        isLifecycleResumed = false
+                        renderer.syncSceneState(
+                            newCubeState = renderer.cubeState,
+                            newAnimation = null,
+                            newGuidedMove = renderer.guidedMove,
+                            newHighlightMode = renderer.highlightMode,
+                            newHighlightEnabled = renderer.highlightEnabled,
+                            newIsDarkBackground = renderer.isDarkBackground,
+                            newAutoRotateIdle = false,
+                            newCelebrationPulse = 0f
+                        )
+                        glSurfaceViewRef?.handleLifecyclePause()
+                    }
+                    else -> Unit
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                isLifecycleResumed = true
+                glSurfaceViewRef?.handleLifecycleResume()
+            }
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+                glSurfaceViewRef?.handleLifecyclePause()
             }
         }
 
@@ -850,17 +895,95 @@ class CubeTouchGLSurfaceView(
         isQuickScaleEnabled = false
     }
 
+    var isGlSurfaceResumed: Boolean = false
+        private set
+
+    var resumeCallCountForAudit: Int = 0
+        private set
+
+    var pauseCallCountForAudit: Int = 0
+        private set
+
+    var effectiveRenderModeForAudit: Int = RENDERMODE_WHEN_DIRTY
+        private set
+
+    private var desiredForegroundRenderMode: Int = RENDERMODE_CONTINUOUSLY
+
     init {
         if (!isRobolectricEnv) {
             setEGLContextClientVersion(2)
             setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+            preserveEGLContextOnPause = true
             setRenderer(cubeRenderer)
-            renderMode = RENDERMODE_CONTINUOUSLY
+            renderMode = RENDERMODE_WHEN_DIRTY
         }
     }
 
-    override fun requestRender() {
+    private fun applyRenderModeInternal(mode: Int) {
+        effectiveRenderModeForAudit = mode
+        if (!isRobolectricEnv && renderMode != mode) {
+            renderMode = mode
+        }
+    }
+
+    fun updateDesiredRenderMode(mode: Int) {
+        desiredForegroundRenderMode = mode
+        val targetMode = if (isGlSurfaceResumed) mode else RENDERMODE_WHEN_DIRTY
+        applyRenderModeInternal(targetMode)
+    }
+
+    /**
+     * Retoma a GLThread de maneira idempotente, evitando chamadas duplicadas a [onResume]
+     * e restaurando o modo de renderização adequado ao primeiro plano.
+     */
+    fun handleLifecycleResume() {
+        if (isGlSurfaceResumed) {
+            applyRenderModeInternal(desiredForegroundRenderMode)
+            return
+        }
+        isGlSurfaceResumed = true
+        resumeCallCountForAudit++
         if (!isRobolectricEnv) {
+            super.onResume()
+        }
+        applyRenderModeInternal(desiredForegroundRenderMode)
+        requestRender()
+    }
+
+    /**
+     * Pausa a GLThread de maneira idempotente, encerrando gestos ativos, rebaixando
+     * [renderMode] para [RENDERMODE_WHEN_DIRTY] e evitando chamadas duplicadas a [onPause].
+     */
+    fun handleLifecyclePause() {
+        cancelActiveTouchInteraction()
+        applyRenderModeInternal(RENDERMODE_WHEN_DIRTY)
+        if (!isGlSurfaceResumed) return
+        isGlSurfaceResumed = false
+        pauseCallCountForAudit++
+        if (!isRobolectricEnv) {
+            super.onPause()
+        }
+    }
+
+    fun cancelActiveTouchInteraction() {
+        activePointerId = MotionEvent.INVALID_POINTER_ID
+        activePointerCount = 0
+        effectivePointersInCurrentEvent = 0
+        scaleAppliedInCurrentEvent = false
+        pinchInProgress = false
+        initialPinchSpan = 0f
+        lastPinchSpan = 0f
+        parent?.requestDisallowInterceptTouchEvent(false)
+        arbiter.onUpOrCancel()
+    }
+
+    override fun onDetachedFromWindow() {
+        handleLifecyclePause()
+        super.onDetachedFromWindow()
+    }
+
+    override fun requestRender() {
+        if (!isRobolectricEnv && isGlSurfaceResumed) {
             super.requestRender()
         }
     }
@@ -1043,13 +1166,7 @@ class CubeTouchGLSurfaceView(
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                activePointerId = MotionEvent.INVALID_POINTER_ID
-                activePointerCount = 0
-                pinchInProgress = false
-                initialPinchSpan = 0f
-                lastPinchSpan = 0f
-                parent?.requestDisallowInterceptTouchEvent(false)
-                arbiter.onUpOrCancel()
+                cancelActiveTouchInteraction()
             }
         }
         return true

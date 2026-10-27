@@ -108,6 +108,8 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         const val MANUAL_MOVE_90_DURATION_MS = 320L
         const val MANUAL_MOVE_180_DURATION_MS = 420L
         const val MANUAL_UNDO_DURATION_MS = 280L
+        const val MAX_AUDIT_RECORDED_FRAMES = 1024
+        const val MAX_AUDIT_COMMITTED_MOVES = 512
     }
 
     private enum class LessonStepCommand {
@@ -176,18 +178,32 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         android.os.Build.FINGERPRINT.equals("robolectric", ignoreCase = true)
 
     /**
+     * Indica se o aplicativo encontra-se em primeiro plano (entre ON_RESUME e ON_PAUSE).
+     */
+    var isAppInForeground: Boolean = true
+        private set
+
+    /**
+     * Controla se os históricos de telemetria de auditoria estão ativos.
+     * Desativado por padrão em produção Android real para evitar acúmulo de memória;
+     * ativado em ambiente de teste JVM (Robolectric) com limite máximo estrito (ring buffer).
+     */
+    var auditTelemetryEnabled: Boolean = isHeadlessTest
+        private set
+
+    /**
      * Permite habilitar a execução completa quadro a quadro (0%..25%..50%..75%..100%) em testes de auditoria,
      * mantendo os testes de UI rápidos por padrão.
      */
     var forceMultiFrameAnimationInTest: Boolean = false
 
     /**
-     * Histórico auditável de quadros intermediários emitidos pelo ViewModel antes de aplicar o movimento ao CubeState.
+     * Histórico auditável limitado de quadros intermediários emitidos pelo ViewModel antes de aplicar o movimento ao CubeState.
      */
     val recordedAnimationFramesForAudit = mutableListOf<ActiveLayerAnimation>()
 
     /**
-     * Histórico auditável dos movimentos efetivamente consolidados no CubeState da aula (em ordem de commit).
+     * Histórico auditável limitado dos movimentos efetivamente consolidados no CubeState da aula (em ordem de commit).
      */
     val committedLessonMovesForAudit = mutableListOf<CubeMove>()
 
@@ -196,6 +212,35 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
      * em marcos exatos de progresso (0%, 25%, 50%, 75%, 100%).
      */
     var onAnimationFrameEmitted: ((move: CubeMove, frame: Int, totalFrames: Int, progress: Float) -> Unit)? = null
+
+    fun setAuditTelemetryEnabled(enabled: Boolean) {
+        auditTelemetryEnabled = enabled
+        if (!enabled) {
+            clearAuditTelemetry()
+        }
+    }
+
+    fun clearAuditTelemetry() {
+        recordedAnimationFramesForAudit.clear()
+        committedLessonMovesForAudit.clear()
+        onAnimationFrameEmitted = null
+    }
+
+    private fun recordAuditFrame(anim: ActiveLayerAnimation) {
+        if (!auditTelemetryEnabled) return
+        if (recordedAnimationFramesForAudit.size >= MAX_AUDIT_RECORDED_FRAMES) {
+            recordedAnimationFramesForAudit.removeAt(0)
+        }
+        recordedAnimationFramesForAudit.add(anim)
+    }
+
+    private fun recordAuditCommittedMove(move: CubeMove) {
+        if (!auditTelemetryEnabled) return
+        if (committedLessonMovesForAudit.size >= MAX_AUDIT_COMMITTED_MOVES) {
+            committedLessonMovesForAudit.removeAt(0)
+        }
+        committedLessonMovesForAudit.add(move)
+    }
 
     private val shouldSkipAnimationLoop: Boolean
         get() = isHeadlessTest && !forceMultiFrameAnimationInTest
@@ -303,7 +348,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                 for (i in 0..steps) {
                     if (!isActive || epoch != notationSessionEpoch) return@launch
                     val anim = ActiveLayerAnimation(move, i.toFloat() / steps)
-                    recordedAnimationFramesForAudit.add(anim)
+                    recordAuditFrame(anim)
                     _notationPreviewAnim.value = anim
                     if (i < steps) {
                         delay(frameMs)
@@ -1125,7 +1170,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                 }
                 val progress = frame.toFloat() / totalFrames.toFloat()
                 val anim = ActiveLayerAnimation(move, progress)
-                recordedAnimationFramesForAudit.add(anim)
+                recordAuditFrame(anim)
                 _lessonState.update {
                     it.copy(activeAnimation = anim)
                 }
@@ -1144,7 +1189,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
             return false
         }
 
-        committedLessonMovesForAudit.add(move)
+        recordAuditCommittedMove(move)
         _lessonState.update { current ->
             if (onCommitState != null) {
                 onCommitState(current)
@@ -1329,7 +1374,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                 }
                 val progress = frame.toFloat() / totalFrames.toFloat()
                 val anim = ActiveLayerAnimation(move, progress)
-                recordedAnimationFramesForAudit.add(anim)
+                recordAuditFrame(anim)
                 _exploreState.update {
                     it.copy(activeAnimation = anim)
                 }
@@ -1430,7 +1475,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                 }
                 val progress = frame.toFloat() / totalFrames.toFloat()
                 val anim = ActiveLayerAnimation(move, progress)
-                recordedAnimationFramesForAudit.add(anim)
+                recordAuditFrame(anim)
                 _homePreviewState.update {
                     it.copy(activeAnimation = anim)
                 }
@@ -1517,8 +1562,29 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         _notationPreviewAnim.value = null
     }
 
+    /**
+     * Chamado quando o aplicativo entra em segundo plano (ON_PAUSE / ON_STOP).
+     * Interrompe todas as animações em curso de maneira transacional, garantindo que:
+     * - nenhuma corrotina continue emitindo quadros em background;
+     * - nenhum movimento incompleto seja aplicado ao CubeState nem avance currentMoveIndex;
+     * - o estado matemático confirmado (CubeState, histórico e progresso DataStore) seja preservado
+     *   integralmente para retomada previsível ao voltar para o primeiro plano.
+     */
+    fun onAppBackgrounded() {
+        isAppInForeground = false
+        stopAllAnimations()
+    }
+
+    /**
+     * Chamado quando o aplicativo retorna ao primeiro plano (ON_RESUME).
+     */
+    fun onAppForegrounded() {
+        isAppInForeground = true
+    }
+
     override fun onCleared() {
         stopAllAnimations()
+        clearAuditTelemetry()
         super.onCleared()
     }
 }
