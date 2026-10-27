@@ -53,7 +53,9 @@ data class LessonUiState(
     val cubeState: CubeState = CurriculumRepository.steps.first().cases.first().createInitialState(),
     val activeAnimation: ActiveLayerAnimation? = null,
     val currentMoveIndex: Int = -1,
+    val executingMoveIndex: Int? = null,
     val isPlayingDemo: Boolean = false,
+    val isPausePending: Boolean = false,
     val practiceMoveHistory: List<CubeMove> = emptyList(),
     val isPracticeGoalAchieved: Boolean = false,
     val isDemoCompleted: Boolean = false,
@@ -71,11 +73,14 @@ data class LessonUiState(
 
     val demoMoves: List<CubeMove> = currentCase.fullMoveList
 
+    val visualMoveIndex: Int
+        get() = executingMoveIndex ?: currentMoveIndex
+
     val guidedMoveForHighlight: CubeMove?
         get() = when {
             activeAnimation != null -> activeAnimation.move
-            mode == LearningMode.LEARN && currentMoveIndex in demoMoves.indices -> demoMoves[currentMoveIndex]
-            mode == LearningMode.LEARN && currentMoveIndex == -1 && demoMoves.isNotEmpty() -> demoMoves.first()
+            mode == LearningMode.LEARN && visualMoveIndex in demoMoves.indices -> demoMoves[visualMoveIndex]
+            mode == LearningMode.LEARN && visualMoveIndex == -1 && demoMoves.isNotEmpty() -> demoMoves.first()
             else -> selectedNotationMoveInfo
         }
 }
@@ -103,6 +108,11 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         const val MANUAL_MOVE_90_DURATION_MS = 320L
         const val MANUAL_MOVE_180_DURATION_MS = 420L
         const val MANUAL_UNDO_DURATION_MS = 280L
+    }
+
+    private enum class LessonStepCommand {
+        FORWARD,
+        BACKWARD
     }
 
     private val progressRepository = ProgressRepository(application.applicationContext)
@@ -147,7 +157,17 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
     private var notationPreviewJob: Job? = null
     private var celebrationJob: Job? = null
 
-    // Filas seguras para não perder movimentos repetidos durante animações
+    // Controle transacional de época e pausa para impedir dessincronizações e corrotinas órfãs
+    private var lessonSessionEpoch: Long = 0L
+    private var exploreSessionEpoch: Long = 0L
+    private var homeSessionEpoch: Long = 0L
+    private var notationSessionEpoch: Long = 0L
+    private var pauseRequested: Boolean = false
+    private var activeDemoTargetEndIndex: Int? = null
+    private var activeDemoPhaseNumber: Int? = null
+
+    // Filas seguras para serializar comandos rápidos sem perder nem duplicar movimentos
+    private val lessonStepQueue = ArrayDeque<LessonStepCommand>()
     private val practiceMoveQueue = ArrayDeque<CubeMove>()
     private val exploreMoveQueue = ArrayDeque<CubeMove>()
     private val homeMoveQueue = ArrayDeque<CubeMove>()
@@ -165,6 +185,17 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
      * Histórico auditável de quadros intermediários emitidos pelo ViewModel antes de aplicar o movimento ao CubeState.
      */
     val recordedAnimationFramesForAudit = mutableListOf<ActiveLayerAnimation>()
+
+    /**
+     * Histórico auditável dos movimentos efetivamente consolidados no CubeState da aula (em ordem de commit).
+     */
+    val committedLessonMovesForAudit = mutableListOf<CubeMove>()
+
+    /**
+     * Callback opcional de instrumentação para testes determinísticos inspecionarem/interromperem
+     * em marcos exatos de progresso (0%, 25%, 50%, 75%, 100%).
+     */
+    var onAnimationFrameEmitted: ((move: CubeMove, frame: Int, totalFrames: Int, progress: Float) -> Unit)? = null
 
     private val shouldSkipAnimationLoop: Boolean
         get() = isHeadlessTest && !forceMultiFrameAnimationInTest
@@ -210,7 +241,9 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
             cubeState = initialCube,
             activeAnimation = null,
             currentMoveIndex = -1,
+            executingMoveIndex = null,
             isPlayingDemo = false,
+            isPausePending = false,
             practiceMoveHistory = emptyList(),
             isPracticeGoalAchieved = false,
             isDemoCompleted = false,
@@ -238,19 +271,25 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         if (visible) {
             triggerNotationPreview(_notationPreviewMove.value)
         } else {
+            notationSessionEpoch++
             notationPreviewJob?.cancel()
+            notationPreviewJob = null
             _notationPreviewAnim.value = null
         }
     }
 
     fun resetNotationPreviewCube() {
+        notationSessionEpoch++
         notationPreviewJob?.cancel()
+        notationPreviewJob = null
         _notationPreviewAnim.value = null
         _notationPreviewCube.value = CubeState.createSolved()
         _notationCameraResetCounter.value = _notationCameraResetCounter.value + 1
     }
 
     fun triggerNotationPreview(move: CubeMove) {
+        notationSessionEpoch++
+        val epoch = notationSessionEpoch
         notationPreviewJob?.cancel()
         _notationPreviewMove.value = move
         _notationPreviewCube.value = CubeState.createSolved()
@@ -262,13 +301,16 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                 val frameMs = 16L
                 val steps = (durationMs / frameMs).toInt().coerceAtLeast(16)
                 for (i in 0..steps) {
-                    if (!isActive) return@launch
+                    if (!isActive || epoch != notationSessionEpoch) return@launch
                     val anim = ActiveLayerAnimation(move, i.toFloat() / steps)
                     recordedAnimationFramesForAudit.add(anim)
                     _notationPreviewAnim.value = anim
-                    delay(frameMs)
+                    if (i < steps) {
+                        delay(frameMs)
+                    }
                 }
             }
+            if (!isActive || epoch != notationSessionEpoch) return@launch
             _notationPreviewAnim.value = null
             _notationPreviewCube.value = _notationPreviewCube.value.applyMove(move)
         }
@@ -337,8 +379,23 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         _lessonState.update { it.copy(isPracticeMovesExpanded = !it.isPracticeMovesExpanded) }
     }
 
+    private fun cancelLessonJobsForReset() {
+        lessonSessionEpoch++
+        pauseRequested = false
+        activeDemoTargetEndIndex = null
+        activeDemoPhaseNumber = null
+        lessonStepQueue.clear()
+        practiceMoveQueue.clear()
+        demoJob?.cancel()
+        demoJob = null
+        singleMoveJob?.cancel()
+        singleMoveJob = null
+        celebrationJob?.cancel()
+        celebrationJob = null
+    }
+
     fun resetLessonCube() {
-        stopAllAnimations()
+        cancelLessonJobsForReset()
         val current = _lessonState.value
         val freshCube = current.currentCase.createInitialState()
         _lessonState.update {
@@ -346,7 +403,9 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                 cubeState = freshCube,
                 activeAnimation = null,
                 currentMoveIndex = -1,
+                executingMoveIndex = null,
                 isPlayingDemo = false,
+                isPausePending = false,
                 practiceMoveHistory = emptyList(),
                 isPracticeGoalAchieved = false,
                 isDemoCompleted = false,
@@ -376,30 +435,70 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
             pauseDemo()
             return
         }
-        startDemoPlayback(restartIfCompleted = true)
+        startDemoPlayback(
+            restartIfCompleted = true,
+            targetEndIndex = activeDemoTargetEndIndex,
+            phaseNumber = activeDemoPhaseNumber
+        )
     }
 
+    /**
+     * Pausa determinística e transacional:
+     * - Se chamada antes do primeiro movimento (progress == 0f) ou no intervalo entre movimentos,
+     *   interrompe imediatamente sem iniciar o próximo movimento.
+     * - Se chamada durante uma rotação física em andamento (0% < progress <= 100%), sinaliza
+     *   [pauseRequested] para finalizar com segurança o movimento atual até 100%, consolidá-lo
+     *   uma única vez no [CubeState] e permanecer pausado antes do próximo movimento.
+     */
     fun pauseDemo() {
-        demoJob?.cancel()
-        singleMoveJob?.cancel()
-        _lessonState.update { it.copy(isPlayingDemo = false, activeAnimation = null) }
+        val snap = _lessonState.value
+        val anim = snap.activeAnimation
+        val isMidMove = demoJob?.isActive == true &&
+            snap.executingMoveIndex != null &&
+            anim != null &&
+            anim.progress > 0f
+
+        if (isMidMove) {
+            pauseRequested = true
+            _lessonState.update {
+                it.copy(
+                    isPlayingDemo = false,
+                    isPausePending = true
+                )
+            }
+        } else {
+            pauseRequested = false
+            demoJob?.cancel()
+            demoJob = null
+            _lessonState.update {
+                it.copy(
+                    isPlayingDemo = false,
+                    isPausePending = false,
+                    activeAnimation = null,
+                    executingMoveIndex = null
+                )
+            }
+        }
     }
 
     fun repeatDemoSequence() {
         resetLessonCube()
-        startDemoPlayback(restartIfCompleted = false)
+        startDemoPlayback(restartIfCompleted = false, targetEndIndex = null, phaseNumber = null)
     }
 
     /**
      * Executa uma fase pedagógica específica do caso atual (ex.: Fase 1 ou Fase 2 do Caso 2 da Etapa 4).
-     * - Fase 1 (phaseNumber = 1): Inicia a partir da Linha Horizontal e executa os 6 primeiros movimentos (F U R U' R' F'),
-     *   parando na configuração intermediária em formato de L.
+     * - phaseNumber = 0: Executa a demonstração completa das 2 fases desde o início.
+     * - Fase 1 (phaseNumber = 1): Inicia a partir da Linha Horizontal (ou retoma se pausada no meio da Fase 1)
+     *   e executa os 6 primeiros movimentos (F U R U' R' F'), parando na configuração intermediária em formato de L.
      * - Fase 2 (phaseNumber = 2): Se o cubo já estiver na configuração intermediária de L (ou em andamento na Fase 2),
      *   executa os 6 movimentos seguintes (F U R U' R' F') SEM restaurar ou reinicializar o cubo até formar a Cruz Amarela.
      */
     fun playDemoPhase(phaseNumber: Int) {
-        demoJob?.cancel()
-        singleMoveJob?.cancel()
+        if (phaseNumber == 0) {
+            repeatDemoSequence()
+            return
+        }
 
         val current = _lessonState.value
         val phases = current.currentCase.pedagogicalPhases
@@ -407,33 +506,56 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         val moves = current.demoMoves
         if (moves.isEmpty()) return
 
-        if (phaseNumber == 1) {
-            val freshCube = current.currentCase.createInitialState()
-            _lessonState.update {
-                it.copy(
-                    cubeState = freshCube,
-                    activeAnimation = null,
-                    currentMoveIndex = -1,
-                    isPlayingDemo = true,
-                    isDemoCompleted = false,
-                    celebrationPulse = 0f,
-                    feedbackMessage = targetPhase.executionBannerText
-                )
-            }
-        } else {
-            val expectedStartIdx = targetPhase.startMoveIndex - 1
-            val canContinueWithoutReset =
-                current.currentMoveIndex in expectedStartIdx until targetPhase.endMoveIndex
-            if (!canContinueWithoutReset) {
-                val stateAtPhaseStart = current.currentCase
-                    .createInitialState()
-                    .applyMoves(moves.take(targetPhase.startMoveIndex))
+        // Se já estiver reproduzindo exatamente esta fase, evita duplicação; se estiver em pause-pending, retoma
+        if (demoJob?.isActive == true && activeDemoPhaseNumber == phaseNumber) {
+            if (pauseRequested) {
+                pauseRequested = false
                 _lessonState.update {
                     it.copy(
-                        cubeState = stateAtPhaseStart,
-                        activeAnimation = null,
-                        currentMoveIndex = expectedStartIdx,
                         isPlayingDemo = true,
+                        isPausePending = false,
+                        feedbackMessage = targetPhase.executionBannerText
+                    )
+                }
+            }
+            return
+        }
+
+        // Se outro movimento não pertencente ao início desta fase estiver em andamento, cancela com segurança
+        val isFinishingPreviousPhaseEnd =
+            (demoJob?.isActive == true || singleMoveJob?.isActive == true) &&
+                current.executingMoveIndex == targetPhase.startMoveIndex - 1
+
+        if (!isFinishingPreviousPhaseEnd) {
+            // Se estiver no meio de uma animação que precisa ser reiniciada para outra fase, cancela
+            val anim = current.activeAnimation
+            if (anim == null || anim.progress <= 0f || activeDemoPhaseNumber != phaseNumber) {
+                cancelLessonJobsForReset()
+            }
+        } else {
+            pauseRequested = true
+            lessonStepQueue.clear()
+        }
+
+        val snapAfterCancel = _lessonState.value
+        val initialCube = snapAfterCancel.currentCase.createInitialState()
+
+        if (phaseNumber == 1) {
+            val expectedCubeAtCurrent = if (snapAfterCancel.currentMoveIndex in 0 until targetPhase.endMoveIndex) {
+                initialCube.applyMoves(moves.take(snapAfterCancel.currentMoveIndex + 1))
+            } else {
+                null
+            }
+            val canResumeMidPhase1 = expectedCubeAtCurrent != null && snapAfterCancel.cubeState == expectedCubeAtCurrent
+            if (!canResumeMidPhase1) {
+                _lessonState.update {
+                    it.copy(
+                        cubeState = initialCube,
+                        activeAnimation = null,
+                        currentMoveIndex = -1,
+                        executingMoveIndex = null,
+                        isPlayingDemo = true,
+                        isPausePending = false,
                         isDemoCompleted = false,
                         celebrationPulse = 0f,
                         feedbackMessage = targetPhase.executionBannerText
@@ -443,7 +565,45 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                 _lessonState.update {
                     it.copy(
                         activeAnimation = null,
+                        executingMoveIndex = null,
                         isPlayingDemo = true,
+                        isPausePending = false,
+                        isDemoCompleted = false,
+                        feedbackMessage = targetPhase.executionBannerText
+                    )
+                }
+            }
+        } else {
+            val expectedStartIdx = targetPhase.startMoveIndex - 1
+            val canContinueWithoutReset = if (isFinishingPreviousPhaseEnd) {
+                true
+            } else if (snapAfterCancel.currentMoveIndex in expectedStartIdx until targetPhase.endMoveIndex) {
+                val expectedCube = initialCube.applyMoves(moves.take(snapAfterCancel.currentMoveIndex + 1))
+                snapAfterCancel.cubeState == expectedCube
+            } else {
+                false
+            }
+
+            if (!canContinueWithoutReset) {
+                val stateAtPhaseStart = initialCube.applyMoves(moves.take(targetPhase.startMoveIndex))
+                _lessonState.update {
+                    it.copy(
+                        cubeState = stateAtPhaseStart,
+                        activeAnimation = null,
+                        currentMoveIndex = expectedStartIdx,
+                        executingMoveIndex = null,
+                        isPlayingDemo = true,
+                        isPausePending = false,
+                        isDemoCompleted = false,
+                        celebrationPulse = 0f,
+                        feedbackMessage = targetPhase.executionBannerText
+                    )
+                }
+            } else {
+                _lessonState.update {
+                    it.copy(
+                        isPlayingDemo = true,
+                        isPausePending = false,
                         isDemoCompleted = false,
                         feedbackMessage = targetPhase.executionBannerText
                     )
@@ -451,118 +611,183 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
             }
         }
 
-        demoJob = viewModelScope.launch {
-            while (isActive) {
-                val snap = _lessonState.value
-                val nextIndex = snap.currentMoveIndex + 1
-                if (nextIndex > targetPhase.endMoveIndex || nextIndex > moves.lastIndex) {
-                    val isFinalMove = targetPhase.endMoveIndex >= moves.lastIndex
-                    _lessonState.update {
-                        it.copy(
-                            isPlayingDemo = false,
-                            activeAnimation = null,
-                            isDemoCompleted = isFinalMove,
-                            feedbackMessage = if (isFinalMove) {
-                                "Demonstração concluída."
-                            } else {
-                                targetPhase.completionSummaryText
-                            }
-                        )
-                    }
-                    break
-                }
-
-                val move = moves[nextIndex]
-                _lessonState.update {
-                    it.copy(
-                        currentMoveIndex = nextIndex,
-                        selectedNotationMoveInfo = move,
-                        feedbackMessage = "Movimento ${nextIndex + 1}/${moves.size}: ${move.notation}"
-                    )
-                }
-
-                animateLessonMoveInternal(move)
-
-                if (nextIndex == targetPhase.endMoveIndex) {
-                    val isFinalMove = targetPhase.endMoveIndex >= moves.lastIndex
-                    _lessonState.update {
-                        it.copy(
-                            isPlayingDemo = false,
-                            activeAnimation = null,
-                            isDemoCompleted = isFinalMove,
-                            feedbackMessage = if (isFinalMove) {
-                                "Demonstração concluída."
-                            } else {
-                                targetPhase.completionSummaryText
-                            }
-                        )
-                    }
-                    break
-                }
-
-                val speed = progressState.value.animationSpeedMultiplier.coerceIn(0.4f, 2.0f)
-                val pauseMs = (300L / speed).toLong().coerceAtLeast(110L)
-                delay(pauseMs)
-            }
-        }
+        startDemoPlayback(
+            restartIfCompleted = false,
+            targetEndIndex = targetPhase.endMoveIndex,
+            phaseNumber = phaseNumber
+        )
     }
 
-    private fun startDemoPlayback(restartIfCompleted: Boolean) {
-        demoJob?.cancel()
-        singleMoveJob?.cancel()
-
+    private fun startDemoPlayback(
+        restartIfCompleted: Boolean,
+        targetEndIndex: Int? = null,
+        phaseNumber: Int? = null
+    ) {
         val current = _lessonState.value
+        if (current.mode != LearningMode.LEARN) return
         val moves = current.demoMoves
         val phases = current.currentCase.pedagogicalPhases
         if (moves.isEmpty()) return
 
-        if (restartIfCompleted && (current.isDemoCompleted || current.currentMoveIndex >= moves.lastIndex)) {
+        val effectiveEndIndex = (targetEndIndex ?: moves.lastIndex).coerceIn(0, moves.lastIndex)
+
+        // Se já houver um demoJob em execução:
+        if (demoJob?.isActive == true) {
+            if (pauseRequested) {
+                // O usuário havia solicitado pausa durante uma rotação física e clicou em Reproduzir antes do término:
+                // cancela o pedido de pausa para continuar perfeitamente após o movimento em curso!
+                pauseRequested = false
+                activeDemoTargetEndIndex = effectiveEndIndex
+                activeDemoPhaseNumber = phaseNumber
+                _lessonState.update {
+                    it.copy(
+                        isPlayingDemo = true,
+                        isPausePending = false
+                    )
+                }
+            }
+            return
+        }
+
+        // Remove passos manuais ainda não iniciados na fila, mas aguarda qualquer passo único já em rotação terminar
+        lessonStepQueue.clear()
+        val inFlightSingleMoveJob = singleMoveJob
+
+        if (restartIfCompleted &&
+            inFlightSingleMoveJob?.isActive != true &&
+            (current.isDemoCompleted || current.currentMoveIndex >= effectiveEndIndex)
+        ) {
             val freshCube = current.currentCase.createInitialState()
+            activeDemoTargetEndIndex = moves.lastIndex
+            activeDemoPhaseNumber = null
             _lessonState.update {
                 it.copy(
                     cubeState = freshCube,
+                    activeAnimation = null,
                     currentMoveIndex = -1,
+                    executingMoveIndex = null,
                     isDemoCompleted = false,
                     celebrationPulse = 0f,
                     feedbackMessage = null
                 )
             }
+        } else {
+            activeDemoTargetEndIndex = effectiveEndIndex
+            activeDemoPhaseNumber = phaseNumber
         }
 
-        _lessonState.update { it.copy(isPlayingDemo = true, feedbackMessage = null) }
+        pauseRequested = false
+        val sessionEpoch = lessonSessionEpoch
+        _lessonState.update {
+            it.copy(
+                isPlayingDemo = true,
+                isPausePending = false
+            )
+        }
 
-        demoJob = viewModelScope.launch {
-            while (isActive) {
+        val job = viewModelScope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+            if (inFlightSingleMoveJob?.isActive == true) {
+                inFlightSingleMoveJob.join()
+            }
+            if (!isActive || sessionEpoch != lessonSessionEpoch) return@launch
+            if (pauseRequested) {
+                pauseRequested = false
+                _lessonState.update {
+                    it.copy(
+                        isPlayingDemo = false,
+                        isPausePending = false,
+                        activeAnimation = null,
+                        executingMoveIndex = null
+                    )
+                }
+                return@launch
+            }
+
+            while (isActive && sessionEpoch == lessonSessionEpoch) {
                 val snap = _lessonState.value
+                val endIdx = (activeDemoTargetEndIndex ?: moves.lastIndex).coerceIn(0, moves.lastIndex)
                 val nextIndex = snap.currentMoveIndex + 1
-                if (nextIndex > moves.lastIndex) {
+
+                if (nextIndex > endIdx || nextIndex > moves.lastIndex) {
+                    val isFinalMove = nextIndex > moves.lastIndex
+                    val completedPhase = phases.firstOrNull { it.endMoveIndex == snap.currentMoveIndex }
+                    activeDemoTargetEndIndex = null
+                    activeDemoPhaseNumber = null
+                    pauseRequested = false
                     _lessonState.update {
                         it.copy(
                             isPlayingDemo = false,
+                            isPausePending = false,
                             activeAnimation = null,
-                            isDemoCompleted = true,
-                            feedbackMessage = "Demonstração concluída."
+                            executingMoveIndex = null,
+                            isDemoCompleted = isFinalMove,
+                            feedbackMessage = if (isFinalMove) {
+                                "Demonstração concluída."
+                            } else {
+                                completedPhase?.completionSummaryText ?: it.feedbackMessage
+                            }
                         )
                     }
                     break
                 }
 
                 val move = moves[nextIndex]
+                // Destaca o movimento em execução em executingMoveIndex SEM avançar currentMoveIndex antes do commit!
                 _lessonState.update {
                     it.copy(
-                        currentMoveIndex = nextIndex,
+                        executingMoveIndex = nextIndex,
                         selectedNotationMoveInfo = move,
                         feedbackMessage = "Movimento ${nextIndex + 1}/${moves.size}: ${move.notation}"
                     )
                 }
 
-                animateLessonMoveInternal(move)
+                val committed = animateLessonMoveInternal(
+                    move = move,
+                    sessionEpoch = sessionEpoch,
+                    onCommitState = { stateAtCommit ->
+                        val currentEndIdx = (activeDemoTargetEndIndex ?: moves.lastIndex).coerceIn(0, moves.lastIndex)
+                        val reachedTargetEnd = nextIndex >= currentEndIdx
+                        val reachedFullEnd = nextIndex >= moves.lastIndex
+                        val stoppingNow = pauseRequested || reachedTargetEnd || reachedFullEnd
+                        val phaseAtMove = phases.firstOrNull {
+                            it.endMoveIndex == nextIndex && nextIndex < moves.lastIndex
+                        }
+
+                        stateAtCommit.copy(
+                            cubeState = stateAtCommit.cubeState.applyMove(move),
+                            currentMoveIndex = nextIndex,
+                            executingMoveIndex = null,
+                            activeAnimation = null,
+                            isPlayingDemo = !stoppingNow,
+                            isPausePending = false,
+                            isDemoCompleted = reachedFullEnd,
+                            feedbackMessage = when {
+                                reachedFullEnd -> "Demonstração concluída."
+                                phaseAtMove != null -> phaseAtMove.completionSummaryText
+                                else -> "Movimento ${nextIndex + 1}/${moves.size}: ${move.notation}"
+                            }
+                        )
+                    }
+                )
+
+                if (!committed || !isActive || sessionEpoch != lessonSessionEpoch) {
+                    break
+                }
+
+                val currentEndIdx = (activeDemoTargetEndIndex ?: moves.lastIndex).coerceIn(0, moves.lastIndex)
+                if (pauseRequested) {
+                    pauseRequested = false
+                    break
+                }
+
+                if (nextIndex >= currentEndIdx || nextIndex >= moves.lastIndex) {
+                    activeDemoTargetEndIndex = null
+                    activeDemoPhaseNumber = null
+                    break
+                }
 
                 val completedPhase = phases.firstOrNull { it.endMoveIndex == nextIndex && nextIndex < moves.lastIndex }
                 if (completedPhase != null) {
-                    _lessonState.update {
-                        it.copy(feedbackMessage = completedPhase.completionSummaryText)
-                    }
                     if (!shouldSkipAnimationLoop) {
                         delay(420L)
                     }
@@ -571,79 +796,168 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                     val pauseMs = (300L / speed).toLong().coerceAtLeast(110L)
                     delay(pauseMs)
                 }
+
+                if (pauseRequested || !_lessonState.value.isPlayingDemo) {
+                    pauseRequested = false
+                    _lessonState.update {
+                        it.copy(
+                            isPlayingDemo = false,
+                            isPausePending = false,
+                            activeAnimation = null,
+                            executingMoveIndex = null
+                        )
+                    }
+                    break
+                }
             }
         }
+        demoJob = job
+        job.start()
     }
 
     /**
-     * Avança exatamente um movimento na demonstração.
+     * Avança exatamente um movimento na demonstração de maneira serializada e transacional.
      */
     fun stepDemoForward() {
-        pauseDemo()
         val snap = _lessonState.value
-        val moves = snap.demoMoves
-        val phases = snap.currentCase.pedagogicalPhases
-        val nextIndex = snap.currentMoveIndex + 1
-        if (nextIndex > moves.lastIndex) return
-
-        val move = moves[nextIndex]
-        singleMoveJob = viewModelScope.launch {
-            _lessonState.update {
-                it.copy(
-                    currentMoveIndex = nextIndex,
-                    selectedNotationMoveInfo = move,
-                    feedbackMessage = "Movimento ${nextIndex + 1}/${moves.size}: ${move.notation}"
-                )
-            }
-            animateLessonMoveInternal(move)
-            val completedPhase = phases.firstOrNull { it.endMoveIndex == nextIndex && nextIndex < moves.lastIndex }
-            if (nextIndex == moves.lastIndex) {
-                _lessonState.update {
-                    it.copy(
-                        isDemoCompleted = true,
-                        feedbackMessage = "Demonstração concluída."
-                    )
-                }
-            } else if (completedPhase != null) {
-                _lessonState.update {
-                    it.copy(feedbackMessage = completedPhase.completionSummaryText)
-                }
-            }
+        if (snap.mode != LearningMode.LEARN) return
+        if (demoJob?.isActive == true) {
+            pauseDemo()
         }
+        activeDemoTargetEndIndex = null
+        activeDemoPhaseNumber = null
+
+        if (lessonStepQueue.size < 32) {
+            lessonStepQueue.addLast(LessonStepCommand.FORWARD)
+        }
+        drainLessonStepQueue()
     }
 
     /**
-     * Retrocede exatamente um movimento na demonstração aplicando o movimento inverso.
+     * Retrocede exatamente um movimento na demonstração aplicando o movimento inverso
+     * somente sobre movimentos cujo estado matemático já foi efetivamente consolidado.
      */
     fun stepDemoBackward() {
-        pauseDemo()
         val snap = _lessonState.value
-        val moves = snap.demoMoves
-        val phases = snap.currentCase.pedagogicalPhases
-        val currentIdx = snap.currentMoveIndex
-        if (currentIdx < 0 || currentIdx > moves.lastIndex) return
+        if (snap.mode != LearningMode.LEARN) return
+        if (demoJob?.isActive == true) {
+            pauseDemo()
+        }
+        activeDemoTargetEndIndex = null
+        activeDemoPhaseNumber = null
 
-        val moveToUndo = moves[currentIdx]
-        val inverseMove = moveToUndo.inverse()
-        val targetIdx = currentIdx - 1
+        // Se nenhuma animação nem comando anterior estiver em fila e currentMoveIndex < 0, nada a desfazer
+        if (demoJob?.isActive != true &&
+            singleMoveJob?.isActive != true &&
+            lessonStepQueue.isEmpty() &&
+            snap.currentMoveIndex < 0
+        ) {
+            return
+        }
 
-        singleMoveJob = viewModelScope.launch {
-            _lessonState.update {
-                it.copy(
-                    isDemoCompleted = false,
-                    selectedNotationMoveInfo = moveToUndo,
-                    feedbackMessage = "Passo revertido: ${moveToUndo.notation}"
-                )
+        if (lessonStepQueue.size < 32) {
+            lessonStepQueue.addLast(LessonStepCommand.BACKWARD)
+        }
+        drainLessonStepQueue()
+    }
+
+    private fun drainLessonStepQueue() {
+        if (singleMoveJob?.isActive == true) return
+        val sessionEpoch = lessonSessionEpoch
+        val activeDemoToWait = demoJob
+
+        val stepJob = viewModelScope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+            if (activeDemoToWait?.isActive == true) {
+                activeDemoToWait.join()
             }
-            animateLessonMoveInternal(inverseMove)
-            val phaseMilestone = phases.firstOrNull { it.endMoveIndex == targetIdx && targetIdx < moves.lastIndex }
-            _lessonState.update {
-                it.copy(
-                    currentMoveIndex = targetIdx,
-                    feedbackMessage = phaseMilestone?.completionSummaryText ?: "Passo revertido: ${moveToUndo.notation}"
-                )
+            if (!isActive || sessionEpoch != lessonSessionEpoch) return@launch
+
+            while (lessonStepQueue.isNotEmpty() && isActive && sessionEpoch == lessonSessionEpoch) {
+                val cmd = lessonStepQueue.removeFirst()
+                val snap = _lessonState.value
+                if (snap.mode != LearningMode.LEARN) {
+                    lessonStepQueue.clear()
+                    break
+                }
+                val moves = snap.demoMoves
+                val phases = snap.currentCase.pedagogicalPhases
+
+                when (cmd) {
+                    LessonStepCommand.FORWARD -> {
+                        val nextIndex = snap.currentMoveIndex + 1
+                        if (nextIndex > moves.lastIndex) continue
+                        val move = moves[nextIndex]
+                        _lessonState.update {
+                            it.copy(
+                                executingMoveIndex = nextIndex,
+                                selectedNotationMoveInfo = move,
+                                feedbackMessage = "Movimento ${nextIndex + 1}/${moves.size}: ${move.notation}"
+                            )
+                        }
+                        val committed = animateLessonMoveInternal(
+                            move = move,
+                            sessionEpoch = sessionEpoch,
+                            onCommitState = { current ->
+                                val completedPhase = phases.firstOrNull {
+                                    it.endMoveIndex == nextIndex && nextIndex < moves.lastIndex
+                                }
+                                val isFinal = nextIndex == moves.lastIndex
+                                current.copy(
+                                    cubeState = current.cubeState.applyMove(move),
+                                    currentMoveIndex = nextIndex,
+                                    executingMoveIndex = null,
+                                    activeAnimation = null,
+                                    isDemoCompleted = isFinal,
+                                    feedbackMessage = when {
+                                        isFinal -> "Demonstração concluída."
+                                        completedPhase != null -> completedPhase.completionSummaryText
+                                        else -> "Movimento ${nextIndex + 1}/${moves.size}: ${move.notation}"
+                                    }
+                                )
+                            }
+                        )
+                        if (!committed) break
+                    }
+
+                    LessonStepCommand.BACKWARD -> {
+                        val currentIdx = snap.currentMoveIndex
+                        if (currentIdx < 0 || currentIdx > moves.lastIndex) continue
+                        val moveToUndo = moves[currentIdx]
+                        val inverseMove = moveToUndo.inverse()
+                        val targetIdx = currentIdx - 1
+                        _lessonState.update {
+                            it.copy(
+                                isDemoCompleted = false,
+                                executingMoveIndex = currentIdx,
+                                selectedNotationMoveInfo = moveToUndo,
+                                feedbackMessage = "Passo revertido: ${moveToUndo.notation}"
+                            )
+                        }
+                        val committed = animateLessonMoveInternal(
+                            move = inverseMove,
+                            sessionEpoch = sessionEpoch,
+                            onCommitState = { current ->
+                                val phaseMilestone = phases.firstOrNull {
+                                    it.endMoveIndex == targetIdx && targetIdx < moves.lastIndex
+                                }
+                                current.copy(
+                                    cubeState = current.cubeState.applyMove(inverseMove),
+                                    currentMoveIndex = targetIdx,
+                                    executingMoveIndex = null,
+                                    activeAnimation = null,
+                                    isDemoCompleted = false,
+                                    feedbackMessage = phaseMilestone?.completionSummaryText
+                                        ?: "Passo revertido: ${moveToUndo.notation}"
+                                )
+                            }
+                        )
+                        if (!committed) break
+                    }
+                }
             }
         }
+        singleMoveJob = stepJob
+        stepJob.start()
     }
 
     /**
@@ -667,48 +981,53 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
 
     private fun drainPracticeMoveQueue() {
         if (singleMoveJob?.isActive == true) return
+        val sessionEpoch = lessonSessionEpoch
         singleMoveJob = viewModelScope.launch {
-            while (practiceMoveQueue.isNotEmpty() && isActive) {
+            while (practiceMoveQueue.isNotEmpty() && isActive && sessionEpoch == lessonSessionEpoch) {
                 val nextMove = practiceMoveQueue.removeFirst()
                 val manualDuration = if (kotlin.math.abs(nextMove.glAngleDegrees) > 100f) {
                     MANUAL_MOVE_180_DURATION_MS
                 } else {
                     MANUAL_MOVE_90_DURATION_MS
                 }
-                // Inicia a rotação 3D imediatamente sem recomposição prévia dos cartões de controle
-                animateLessonMoveInternal(
+                var reachedGoalAfterCommit = false
+                val committed = animateLessonMoveInternal(
                     move = nextMove,
+                    sessionEpoch = sessionEpoch,
                     useDidacticSpeed = false,
-                    customDurationMs = manualDuration
+                    customDurationMs = manualDuration,
+                    onCommitState = { current ->
+                        val updatedCube = current.cubeState.applyMove(nextMove)
+                        val goalReached = updatedCube.isStepGoalAchieved(current.stepNumber)
+                        reachedGoalAfterCommit = goalReached
+                        current.copy(
+                            cubeState = updatedCube,
+                            activeAnimation = null,
+                            executingMoveIndex = null,
+                            selectedNotationMoveInfo = nextMove,
+                            practiceMoveHistory = current.practiceMoveHistory + nextMove,
+                            isPracticeGoalAchieved = goalReached,
+                            feedbackMessage = if (goalReached) {
+                                "Excelente! Você completou esta etapa."
+                            } else {
+                                "Movimento executado: ${nextMove.notation}"
+                            }
+                        )
+                    }
                 )
+                if (!committed) break
 
-                val updatedCube = _lessonState.value.cubeState
-                val stepNum = _lessonState.value.stepNumber
-                val goalReached = updatedCube.isStepGoalAchieved(stepNum)
-
-                _lessonState.update {
-                    it.copy(
-                        selectedNotationMoveInfo = nextMove,
-                        practiceMoveHistory = it.practiceMoveHistory + nextMove,
-                        isPracticeGoalAchieved = goalReached,
-                        feedbackMessage = if (goalReached) {
-                            "Excelente! Você completou esta etapa."
-                        } else {
-                            "Movimento executado: ${nextMove.notation}"
-                        }
-                    )
-                }
-
-                if (goalReached) {
+                if (reachedGoalAfterCommit) {
                     practiceMoveQueue.clear()
-                    val step = _lessonState.value.currentStep
-                    val caseId = _lessonState.value.currentCase.id
+                    val snap = _lessonState.value
+                    val step = snap.currentStep
+                    val caseId = snap.currentCase.id
                     progressRepository.markCaseCompleted(
-                        stepNumber = stepNum,
+                        stepNumber = snap.stepNumber,
                         caseId = caseId,
                         allStepCaseIds = step.cases.map { c -> c.id }
                     )
-                    progressRepository.markStepCompleted(stepNum)
+                    progressRepository.markStepCompleted(snap.stepNumber)
                     triggerLessonCelebration()
                     break
                 }
@@ -718,26 +1037,31 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
 
     fun undoPracticeMove() {
         val snap = _lessonState.value
-        if (snap.mode != LearningMode.PRACTICE || snap.activeAnimation != null) return
+        if (snap.mode != LearningMode.PRACTICE || snap.activeAnimation != null || singleMoveJob?.isActive == true) return
         val lastMove = snap.practiceMoveHistory.lastOrNull() ?: return
 
         practiceMoveQueue.clear()
-        singleMoveJob?.cancel()
+        val sessionEpoch = lessonSessionEpoch
         singleMoveJob = viewModelScope.launch {
+            val inverseMove = lastMove.inverse()
             animateLessonMoveInternal(
-                move = lastMove.inverse(),
+                move = inverseMove,
+                sessionEpoch = sessionEpoch,
                 useDidacticSpeed = false,
-                customDurationMs = MANUAL_UNDO_DURATION_MS
+                customDurationMs = MANUAL_UNDO_DURATION_MS,
+                onCommitState = { current ->
+                    val updatedCube = current.cubeState.applyMove(inverseMove)
+                    val goalReached = updatedCube.isStepGoalAchieved(current.stepNumber)
+                    current.copy(
+                        cubeState = updatedCube,
+                        activeAnimation = null,
+                        executingMoveIndex = null,
+                        practiceMoveHistory = current.practiceMoveHistory.dropLast(1),
+                        isPracticeGoalAchieved = goalReached,
+                        feedbackMessage = "Movimento desfeito"
+                    )
+                }
             )
-            val updatedCube = _lessonState.value.cubeState
-            val goalReached = updatedCube.isStepGoalAchieved(snap.stepNumber)
-            _lessonState.update {
-                it.copy(
-                    practiceMoveHistory = it.practiceMoveHistory.dropLast(1),
-                    isPracticeGoalAchieved = goalReached,
-                    feedbackMessage = "Movimento desfeito"
-                )
-            }
         }
     }
 
@@ -766,51 +1090,73 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    /**
+     * Executa os quadros intermediários da rotação 3D e aplica o commit matemático de forma
+     * estritamente atômica somente após o último quadro (100%), desde que a sessão/corrotina
+     * não tenha sido cancelada.
+     */
     private suspend fun animateLessonMoveInternal(
         move: CubeMove,
+        sessionEpoch: Long = lessonSessionEpoch,
         useDidacticSpeed: Boolean = true,
-        customDurationMs: Long? = null
-    ) {
-        if (shouldSkipAnimationLoop) {
-            _lessonState.update {
-                it.copy(
-                    cubeState = it.cubeState.applyMove(move),
-                    activeAnimation = null
+        customDurationMs: Long? = null,
+        onCommitState: ((LessonUiState) -> LessonUiState)? = null
+    ): Boolean {
+        if (!kotlinx.coroutines.currentCoroutineContext().isActive || sessionEpoch != lessonSessionEpoch) {
+            return false
+        }
+
+        if (!shouldSkipAnimationLoop) {
+            val durationMs = if (customDurationMs != null && !useDidacticSpeed) {
+                customDurationMs
+            } else {
+                val speed = progressState.value.animationSpeedMultiplier.coerceIn(0.4f, 2.0f)
+                val baseDuration = if (kotlin.math.abs(move.glAngleDegrees) > 100f) 560L else 420L
+                (baseDuration / speed).toLong().coerceAtLeast(180L)
+            }
+            val frameMs = 16L
+            val rawFrames = (durationMs / frameMs).toInt().coerceAtLeast(16)
+            // Arredonda para múltiplo de 4 para garantir marcos exatos de 0%, 25%, 50%, 75% e 100%
+            val totalFrames = ((rawFrames + 3) / 4) * 4
+
+            for (frame in 0..totalFrames) {
+                if (!kotlinx.coroutines.currentCoroutineContext().isActive || sessionEpoch != lessonSessionEpoch) {
+                    return false
+                }
+                val progress = frame.toFloat() / totalFrames.toFloat()
+                val anim = ActiveLayerAnimation(move, progress)
+                recordedAnimationFramesForAudit.add(anim)
+                _lessonState.update {
+                    it.copy(activeAnimation = anim)
+                }
+                onAnimationFrameEmitted?.invoke(move, frame, totalFrames, progress)
+
+                if (!kotlinx.coroutines.currentCoroutineContext().isActive || sessionEpoch != lessonSessionEpoch) {
+                    return false
+                }
+                if (frame < totalFrames) {
+                    delay(frameMs)
+                }
+            }
+        }
+
+        if (!kotlinx.coroutines.currentCoroutineContext().isActive || sessionEpoch != lessonSessionEpoch) {
+            return false
+        }
+
+        committedLessonMovesForAudit.add(move)
+        _lessonState.update { current ->
+            if (onCommitState != null) {
+                onCommitState(current)
+            } else {
+                current.copy(
+                    cubeState = current.cubeState.applyMove(move),
+                    activeAnimation = null,
+                    executingMoveIndex = null
                 )
             }
-            return
         }
-
-        val durationMs = if (customDurationMs != null && !useDidacticSpeed) {
-            customDurationMs
-        } else {
-            val speed = progressState.value.animationSpeedMultiplier.coerceIn(0.4f, 2.0f)
-            val baseDuration = if (kotlin.math.abs(move.glAngleDegrees) > 100f) 560L else 420L
-            (baseDuration / speed).toLong().coerceAtLeast(180L)
-        }
-        val frameMs = 16L
-        val rawFrames = (durationMs / frameMs).toInt().coerceAtLeast(16)
-        // Arredonda para múltiplo de 4 para garantir marcos exatos de 0%, 25%, 50%, 75% e 100%
-        val totalFrames = ((rawFrames + 3) / 4) * 4
-
-        for (frame in 0..totalFrames) {
-            val progress = frame.toFloat() / totalFrames.toFloat()
-            val anim = ActiveLayerAnimation(move, progress)
-            recordedAnimationFramesForAudit.add(anim)
-            _lessonState.update {
-                it.copy(activeAnimation = anim)
-            }
-            if (frame < totalFrames) {
-                delay(frameMs)
-            }
-        }
-
-        _lessonState.update {
-            it.copy(
-                cubeState = it.cubeState.applyMove(move),
-                activeAnimation = null
-            )
-        }
+        return true
     }
 
     private fun triggerLessonCelebration() {
@@ -819,15 +1165,19 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
             _lessonState.update { it.copy(celebrationPulse = 0f) }
             return
         }
+        val sessionEpoch = lessonSessionEpoch
         celebrationJob = viewModelScope.launch {
             val frames = 28
             for (i in 1..frames) {
+                if (!isActive || sessionEpoch != lessonSessionEpoch) return@launch
                 val t = i.toFloat() / frames
                 val pulse = kotlin.math.sin(t * Math.PI * 2).toFloat().let { kotlin.math.abs(it) }
                 _lessonState.update { it.copy(celebrationPulse = pulse) }
                 delay(20L)
             }
-            _lessonState.update { it.copy(celebrationPulse = 0f) }
+            if (isActive && sessionEpoch == lessonSessionEpoch) {
+                _lessonState.update { it.copy(celebrationPulse = 0f) }
+            }
         }
     }
 
@@ -848,69 +1198,97 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
 
     private fun drainExploreMoveQueue() {
         if (exploreAnimJob?.isActive == true) return
+        val epoch = exploreSessionEpoch
         exploreAnimJob = viewModelScope.launch {
-            while (exploreMoveQueue.isNotEmpty() && isActive) {
+            while (exploreMoveQueue.isNotEmpty() && isActive && epoch == exploreSessionEpoch) {
                 val nextMove = exploreMoveQueue.removeFirst()
                 val duration = if (kotlin.math.abs(nextMove.glAngleDegrees) > 100f) {
                     MANUAL_MOVE_180_DURATION_MS
                 } else {
                     MANUAL_MOVE_90_DURATION_MS
                 }
-                animateExploreMoveInternal(nextMove, durationMs = duration)
-                _exploreState.update {
-                    it.copy(
-                        moveHistory = it.moveHistory + nextMove,
-                        feedbackMessage = "Movimento executado: ${nextMove.notation}"
-                    )
-                }
+                val committed = animateExploreMoveInternal(
+                    move = nextMove,
+                    durationMs = duration,
+                    epoch = epoch,
+                    onCommitState = { current ->
+                        current.copy(
+                            cubeState = current.cubeState.applyMove(nextMove),
+                            activeAnimation = null,
+                            moveHistory = current.moveHistory + nextMove,
+                            feedbackMessage = "Movimento executado: ${nextMove.notation}"
+                        )
+                    }
+                )
+                if (!committed) break
             }
         }
     }
 
     fun undoExploreMove() {
         val snap = _exploreState.value
-        if (snap.activeAnimation != null) return
+        if (snap.activeAnimation != null || exploreAnimJob?.isActive == true) return
         val lastMove = snap.moveHistory.lastOrNull() ?: return
 
         exploreMoveQueue.clear()
-        exploreAnimJob?.cancel()
+        val epoch = exploreSessionEpoch
         exploreAnimJob = viewModelScope.launch {
-            animateExploreMoveInternal(lastMove.inverse(), durationMs = MANUAL_UNDO_DURATION_MS)
-            _exploreState.update {
-                it.copy(
-                    moveHistory = it.moveHistory.dropLast(1),
-                    feedbackMessage = "Movimento desfeito"
-                )
-            }
+            val inverseMove = lastMove.inverse()
+            animateExploreMoveInternal(
+                move = inverseMove,
+                durationMs = MANUAL_UNDO_DURATION_MS,
+                epoch = epoch,
+                onCommitState = { current ->
+                    current.copy(
+                        cubeState = current.cubeState.applyMove(inverseMove),
+                        activeAnimation = null,
+                        moveHistory = current.moveHistory.dropLast(1),
+                        feedbackMessage = "Movimento desfeito"
+                    )
+                }
+            )
         }
     }
 
     fun scrambleExploreCube() {
-        if (_exploreState.value.activeAnimation != null) return
+        if (_exploreState.value.activeAnimation != null || exploreAnimJob?.isActive == true) return
         exploreMoveQueue.clear()
-        exploreAnimJob?.cancel()
+        val epoch = exploreSessionEpoch
         val scramble = CubeState.generateScramble(length = 16)
         exploreAnimJob = viewModelScope.launch {
             _exploreState.update { it.copy(feedbackMessage = "Embaralhando cubo 3×3...") }
             for (move in scramble) {
-                if (!isActive) break
-                animateExploreMoveInternal(move, durationMs = 110L)
-                _exploreState.update {
-                    it.copy(moveHistory = it.moveHistory + move)
-                }
-            }
-            _exploreState.update {
-                it.copy(
-                    lastScramble = scramble,
-                    feedbackMessage = "Cubo embaralhado (${scramble.size} movimentos)"
+                if (!isActive || epoch != exploreSessionEpoch) return@launch
+                val committed = animateExploreMoveInternal(
+                    move = move,
+                    durationMs = 110L,
+                    epoch = epoch,
+                    onCommitState = { current ->
+                        current.copy(
+                            cubeState = current.cubeState.applyMove(move),
+                            activeAnimation = null,
+                            moveHistory = current.moveHistory + move
+                        )
+                    }
                 )
+                if (!committed) return@launch
+            }
+            if (isActive && epoch == exploreSessionEpoch) {
+                _exploreState.update {
+                    it.copy(
+                        lastScramble = scramble,
+                        feedbackMessage = "Cubo embaralhado (${scramble.size} movimentos)"
+                    )
+                }
             }
         }
     }
 
     fun resetExploreCubeSolved() {
+        exploreSessionEpoch++
         exploreMoveQueue.clear()
         exploreAnimJob?.cancel()
+        exploreAnimJob = null
         _exploreState.update {
             it.copy(
                 cubeState = CubeState.createSolved(),
@@ -932,36 +1310,48 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    private suspend fun animateExploreMoveInternal(move: CubeMove, durationMs: Long) {
-        if (shouldSkipAnimationLoop) {
-            _exploreState.update {
-                it.copy(
-                    cubeState = it.cubeState.applyMove(move),
+    private suspend fun animateExploreMoveInternal(
+        move: CubeMove,
+        durationMs: Long,
+        epoch: Long = exploreSessionEpoch,
+        onCommitState: ((ExploreUiState) -> ExploreUiState)? = null
+    ): Boolean {
+        if (!kotlinx.coroutines.currentCoroutineContext().isActive || epoch != exploreSessionEpoch) {
+            return false
+        }
+        if (!shouldSkipAnimationLoop) {
+            val frameMs = 16L
+            val rawFrames = (durationMs / frameMs).toInt().coerceAtLeast(8)
+            val totalFrames = ((rawFrames + 3) / 4) * 4
+            for (frame in 0..totalFrames) {
+                if (!kotlinx.coroutines.currentCoroutineContext().isActive || epoch != exploreSessionEpoch) {
+                    return false
+                }
+                val progress = frame.toFloat() / totalFrames.toFloat()
+                val anim = ActiveLayerAnimation(move, progress)
+                recordedAnimationFramesForAudit.add(anim)
+                _exploreState.update {
+                    it.copy(activeAnimation = anim)
+                }
+                if (frame < totalFrames) {
+                    delay(frameMs)
+                }
+            }
+        }
+        if (!kotlinx.coroutines.currentCoroutineContext().isActive || epoch != exploreSessionEpoch) {
+            return false
+        }
+        _exploreState.update { current ->
+            if (onCommitState != null) {
+                onCommitState(current)
+            } else {
+                current.copy(
+                    cubeState = current.cubeState.applyMove(move),
                     activeAnimation = null
                 )
             }
-            return
         }
-        val frameMs = 16L
-        val rawFrames = (durationMs / frameMs).toInt().coerceAtLeast(8)
-        val totalFrames = ((rawFrames + 3) / 4) * 4
-        for (frame in 0..totalFrames) {
-            val progress = frame.toFloat() / totalFrames.toFloat()
-            val anim = ActiveLayerAnimation(move, progress)
-            recordedAnimationFramesForAudit.add(anim)
-            _exploreState.update {
-                it.copy(activeAnimation = anim)
-            }
-            if (frame < totalFrames) {
-                delay(frameMs)
-            }
-        }
-        _exploreState.update {
-            it.copy(
-                cubeState = it.cubeState.applyMove(move),
-                activeAnimation = null
-            )
-        }
+        return true
     }
 
     // =========================================================================
@@ -981,25 +1371,37 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
 
     private fun drainHomeMoveQueue() {
         if (homeAnimJob?.isActive == true) return
+        val epoch = homeSessionEpoch
         homeAnimJob = viewModelScope.launch {
-            while (homeMoveQueue.isNotEmpty() && isActive) {
+            while (homeMoveQueue.isNotEmpty() && isActive && epoch == homeSessionEpoch) {
                 val nextMove = homeMoveQueue.removeFirst()
                 val duration = if (kotlin.math.abs(nextMove.glAngleDegrees) > 100f) {
                     MANUAL_MOVE_180_DURATION_MS
                 } else {
                     MANUAL_MOVE_90_DURATION_MS
                 }
-                animateHomeMoveInternal(nextMove, durationMs = duration)
-                _homePreviewState.update {
-                    it.copy(moveHistory = it.moveHistory + nextMove)
-                }
+                val committed = animateHomeMoveInternal(
+                    move = nextMove,
+                    durationMs = duration,
+                    epoch = epoch,
+                    onCommitState = { current ->
+                        current.copy(
+                            cubeState = current.cubeState.applyMove(nextMove),
+                            activeAnimation = null,
+                            moveHistory = current.moveHistory + nextMove
+                        )
+                    }
+                )
+                if (!committed) break
             }
         }
     }
 
     fun resetHomePreviewCube() {
+        homeSessionEpoch++
         homeMoveQueue.clear()
         homeAnimJob?.cancel()
+        homeAnimJob = null
         _homePreviewState.update {
             it.copy(
                 cubeState = CubeState.createSolved(),
@@ -1009,36 +1411,48 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    private suspend fun animateHomeMoveInternal(move: CubeMove, durationMs: Long) {
-        if (shouldSkipAnimationLoop) {
-            _homePreviewState.update {
-                it.copy(
-                    cubeState = it.cubeState.applyMove(move),
+    private suspend fun animateHomeMoveInternal(
+        move: CubeMove,
+        durationMs: Long,
+        epoch: Long = homeSessionEpoch,
+        onCommitState: ((HomePreviewUiState) -> HomePreviewUiState)? = null
+    ): Boolean {
+        if (!kotlinx.coroutines.currentCoroutineContext().isActive || epoch != homeSessionEpoch) {
+            return false
+        }
+        if (!shouldSkipAnimationLoop) {
+            val frameMs = 16L
+            val rawFrames = (durationMs / frameMs).toInt().coerceAtLeast(16)
+            val totalFrames = ((rawFrames + 3) / 4) * 4
+            for (frame in 0..totalFrames) {
+                if (!kotlinx.coroutines.currentCoroutineContext().isActive || epoch != homeSessionEpoch) {
+                    return false
+                }
+                val progress = frame.toFloat() / totalFrames.toFloat()
+                val anim = ActiveLayerAnimation(move, progress)
+                recordedAnimationFramesForAudit.add(anim)
+                _homePreviewState.update {
+                    it.copy(activeAnimation = anim)
+                }
+                if (frame < totalFrames) {
+                    delay(frameMs)
+                }
+            }
+        }
+        if (!kotlinx.coroutines.currentCoroutineContext().isActive || epoch != homeSessionEpoch) {
+            return false
+        }
+        _homePreviewState.update { current ->
+            if (onCommitState != null) {
+                onCommitState(current)
+            } else {
+                current.copy(
+                    cubeState = current.cubeState.applyMove(move),
                     activeAnimation = null
                 )
             }
-            return
         }
-        val frameMs = 16L
-        val rawFrames = (durationMs / frameMs).toInt().coerceAtLeast(16)
-        val totalFrames = ((rawFrames + 3) / 4) * 4
-        for (frame in 0..totalFrames) {
-            val progress = frame.toFloat() / totalFrames.toFloat()
-            val anim = ActiveLayerAnimation(move, progress)
-            recordedAnimationFramesForAudit.add(anim)
-            _homePreviewState.update {
-                it.copy(activeAnimation = anim)
-            }
-            if (frame < totalFrames) {
-                delay(frameMs)
-            }
-        }
-        _homePreviewState.update {
-            it.copy(
-                cubeState = it.cubeState.applyMove(move),
-                activeAnimation = null
-            )
-        }
+        return true
     }
 
     // =========================================================================
@@ -1065,17 +1479,47 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    private fun stopAllAnimations() {
+    fun stopAllAnimations() {
+        lessonSessionEpoch++
+        exploreSessionEpoch++
+        homeSessionEpoch++
+        notationSessionEpoch++
+        pauseRequested = false
+        activeDemoTargetEndIndex = null
+        activeDemoPhaseNumber = null
+        lessonStepQueue.clear()
         practiceMoveQueue.clear()
         exploreMoveQueue.clear()
         homeMoveQueue.clear()
         demoJob?.cancel()
+        demoJob = null
         singleMoveJob?.cancel()
+        singleMoveJob = null
         exploreAnimJob?.cancel()
+        exploreAnimJob = null
         homeAnimJob?.cancel()
+        homeAnimJob = null
+        notationPreviewJob?.cancel()
+        notationPreviewJob = null
         celebrationJob?.cancel()
-        _lessonState.update { it.copy(isPlayingDemo = false, activeAnimation = null, celebrationPulse = 0f) }
+        celebrationJob = null
+        _lessonState.update {
+            it.copy(
+                isPlayingDemo = false,
+                isPausePending = false,
+                activeAnimation = null,
+                executingMoveIndex = null,
+                celebrationPulse = 0f
+            )
+        }
         _exploreState.update { it.copy(activeAnimation = null, celebrationPulse = 0f) }
         _homePreviewState.update { it.copy(activeAnimation = null) }
+        _notationPreviewAnim.value = null
+    }
+
+    override fun onCleared() {
+        stopAllAnimations()
+        super.onCleared()
     }
 }
+

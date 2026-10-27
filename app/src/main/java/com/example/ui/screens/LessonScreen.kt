@@ -312,6 +312,7 @@ fun LessonScreen(
                                 caseIndex = caseIndex,
                                 mode = lessonState.mode,
                                 currentMoveIndex = lessonState.currentMoveIndex,
+                                executingMoveIndex = lessonState.executingMoveIndex,
                                 onSelectCase = stableSelectCase,
                                 onOpenCaseDetail = stableOpenCaseDetail,
                                 onPlayDemoPhase = stablePlayPhase,
@@ -347,7 +348,7 @@ fun LessonScreen(
                             ExpandableExplanationPanel(
                                 stepNumber = stepNumber,
                                 caseIndex = caseIndex,
-                                currentMoveIndex = lessonState.currentMoveIndex,
+                                currentMoveIndex = lessonState.visualMoveIndex,
                                 selectedNotationMove = lessonState.selectedNotationMoveInfo,
                                 panelState = lessonState.explanationPanelState,
                                 onChangeState = stableSetPanelState,
@@ -423,6 +424,7 @@ fun LessonScreen(
                     caseIndex = caseIndex,
                     mode = lessonState.mode,
                     currentMoveIndex = lessonState.currentMoveIndex,
+                    executingMoveIndex = lessonState.executingMoveIndex,
                     onSelectCase = stableSelectCase,
                     onOpenCaseDetail = stableOpenCaseDetail,
                     onPlayDemoPhase = stablePlayPhase,
@@ -459,7 +461,7 @@ fun LessonScreen(
                 ExpandableExplanationPanel(
                     stepNumber = stepNumber,
                     caseIndex = caseIndex,
-                    currentMoveIndex = lessonState.currentMoveIndex,
+                    currentMoveIndex = lessonState.visualMoveIndex,
                     selectedNotationMove = lessonState.selectedNotationMoveInfo,
                     panelState = lessonState.explanationPanelState,
                     onChangeState = stableSetPanelState,
@@ -482,7 +484,7 @@ fun LessonScreen(
             CaseDetailedExplanationModal(
                 stepNumber = stepNumber,
                 caseIndex = caseIndex,
-                currentMoveIndex = lessonState.currentMoveIndex,
+                currentMoveIndex = lessonState.visualMoveIndex,
                 onDismiss = stableCloseCaseDetail
             )
         }
@@ -1052,6 +1054,7 @@ private fun LessonCaseAndAlgorithmCard(
     caseIndex: Int,
     mode: LearningMode,
     currentMoveIndex: Int,
+    executingMoveIndex: Int? = null,
     onSelectCase: (Int) -> Unit,
     onOpenCaseDetail: () -> Unit = {},
     onPlayDemoPhase: (Int) -> Unit = {},
@@ -1063,6 +1066,7 @@ private fun LessonCaseAndAlgorithmCard(
         step.cases.getOrElse(caseIndex) { step.cases.first() }
     }
     val demoMoves = currentCase.fullMoveList
+    val visualMoveIndex = executingMoveIndex ?: currentMoveIndex
     val totalCases = step.cases.size
     val caseNum = caseIndex + 1
     val canPrevCase = caseIndex > 0
@@ -1081,9 +1085,9 @@ private fun LessonCaseAndAlgorithmCard(
         chipScrollState.animateScrollTo(targetChipPx)
     }
 
-    LaunchedEffect(currentMoveIndex) {
-        if (currentMoveIndex >= 0 && mode == LearningMode.LEARN) {
-            val targetPx = (currentMoveIndex * 76 - 80).coerceAtLeast(0)
+    LaunchedEffect(visualMoveIndex) {
+        if (visualMoveIndex >= 0 && mode == LearningMode.LEARN) {
+            val targetPx = (visualMoveIndex * 76 - 80).coerceAtLeast(0)
             algScrollState.animateScrollTo(targetPx)
         }
     }
@@ -1384,8 +1388,8 @@ private fun LessonCaseAndAlgorithmCard(
                         ) {
                             val phases = currentCase.pedagogicalPhases
                             val activePhase = if (phases.isNotEmpty()) {
-                                phases.firstOrNull { currentMoveIndex in it.startMoveIndex..it.endMoveIndex }
-                                    ?: if (currentMoveIndex >= 6) phases.last() else phases.first()
+                                phases.firstOrNull { visualMoveIndex in it.startMoveIndex..it.endMoveIndex }
+                                    ?: if (visualMoveIndex >= 6) phases.last() else phases.first()
                             } else {
                                 null
                             }
@@ -1455,6 +1459,7 @@ private fun LessonCaseAndAlgorithmCard(
                                         )
 
                                         if (currentMoveIndex == activePhase.endMoveIndex &&
+                                            executingMoveIndex == null &&
                                             activePhase.completionSummaryText.isNotBlank()
                                         ) {
                                             Surface(
@@ -1559,10 +1564,10 @@ private fun LessonCaseAndAlgorithmCard(
                                 }
                             }
 
-                            val activeMove = demoMoves.getOrNull(currentMoveIndex)
+                            val activeMove = demoMoves.getOrNull(visualMoveIndex)
                             val moveStatusText = when {
                                 activeMove != null ->
-                                    "Mov. ${currentMoveIndex + 1}/${demoMoves.size}: ${activeMove.notation} (${activeMove.titlePt})"
+                                    "Mov. ${visualMoveIndex + 1}/${demoMoves.size}: ${activeMove.notation} (${activeMove.titlePt})"
                                 demoMoves.isNotEmpty() ->
                                     "1º mov.: ${demoMoves.first().notation} (${demoMoves.first().titlePt})"
                                 else -> "Algoritmo"
@@ -1648,8 +1653,8 @@ private fun LessonCaseAndAlgorithmCard(
                                         }
                                     }
 
-                                    val isCurrent = index == currentMoveIndex
-                                    val isDone = index < currentMoveIndex
+                                    val isCurrent = index == visualMoveIndex
+                                    val isDone = index <= currentMoveIndex && index != visualMoveIndex
                                     val bgColor = when {
                                         isCurrent -> TurquoisePrimary
                                         isDone -> TurquoisePrimary.copy(alpha = 0.20f)
@@ -1700,7 +1705,7 @@ private fun LessonCaseAndAlgorithmCard(
                                     verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     demoMoves.forEachIndexed { index, move ->
-                                        val isCurrent = index == currentMoveIndex
+                                        val isCurrent = index == visualMoveIndex
                                         Surface(
                                             color = if (isCurrent) {
                                                 TurquoisePrimary.copy(alpha = 0.25f)

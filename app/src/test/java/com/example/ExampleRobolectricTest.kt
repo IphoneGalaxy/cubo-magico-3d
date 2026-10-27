@@ -1479,7 +1479,476 @@ class ExampleRobolectricTest {
         assertEquals(initialCube, vm.lessonState.value.cubeState)
         ShadowTrace.reset()
     }
+
+    @Test
+    @Config(qualifiers = "w360dp-h780dp-xhdpi")
+    fun testTransactionalPlaybackPauseResumeStepAndCancellationSyncSuite() {
+        composeTestRule.waitForIdle()
+        lateinit var vm: com.example.viewmodel.CuboMestreViewModel
+        composeTestRule.activityRule.scenario.onActivity { act ->
+            vm = androidx.lifecycle.ViewModelProvider(act)[com.example.viewmodel.CuboMestreViewModel::class.java]
+        }
+        ShadowTrace.reset()
+
+        // Habilita execução multi-quadro determinística (0%..25%..50%..75%..100%)
+        vm.forceMultiFrameAnimationInTest = true
+
+        try {
+            fun stepClock16ms() {
+                org.robolectric.shadows.ShadowLooper.idleMainLooper(16, java.util.concurrent.TimeUnit.MILLISECONDS)
+            }
+
+            // Função auxiliar para avançar o relógio determinístico até a animação/reprodução estabilizar
+            fun drainAllAnimations(maxTicks: Int = 800) {
+                var ticks = 0
+                while ((vm.lessonState.value.isPlayingDemo ||
+                        vm.lessonState.value.isPausePending ||
+                        vm.lessonState.value.activeAnimation != null ||
+                        vm.lessonState.value.executingMoveIndex != null) &&
+                    ticks < maxTicks
+                ) {
+                    stepClock16ms()
+                    ticks++
+                }
+                composeTestRule.waitForIdle()
+            }
+
+            // Função auxiliar que valida a invariante fundamental:
+            // O CubeState deve corresponder EXATAMENTE (todas as 27 peças e orientações) a initialCube.applyMoves(moves.take(currentMoveIndex + 1))
+            fun assertMathematicalSyncInvariant(initialCube: CubeState, moves: List<CubeMove>, context: String) {
+                val state = vm.lessonState.value
+                val confirmedCount = state.currentMoveIndex + 1
+                assertTrue("confirmedCount ($confirmedCount) deve estar entre 0 e ${moves.size} ($context)", confirmedCount in 0..moves.size)
+                val expectedCube = initialCube.applyMoves(moves.take(confirmedCount))
+                assertEquals(
+                    "Invariante violada em [$context]: CubeState diverge do estado matemático de $confirmedCount movimento(s) confirmado(s)",
+                    expectedCube,
+                    state.cubeState
+                )
+            }
+
+            // =========================================================================
+            // TESTE A & TESTE B: Pausa durante uma rotação (0%, 25%, 50%, 75%, antes do término e no intervalo)
+            // + Retomada até o último movimento consolidando cada movimento exatamente 1 vez
+            // =========================================================================
+            data class PauseScenario(
+                val name: String,
+                val targetMoveNumber: Int, // 0 = 1º movimento, 1 = 2º movimento
+                val pauseAtProgress: Float?, // null = pausar no intervalo entre o movimento 0 e o movimento 1
+                val resumeWhilePausePending: Boolean = false
+            )
+
+            val scenarios = listOf(
+                PauseScenario("1. Pausar antes do primeiro movimento (progress = 0.0)", targetMoveNumber = 0, pauseAtProgress = 0.0f),
+                PauseScenario("2. Pausar em ~25% da animação do 1º movimento", targetMoveNumber = 0, pauseAtProgress = 0.25f),
+                PauseScenario("3. Pausar em ~50% da animação do 1º movimento", targetMoveNumber = 0, pauseAtProgress = 0.50f),
+                PauseScenario("4. Pausar em ~75% da animação do 1º movimento", targetMoveNumber = 0, pauseAtProgress = 0.75f),
+                PauseScenario("5. Pausar imediatamente antes do término (100% pré-commit)", targetMoveNumber = 0, pauseAtProgress = 1.0f),
+                PauseScenario("6. Pausar no intervalo entre o 1º e o 2º movimento", targetMoveNumber = 0, pauseAtProgress = null),
+                PauseScenario("7. Pausar em ~50% do 2º movimento e retomar ainda durante pause-pending", targetMoveNumber = 1, pauseAtProgress = 0.50f, resumeWhilePausePending = true)
+            )
+
+            for (scenario in scenarios) {
+                composeTestRule.runOnUiThread {
+                    vm.openLesson(stepNumber = 2, caseIndex = 2, mode = com.example.viewmodel.LearningMode.LEARN)
+                    vm.committedLessonMovesForAudit.clear()
+                    vm.recordedAnimationFramesForAudit.clear()
+                }
+                composeTestRule.waitForIdle()
+
+                val initialCube = vm.lessonState.value.cubeState
+                val moves = vm.lessonState.value.demoMoves
+                assertEquals(listOf(CubeMove.R, CubeMove.U2, CubeMove.R_PRIME, CubeMove.U_PRIME), moves.take(4))
+                val expectedFinalCube = initialCube.applyMoves(moves)
+
+                var pauseTriggered = false
+                if (scenario.pauseAtProgress != null) {
+                    vm.onAnimationFrameEmitted = { _, frame, totalFrames, progress ->
+                        val execIdx = vm.lessonState.value.executingMoveIndex
+                        val targetProgress = scenario.pauseAtProgress
+                        val matchesFrame = if (targetProgress <= 0f) {
+                            frame == 0
+                        } else if (targetProgress >= 1f) {
+                            frame == totalFrames
+                        } else {
+                            kotlin.math.abs(progress - targetProgress) < 0.001f
+                        }
+                        if (!pauseTriggered && execIdx == scenario.targetMoveNumber && matchesFrame) {
+                            pauseTriggered = true
+                            // Antes de pausar, o movimento em execução AINDA NÃO pode ter sido considerado concluído!
+                            assertEquals(
+                                "Antes do commit em [${scenario.name}], currentMoveIndex deve ser ${scenario.targetMoveNumber - 1}",
+                                scenario.targetMoveNumber - 1,
+                                vm.lessonState.value.currentMoveIndex
+                            )
+                            assertMathematicalSyncInvariant(initialCube, moves, "${scenario.name} - instante exato antes de pauseDemo()")
+                            vm.pauseDemo()
+                            // Imediatamente após pauseDemo(), currentMoveIndex e cubeState continuam 100% sincronizados
+                            assertMathematicalSyncInvariant(initialCube, moves, "${scenario.name} - imediatamente após pauseDemo()")
+                        }
+                    }
+                } else {
+                    vm.onAnimationFrameEmitted = null
+                }
+
+                // Inicia reprodução
+                composeTestRule.runOnUiThread {
+                    vm.togglePlayDemo()
+                }
+
+                if (scenario.pauseAtProgress == null) {
+                    // Avança exatamente até o 1º movimento terminar (entra no delay entre movimento 0 e movimento 1)
+                    var ticks = 0
+                    while (vm.lessonState.value.currentMoveIndex < 0 && ticks < 100) {
+                        stepClock16ms()
+                        ticks++
+                    }
+                    // Estamos no intervalo entre o 1º movimento (concluído, índice 0) e o 2º movimento (ainda não iniciado)
+                    assertEquals(0, vm.lessonState.value.currentMoveIndex)
+                    assertNull(vm.lessonState.value.activeAnimation)
+                    composeTestRule.runOnUiThread {
+                        vm.pauseDemo()
+                    }
+                    pauseTriggered = true
+                } else {
+                    // Avança até o gatilho de pausa ser acionado
+                    var ticks = 0
+                    while (!pauseTriggered && ticks < 150) {
+                        stepClock16ms()
+                        ticks++
+                    }
+                }
+
+                assertTrue("Cenário [${scenario.name}] deve ter acionado a pausa", pauseTriggered)
+                vm.onAnimationFrameEmitted = null
+
+                if (scenario.resumeWhilePausePending) {
+                    // Retoma imediatamente enquanto o movimento pausado ainda está finalizando seus quadros (isPausePending == true)
+                    assertTrue(vm.lessonState.value.isPausePending)
+                    composeTestRule.runOnUiThread {
+                        vm.togglePlayDemo()
+                    }
+                    assertFalse(vm.lessonState.value.isPausePending)
+                    assertTrue(vm.lessonState.value.isPlayingDemo)
+                } else {
+                    // Aguarda a pausa estabilizar (finalizar o movimento em curso se progress > 0)
+                    drainAllAnimations()
+                    assertFalse("Demonstração deve estar pausada em [${scenario.name}]", vm.lessonState.value.isPlayingDemo)
+                    assertFalse("isPausePending deve ser falso após estabilizar em [${scenario.name}]", vm.lessonState.value.isPausePending)
+                    assertNull("activeAnimation deve ser nulo após estabilizar em [${scenario.name}]", vm.lessonState.value.activeAnimation)
+                    assertNull("executingMoveIndex deve ser nulo após estabilizar em [${scenario.name}]", vm.lessonState.value.executingMoveIndex)
+
+                    val expectedIndexAfterPause = if (scenario.pauseAtProgress != null && scenario.pauseAtProgress <= 0f) {
+                        scenario.targetMoveNumber - 1
+                    } else {
+                        scenario.targetMoveNumber
+                    }
+                    assertEquals(
+                        "Índice confirmado após pausa em [${scenario.name}]",
+                        expectedIndexAfterPause,
+                        vm.lessonState.value.currentMoveIndex
+                    )
+                    assertMathematicalSyncInvariant(initialCube, moves, "${scenario.name} - após estabilizar pausa")
+
+                    // TESTE B: Retoma a demonstração a partir da pausa
+                    composeTestRule.runOnUiThread {
+                        vm.togglePlayDemo()
+                    }
+                }
+
+                // Executa até o último movimento da demonstração
+                drainAllAnimations(maxTicks = 800)
+
+                assertFalse(vm.lessonState.value.isPlayingDemo)
+                assertTrue("Demonstração deve estar marcada como concluída após retomada em [${scenario.name}]", vm.lessonState.value.isDemoCompleted)
+                assertEquals(moves.lastIndex, vm.lessonState.value.currentMoveIndex)
+                assertEquals(
+                    "CubeState final após retomada em [${scenario.name}] deve ser idêntico à aplicação matemática sequencial completa",
+                    expectedFinalCube,
+                    vm.lessonState.value.cubeState
+                )
+                assertEquals(
+                    "Cada movimento do algoritmo deve ter sido consolidado EXATAMENTE UMA VEZ em [${scenario.name}]",
+                    moves,
+                    vm.committedLessonMovesForAudit.toList()
+                )
+                ShadowTrace.reset()
+            }
+
+            // =========================================================================
+            // TESTE C: Avançar e Retroceder (stepDemoForward / stepDemoBackward)
+            // incluindo chamadas rápidas/concorrentes durante animações em andamento
+            // =========================================================================
+            composeTestRule.runOnUiThread {
+                vm.openLesson(stepNumber = 5, caseIndex = 0, mode = com.example.viewmodel.LearningMode.LEARN) // Sune: R U R' U R U2 R'
+                vm.committedLessonMovesForAudit.clear()
+            }
+            composeTestRule.waitForIdle()
+
+            val suneInitial = vm.lessonState.value.cubeState
+            val suneMoves = vm.lessonState.value.demoMoves
+            assertEquals(7, suneMoves.size)
+
+            // C1: Avança 3 movimentos sequencialmente, verificando sincronização a cada passo
+            for (expectedIdx in 0..2) {
+                composeTestRule.runOnUiThread { vm.stepDemoForward() }
+                drainAllAnimations()
+                assertEquals(expectedIdx, vm.lessonState.value.currentMoveIndex)
+                assertMathematicalSyncInvariant(suneInitial, suneMoves, "Teste C1 - Avançar passo $expectedIdx")
+            }
+
+            // C2: Retrocede 2 movimentos sequencialmente, verificando restauração exata pelo inverso
+            for (expectedIdx in 1 downTo 0) {
+                composeTestRule.runOnUiThread { vm.stepDemoBackward() }
+                drainAllAnimations()
+                assertEquals(expectedIdx, vm.lessonState.value.currentMoveIndex)
+                assertMathematicalSyncInvariant(suneInitial, suneMoves, "Teste C2 - Retroceder para $expectedIdx")
+            }
+
+            // C3: Rajada rápida de comandos enquanto uma camada gira (Avançar x3 + Anterior x2 + Avançar x1 -> saldo +2 -> índice 2)
+            composeTestRule.runOnUiThread {
+                vm.stepDemoForward()
+            }
+            // Avança 48ms (no meio da rotação do movimento 1) e dispara vários comandos rápidos concorrentes
+            composeTestRule.mainClock.advanceTimeBy(48)
+            org.robolectric.shadows.ShadowLooper.idleMainLooper(48, java.util.concurrent.TimeUnit.MILLISECONDS)
+            assertNotNull("Camada deve estar girando durante a rajada concorrente", vm.lessonState.value.activeAnimation)
+
+            composeTestRule.runOnUiThread {
+                vm.stepDemoForward()
+                vm.stepDemoForward()
+                vm.stepDemoBackward()
+                vm.stepDemoBackward()
+                vm.stepDemoForward()
+            }
+            drainAllAnimations(maxTicks = 600)
+
+            assertEquals("Após rajada rápida (+3 -2 +1 a partir de 0), currentMoveIndex deve ser 2", 2, vm.lessonState.value.currentMoveIndex)
+            assertMathematicalSyncInvariant(suneInitial, suneMoves, "Teste C3 - Após rajada concorrente de Avançar/Anterior")
+
+            // Retrocede os 3 movimentos restantes até o estado inicial (-1)
+            composeTestRule.runOnUiThread {
+                vm.stepDemoBackward()
+                vm.stepDemoBackward()
+                vm.stepDemoBackward()
+            }
+            drainAllAnimations()
+            assertEquals(-1, vm.lessonState.value.currentMoveIndex)
+            assertEquals("Retroceder até -1 deve restaurar o estado inicial exato do caso", suneInitial, vm.lessonState.value.cubeState)
+            ShadowTrace.reset()
+
+            // =========================================================================
+            // TESTE D: Cancelamentos seguros e navegação durante animações ativas
+            // (Reiniciar, trocar de caso, trocar de etapa, alternar modo, sair da aula)
+            // =========================================================================
+            // D1: Reiniciar no meio de uma animação
+            composeTestRule.runOnUiThread {
+                vm.togglePlayDemo()
+            }
+            composeTestRule.mainClock.advanceTimeBy(80)
+            org.robolectric.shadows.ShadowLooper.idleMainLooper(80, java.util.concurrent.TimeUnit.MILLISECONDS)
+            assertNotNull(vm.lessonState.value.activeAnimation)
+
+            composeTestRule.runOnUiThread {
+                vm.resetLessonCube()
+            }
+            // Avança o tempo para provar que a corrotina cancelada jamais modifica o estado após o reset
+            drainAllAnimations()
+            assertEquals(-1, vm.lessonState.value.currentMoveIndex)
+            assertNull(vm.lessonState.value.activeAnimation)
+            assertNull(vm.lessonState.value.executingMoveIndex)
+            assertFalse(vm.lessonState.value.isPlayingDemo)
+            assertEquals(suneInitial, vm.lessonState.value.cubeState)
+
+            // D2: Trocar de caso durante animação
+            composeTestRule.runOnUiThread {
+                vm.togglePlayDemo()
+            }
+            composeTestRule.mainClock.advanceTimeBy(80)
+            org.robolectric.shadows.ShadowLooper.idleMainLooper(80, java.util.concurrent.TimeUnit.MILLISECONDS)
+            composeTestRule.runOnUiThread {
+                vm.selectCase(1)
+            }
+            val expectedCase1Cube = com.example.curriculum.CurriculumRepository.getStep(5).cases[1].createInitialState()
+            drainAllAnimations()
+            assertEquals(1, vm.lessonState.value.caseIndex)
+            assertEquals(-1, vm.lessonState.value.currentMoveIndex)
+            assertNull(vm.lessonState.value.activeAnimation)
+            assertEquals(expectedCase1Cube, vm.lessonState.value.cubeState)
+
+            // D3: Trocar de etapa durante animação
+            composeTestRule.runOnUiThread {
+                vm.togglePlayDemo()
+            }
+            composeTestRule.mainClock.advanceTimeBy(80)
+            org.robolectric.shadows.ShadowLooper.idleMainLooper(80, java.util.concurrent.TimeUnit.MILLISECONDS)
+            composeTestRule.runOnUiThread {
+                vm.openLesson(stepNumber = 6, caseIndex = 0, mode = com.example.viewmodel.LearningMode.LEARN)
+            }
+            val expectedStep6Cube = com.example.curriculum.CurriculumRepository.getStep(6).cases[0].createInitialState()
+            drainAllAnimations()
+            assertEquals(6, vm.lessonState.value.stepNumber)
+            assertEquals(-1, vm.lessonState.value.currentMoveIndex)
+            assertNull(vm.lessonState.value.activeAnimation)
+            assertEquals(expectedStep6Cube, vm.lessonState.value.cubeState)
+
+            // D4: Alternar para Modo Praticar durante animação
+            composeTestRule.runOnUiThread {
+                vm.togglePlayDemo()
+            }
+            composeTestRule.mainClock.advanceTimeBy(80)
+            org.robolectric.shadows.ShadowLooper.idleMainLooper(80, java.util.concurrent.TimeUnit.MILLISECONDS)
+            composeTestRule.runOnUiThread {
+                vm.selectLearningMode(com.example.viewmodel.LearningMode.PRACTICE)
+            }
+            drainAllAnimations()
+            assertEquals(com.example.viewmodel.LearningMode.PRACTICE, vm.lessonState.value.mode)
+            assertNull(vm.lessonState.value.activeAnimation)
+            assertEquals(expectedStep6Cube, vm.lessonState.value.cubeState)
+
+            // D5: Sair da aula (navegar para Home / Explorar) durante animação
+            composeTestRule.runOnUiThread {
+                vm.selectLearningMode(com.example.viewmodel.LearningMode.LEARN)
+                vm.stepDemoForward()
+            }
+            drainAllAnimations()
+            val confirmedAfterOneMove = vm.lessonState.value.cubeState
+            assertEquals(0, vm.lessonState.value.currentMoveIndex)
+
+            composeTestRule.runOnUiThread {
+                vm.togglePlayDemo()
+            }
+            composeTestRule.mainClock.advanceTimeBy(80)
+            org.robolectric.shadows.ShadowLooper.idleMainLooper(80, java.util.concurrent.TimeUnit.MILLISECONDS)
+            // Cancela navegando para Home no meio do 2º movimento: o estado confirmado do 1º movimento deve ser preservado sem aplicar o 2º parcial!
+            composeTestRule.runOnUiThread {
+                vm.navigateTo(com.example.viewmodel.AppScreen.HOME)
+            }
+            drainAllAnimations()
+            assertEquals(com.example.viewmodel.AppScreen.HOME, vm.currentScreen.value)
+            assertNull(vm.lessonState.value.activeAnimation)
+            assertNull(vm.lessonState.value.executingMoveIndex)
+            assertEquals(0, vm.lessonState.value.currentMoveIndex)
+            assertEquals(confirmedAfterOneMove, vm.lessonState.value.cubeState)
+            ShadowTrace.reset()
+
+            // =========================================================================
+            // TESTE E: Duas fases pedagógicas do Caso 2 da Etapa 4 (12 movimentos: F U R U' R' F' F U R U' R' F')
+            // Pausa, retomada, avanço e retrocesso antes, durante e depois da transição entre os movimentos 6 e 7
+            // =========================================================================
+            composeTestRule.runOnUiThread {
+                vm.openLesson(stepNumber = 4, caseIndex = 1, mode = com.example.viewmodel.LearningMode.LEARN)
+                vm.committedLessonMovesForAudit.clear()
+            }
+            composeTestRule.waitForIdle()
+
+            val s4c2Initial = vm.lessonState.value.cubeState
+            val s4c2Moves = vm.lessonState.value.demoMoves
+            assertEquals(12, s4c2Moves.size)
+            assertTrue(s4c2Initial.isYellowHorizontalLineOnTop())
+
+            // E1: Inicia Fase 1, pausa no meio do 3º movimento (índice 2) a 50%, e retoma Fase 1 até o formato de L (índice 5)
+            var pausedMidPhase1 = false
+            vm.onAnimationFrameEmitted = { _, _, _, progress ->
+                if (!pausedMidPhase1 && vm.lessonState.value.executingMoveIndex == 2 && kotlin.math.abs(progress - 0.50f) < 0.001f) {
+                    pausedMidPhase1 = true
+                    vm.pauseDemo()
+                }
+            }
+            composeTestRule.runOnUiThread {
+                vm.playDemoPhase(1)
+            }
+            var guard = 0
+            while (!pausedMidPhase1 && guard < 150) {
+                stepClock16ms()
+                guard++
+            }
+            assertTrue(pausedMidPhase1)
+            vm.onAnimationFrameEmitted = null
+            drainAllAnimations()
+
+            // Deve ter consolidado exatamente os 3 primeiros movimentos (índices 0, 1, 2 -> currentMoveIndex == 2)
+            assertEquals(2, vm.lessonState.value.currentMoveIndex)
+            assertMathematicalSyncInvariant(s4c2Initial, s4c2Moves, "Teste E1 - Após pausa no meio da Fase 1")
+
+            // Retoma Fase 1 até concluir o 6º movimento (índice 5 -> formato de L)
+            composeTestRule.runOnUiThread {
+                vm.togglePlayDemo()
+            }
+            drainAllAnimations(maxTicks = 400)
+
+            assertEquals("Fase 1 retomada deve parar exatamente no índice 5 (6º movimento F')", 5, vm.lessonState.value.currentMoveIndex)
+            assertFalse(vm.lessonState.value.isPlayingDemo)
+            assertTrue("Após Fase 1, o topo deve estar no formato de L", vm.lessonState.value.cubeState.isYellowLShapeOnTop())
+            assertTrue("Duas primeiras camadas intactas no L", vm.lessonState.value.cubeState.isSecondLayerSolved())
+            assertMathematicalSyncInvariant(s4c2Initial, s4c2Moves, "Teste E1 - Fim da Fase 1 (formato de L)")
+
+            // E2: Na fronteira entre Fase 1 (índice 5, F') e Fase 2 (índice 6, F):
+            // Avança para o movimento 7 (índice 6, F), retrocede para o movimento 6 (índice 5, F'), retrocede para o 5 (índice 4, R') e avança de volta ao 6 (índice 5)
+            composeTestRule.runOnUiThread { vm.stepDemoForward() } // executa índice 6 (F)
+            drainAllAnimations()
+            assertEquals(6, vm.lessonState.value.currentMoveIndex)
+            assertMathematicalSyncInvariant(s4c2Initial, s4c2Moves, "Teste E2 - Avançou para índice 6 (início da Fase 2)")
+
+            composeTestRule.runOnUiThread { vm.stepDemoBackward() } // desfaz índice 6 (F), voltando ao índice 5 (L)
+            drainAllAnimations()
+            assertEquals(5, vm.lessonState.value.currentMoveIndex)
+            assertTrue("Retroceder do índice 6 para 5 deve restaurar o formato de L", vm.lessonState.value.cubeState.isYellowLShapeOnTop())
+            assertMathematicalSyncInvariant(s4c2Initial, s4c2Moves, "Teste E2 - Retrocedeu para índice 5 (formato de L)")
+
+            composeTestRule.runOnUiThread { vm.stepDemoBackward() } // desfaz índice 5 (F'), voltando ao índice 4
+            drainAllAnimations()
+            assertEquals(4, vm.lessonState.value.currentMoveIndex)
+            assertMathematicalSyncInvariant(s4c2Initial, s4c2Moves, "Teste E2 - Retrocedeu para índice 4")
+
+            composeTestRule.runOnUiThread { vm.stepDemoForward() } // refaz índice 5 (F'), voltando ao L
+            drainAllAnimations()
+            assertEquals(5, vm.lessonState.value.currentMoveIndex)
+            assertTrue(vm.lessonState.value.cubeState.isYellowLShapeOnTop())
+
+            // E3: Inicia Fase 2 a partir do L (sem restaurar o cubo), pausa no meio do movimento 9 (índice 8) a 75% e retoma até o final (índice 11)
+            var pausedMidPhase2 = false
+            vm.onAnimationFrameEmitted = { _, _, _, progress ->
+                if (!pausedMidPhase2 && vm.lessonState.value.executingMoveIndex == 8 && kotlin.math.abs(progress - 0.75f) < 0.001f) {
+                    pausedMidPhase2 = true
+                    vm.pauseDemo()
+                }
+            }
+            composeTestRule.runOnUiThread {
+                vm.playDemoPhase(2)
+            }
+            guard = 0
+            while (!pausedMidPhase2 && guard < 150) {
+                stepClock16ms()
+                guard++
+            }
+            assertTrue(pausedMidPhase2)
+            vm.onAnimationFrameEmitted = null
+            drainAllAnimations()
+
+            assertEquals(8, vm.lessonState.value.currentMoveIndex)
+            assertMathematicalSyncInvariant(s4c2Initial, s4c2Moves, "Teste E3 - Após pausa no meio da Fase 2")
+
+            // Retoma até concluir a cruz amarela (índice 11)
+            composeTestRule.runOnUiThread {
+                vm.togglePlayDemo()
+            }
+            drainAllAnimations(maxTicks = 400)
+
+            assertEquals(11, vm.lessonState.value.currentMoveIndex)
+            assertTrue(vm.lessonState.value.isDemoCompleted)
+            assertTrue("Cruz amarela deve estar completa ao final da Fase 2", vm.lessonState.value.cubeState.isYellowCrossOriented())
+            assertTrue("Duas primeiras camadas devem permanecer resolvidas", vm.lessonState.value.cubeState.isSecondLayerSolved())
+            assertTrue("Objetivo da Etapa 4 deve ser atingido", vm.lessonState.value.cubeState.isStepGoalAchieved(4))
+            assertMathematicalSyncInvariant(s4c2Initial, s4c2Moves, "Teste E3 - Conclusão da Fase 2 (Cruz Amarela)")
+        } finally {
+            vm.onAnimationFrameEmitted = null
+            vm.forceMultiFrameAnimationInTest = false
+            ShadowTrace.reset()
+        }
+    }
 }
+
 
 
 
