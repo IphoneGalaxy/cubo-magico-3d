@@ -1947,6 +1947,545 @@ class ExampleRobolectricTest {
             ShadowTrace.reset()
         }
     }
+
+    @Test
+    @Config(qualifiers = "w360dp-h780dp-xhdpi")
+    fun testMultitouchPointerTransitionsPinchCameraAndLayerArbitrationSuite() {
+        composeTestRule.waitForIdle()
+        lateinit var vm: com.example.viewmodel.CuboMestreViewModel
+        composeTestRule.activityRule.scenario.onActivity { act ->
+            vm = androidx.lifecycle.ViewModelProvider(act)[com.example.viewmodel.CuboMestreViewModel::class.java]
+        }
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        ShadowTrace.reset()
+
+        // Construtor determinístico de MotionEvent real (1, 2 ou 3+ ponteiros com IDs e índices arbitrários)
+        data class PointerSpec(val id: Int, val x: Float, val y: Float)
+
+        fun buildMotionEvent(
+            downTime: Long,
+            eventTime: Long,
+            actionMasked: Int,
+            actionIndex: Int = 0,
+            pointers: List<PointerSpec>
+        ): android.view.MotionEvent {
+            val props = Array(pointers.size) { idx ->
+                android.view.MotionEvent.PointerProperties().apply {
+                    id = pointers[idx].id
+                    toolType = android.view.MotionEvent.TOOL_TYPE_FINGER
+                }
+            }
+            val coords = Array(pointers.size) { idx ->
+                android.view.MotionEvent.PointerCoords().apply {
+                    x = pointers[idx].x
+                    y = pointers[idx].y
+                    pressure = 1.0f
+                    size = 1.0f
+                }
+            }
+            val combinedAction = if (actionMasked == android.view.MotionEvent.ACTION_POINTER_DOWN ||
+                actionMasked == android.view.MotionEvent.ACTION_POINTER_UP
+            ) {
+                actionMasked or (actionIndex shl android.view.MotionEvent.ACTION_POINTER_INDEX_SHIFT)
+            } else {
+                actionMasked
+            }
+            return android.view.MotionEvent.obtain(
+                downTime,
+                eventTime,
+                combinedAction,
+                pointers.size,
+                props,
+                coords,
+                0,
+                0,
+                1.0f,
+                1.0f,
+                0,
+                0,
+                android.view.InputDevice.SOURCE_TOUCHSCREEN,
+                0
+            )
+        }
+
+        val renderer = CubeGLRenderer()
+        renderer.configureViewport(800, 800)
+        renderer.resetCamera()
+
+        var cubeState = CubeState.createSolved()
+        val dispatchedMoves = mutableListOf<CubeMove>()
+        var isAnimating = false
+        var touchMode = TouchInteractionMode.MOVE_LAYERS
+        var allowFaceSwipe = true
+
+        val glView = com.example.renderer.CubeTouchGLSurfaceView(
+            context = context,
+            cubeRenderer = renderer,
+            allowFaceSwipeProvider = { allowFaceSwipe },
+            isAnimatingProvider = { isAnimating },
+            touchModeProvider = { touchMode },
+            onSwipeMove = { move ->
+                dispatchedMoves.add(move)
+                cubeState = cubeState.applyMove(move)
+            }
+        )
+
+        fun sendEvent(
+            downTime: Long,
+            eventTime: Long,
+            actionMasked: Int,
+            actionIndex: Int = 0,
+            vararg pointers: PointerSpec
+        ) {
+            val ev = buildMotionEvent(downTime, eventTime, actionMasked, actionIndex, pointers.toList())
+            try {
+                glView.onTouchEvent(ev)
+            } finally {
+                ev.recycle()
+            }
+        }
+
+        // =========================================================================
+        // TESTE A: Pinça normal
+        // Sequência: ACTION_DOWN -> ACTION_POINTER_DOWN -> ACTION_MOVE (2 dedos) -> ACTION_POINTER_UP -> ACTION_UP
+        // =========================================================================
+        renderer.resetCamera()
+        dispatchedMoves.clear()
+        cubeState = CubeState.createSolved()
+        val initialDistA = renderer.cameraDistance
+        val initialYawA = renderer.cameraYaw
+        val initialPitchA = renderer.cameraPitch
+
+        val t0 = 1000L
+        sendEvent(t0, t0, android.view.MotionEvent.ACTION_DOWN, 0, PointerSpec(0, 300f, 400f))
+        assertEquals(GestureInteractionState.PENDING_GESTURE, glView.arbiter.state)
+        assertTrue("Toque na Home/cubo deve sinalizar isUserTouching = true", renderer.isUserTouching)
+
+        sendEvent(t0, t0 + 16, android.view.MotionEvent.ACTION_POINTER_DOWN, 1, PointerSpec(0, 300f, 400f), PointerSpec(1, 500f, 400f))
+        assertEquals(GestureInteractionState.PINCH_ZOOM, glView.arbiter.state)
+        assertNull("Pinça deve limpar previewTouchHit", renderer.previewTouchHit)
+        assertNull("Pinça deve limpar previewTouchMove", renderer.previewTouchMove)
+
+        // Afasta os 2 dedos (span de 200px para 360px -> aproxima o zoom / reduz cameraDistance)
+        sendEvent(t0, t0 + 32, android.view.MotionEvent.ACTION_MOVE, 0, PointerSpec(0, 220f, 400f), PointerSpec(1, 580f, 400f))
+        assertTrue("Distância da câmera deve diminuir ao afastar os 2 dedos na pinça", renderer.cameraDistance < initialDistA)
+        assertEquals("Pinça não pode alterar cameraYaw", initialYawA, renderer.cameraYaw, 0.0f)
+        assertEquals("Pinça não pode alterar cameraPitch", initialPitchA, renderer.cameraPitch, 0.0f)
+        assertTrue("Nenhuma camada pode girar durante a pinça", dispatchedMoves.isEmpty())
+
+        sendEvent(t0, t0 + 48, android.view.MotionEvent.ACTION_POINTER_UP, 1, PointerSpec(0, 220f, 400f), PointerSpec(1, 580f, 400f))
+        assertEquals("Após retirar 1 dedo, restando 1 dedo, deve sair de PINCH_ZOOM para PENDING_GESTURE", GestureInteractionState.PENDING_GESTURE, glView.arbiter.state)
+        assertTrue("Enquanto 1 dedo permanece na tela, isUserTouching deve continuar true", renderer.isUserTouching)
+
+        sendEvent(t0, t0 + 64, android.view.MotionEvent.ACTION_UP, 0, PointerSpec(0, 220f, 400f))
+        assertEquals(GestureInteractionState.IDLE, glView.arbiter.state)
+        assertFalse("Ao retirar todos os dedos, isUserTouching deve voltar para false", renderer.isUserTouching)
+        assertEquals(CubeState.createSolved(), cubeState)
+        assertTrue(dispatchedMoves.isEmpty())
+
+        // =========================================================================
+        // TESTE B: Transição de pinça para câmera (2 dedos -> retira 1 dedo -> orbita câmera com o dedo restante)
+        // =========================================================================
+        renderer.resetCamera()
+        touchMode = TouchInteractionMode.ROTATE_CAMERA
+        val tB = 2000L
+        sendEvent(tB, tB, android.view.MotionEvent.ACTION_DOWN, 0, PointerSpec(0, 250f, 350f))
+        sendEvent(tB, tB + 16, android.view.MotionEvent.ACTION_POINTER_DOWN, 1, PointerSpec(0, 250f, 350f), PointerSpec(1, 550f, 450f))
+        // Aproxima os 2 dedos (reduz span -> afasta cameraDistance)
+        sendEvent(tB, tB + 32, android.view.MotionEvent.ACTION_MOVE, 0, PointerSpec(0, 320f, 380f), PointerSpec(1, 480f, 420f))
+        val distAfterPinchB = renderer.cameraDistance
+        assertTrue("Pinça aproximando dedos deve aumentar cameraDistance", distAfterPinchB > CubeGLRenderer.DEFAULT_DISTANCE)
+        assertEquals(CubeGLRenderer.DEFAULT_YAW, renderer.cameraYaw, 0.0f)
+        assertEquals(CubeGLRenderer.DEFAULT_PITCH, renderer.cameraPitch, 0.0f)
+
+        // Levanta o dedo 0 (índice 0), deixando APENAS o dedo 1 (em 480, 420) na tela!
+        sendEvent(tB, tB + 48, android.view.MotionEvent.ACTION_POINTER_UP, 0, PointerSpec(0, 320f, 380f), PointerSpec(1, 480f, 420f))
+        assertEquals(GestureInteractionState.PENDING_GESTURE, glView.arbiter.state)
+        assertEquals(1, glView.activePointerId)
+        assertEquals(480f, glView.arbiter.downX, 0.01f)
+        assertEquals(420f, glView.arbiter.downY, 0.01f)
+        assertEquals("Retirar um dedo não pode causar salto em cameraYaw", CubeGLRenderer.DEFAULT_YAW, renderer.cameraYaw, 0.0f)
+        assertEquals("Retirar um dedo não pode causar salto em cameraPitch", CubeGLRenderer.DEFAULT_PITCH, renderer.cameraPitch, 0.0f)
+
+        // Move o dedo 1 (que agora está no índice 0 do MotionEvent mas com id = 1) abaixo do touch slop (3px) -> ainda não orbita
+        sendEvent(tB, tB + 64, android.view.MotionEvent.ACTION_MOVE, 0, PointerSpec(1, 483f, 422f))
+        assertEquals(GestureInteractionState.PENDING_GESTURE, glView.arbiter.state)
+        assertEquals(CubeGLRenderer.DEFAULT_YAW, renderer.cameraYaw, 0.0f)
+
+        // Continua arrastando o dedo 1 suavemente (+20px X, -15px Y e depois +20px X, -15px Y) -> deve orbitar sem salto brusco!
+        sendEvent(tB, tB + 80, android.view.MotionEvent.ACTION_MOVE, 0, PointerSpec(1, 503f, 407f))
+        assertEquals(GestureInteractionState.CAMERA_ORBIT, glView.arbiter.state)
+        val yawStep1 = renderer.cameraYaw
+        val pitchStep1 = renderer.cameraPitch
+        val deltaYaw1 = kotlin.math.abs(yawStep1 - CubeGLRenderer.DEFAULT_YAW)
+        assertTrue("Órbita pós-pinça deve ser suave e proporcional (sem salto de troca de ponteiro): deltaYaw1=$deltaYaw1", deltaYaw1 in 1f..15f)
+
+        sendEvent(tB, tB + 96, android.view.MotionEvent.ACTION_MOVE, 0, PointerSpec(1, 523f, 392f))
+        val yawStep2 = renderer.cameraYaw
+        val pitchStep2 = renderer.cameraPitch
+        assertTrue("Órbita deve continuar de forma contínua", yawStep2 < yawStep1 && pitchStep2 < pitchStep1)
+        assertEquals("Distância do zoom deve ser preservada durante a órbita", distAfterPinchB, renderer.cameraDistance, 0.001f)
+        assertTrue("Nenhuma camada pode girar no modo Câmera", dispatchedMoves.isEmpty())
+
+        sendEvent(tB, tB + 112, android.view.MotionEvent.ACTION_UP, 0, PointerSpec(1, 523f, 392f))
+        assertEquals(GestureInteractionState.IDLE, glView.arbiter.state)
+        assertEquals(yawStep2, renderer.cameraYaw, 0.0f)
+        assertEquals(pitchStep2, renderer.cameraPitch, 0.0f)
+
+        // =========================================================================
+        // TESTE C: Transição de pinça para camadas (2 dedos -> retira 1 dedo -> arrasta peça no modo Camadas)
+        // =========================================================================
+        renderer.resetCamera()
+        touchMode = TouchInteractionMode.MOVE_LAYERS
+        dispatchedMoves.clear()
+        cubeState = CubeState.createSolved()
+
+        // Projeta a peça frontal-direita (x = +1, y = 0, z = +1.45) na tela após um leve zoom
+        val tC = 3000L
+        sendEvent(tC, tC, android.view.MotionEvent.ACTION_DOWN, 0, PointerSpec(0, 260f, 400f))
+        sendEvent(tC, tC + 16, android.view.MotionEvent.ACTION_POINTER_DOWN, 1, PointerSpec(0, 260f, 400f), PointerSpec(1, 540f, 400f))
+        sendEvent(tC, tC + 32, android.view.MotionEvent.ACTION_MOVE, 0, PointerSpec(0, 220f, 400f), PointerSpec(1, 580f, 400f))
+        assertEquals(GestureInteractionState.PINCH_ZOOM, glView.arbiter.state)
+        assertTrue("Nenhum movimento disparado durante a pinça", dispatchedMoves.isEmpty())
+
+        // Posiciona o ponteiro 1 exatamente sobre a coluna direita da face frontal (x = +0.95, y = 0.0, z = +1.45) antes de soltar o ponteiro 0
+        val rightColPt = renderer.projectWorldToScreen(floatArrayOf(0.95f, 0.0f, 1.45f))!!
+        sendEvent(tC, tC + 48, android.view.MotionEvent.ACTION_MOVE, 0, PointerSpec(0, 200f, 400f), PointerSpec(1, rightColPt[0], rightColPt[1]))
+        assertTrue("Movimento com 2 dedos sobre peça jamais deve girar camada", dispatchedMoves.isEmpty())
+
+        // Retira o ponteiro 0 (actionIndex = 0), mantendo o ponteiro 1 (id = 1) sobre a peça da coluna R
+        sendEvent(tC, tC + 64, android.view.MotionEvent.ACTION_POINTER_UP, 0, PointerSpec(0, 200f, 400f), PointerSpec(1, rightColPt[0], rightColPt[1]))
+        assertEquals(GestureInteractionState.PENDING_GESTURE, glView.arbiter.state)
+        assertTrue("Retirar o segundo dedo jamais pode disparar uma rotação instantânea", dispatchedMoves.isEmpty())
+        assertNull("Ao retirar o segundo dedo, nenhuma peça antiga deve permanecer destacada", renderer.previewTouchHit)
+        assertNull("Ao retirar o segundo dedo, nenhuma seta de movimento deve estar ativa", renderer.previewTouchMove)
+
+        // Movimento abaixo do layerSwipeSlopPx (ex: 6px para cima) -> ainda NÃO dispara o giro da camada
+        sendEvent(tC, tC + 80, android.view.MotionEvent.ACTION_MOVE, 0, PointerSpec(1, rightColPt[0], rightColPt[1] - 6f))
+        assertTrue("Deslocamento menor que layerSwipeSlopPx não pode disparar giro de camada", dispatchedMoves.isEmpty())
+
+        // Arrasta intencionalmente para cima além do layerSwipeSlopPx (-85px em Y) -> deve disparar exatamente R!
+        val yawBeforeLayerSwipe = renderer.cameraYaw
+        val pitchBeforeLayerSwipe = renderer.cameraPitch
+        sendEvent(tC, tC + 96, android.view.MotionEvent.ACTION_MOVE, 0, PointerSpec(1, rightColPt[0] + 10f, rightColPt[1] - 85f))
+        assertEquals(GestureInteractionState.LAYER_ROTATION, glView.arbiter.state)
+        assertEquals("Deve disparar exatamente o movimento R após superar o limiar", listOf(CubeMove.R), dispatchedMoves)
+        assertEquals("Câmera (Yaw) não pode girar no modo Camadas", yawBeforeLayerSwipe, renderer.cameraYaw, 0.0f)
+        assertEquals("Câmera (Pitch) não pode girar no modo Camadas", pitchBeforeLayerSwipe, renderer.cameraPitch, 0.0f)
+
+        // Continuar arrastando no mesmo gesto não pode duplicar o movimento
+        sendEvent(tC, tC + 112, android.view.MotionEvent.ACTION_MOVE, 0, PointerSpec(1, rightColPt[0] + 20f, rightColPt[1] - 150f))
+        assertEquals("Exatamente 1 movimento por gesto deve ser disparado", 1, dispatchedMoves.size)
+
+        sendEvent(tC, tC + 128, android.view.MotionEvent.ACTION_UP, 0, PointerSpec(1, rightColPt[0] + 20f, rightColPt[1] - 150f))
+        assertEquals(GestureInteractionState.IDLE, glView.arbiter.state)
+        assertEquals(CubeState.createSolved().applyMove(CubeMove.R), cubeState)
+
+        // =========================================================================
+        // TESTE D: Identidade dos ponteiros (ID != 0, troca de ordem de índices, retirada do 1º vs 2º dedo)
+        // =========================================================================
+        renderer.resetCamera()
+        touchMode = TouchInteractionMode.ROTATE_CAMERA
+        val tD = 4000L
+
+        // D1: Ponteiros com IDs não-sequenciais (id = 3 em (150, 200) e id = 7 em (620, 580)).
+        // Retira o segundo dedo (id = 7, actionIndex = 1) e mantém o primeiro (id = 3, actionIndex = 0).
+        sendEvent(tD, tD, android.view.MotionEvent.ACTION_DOWN, 0, PointerSpec(3, 150f, 200f))
+        assertEquals(3, glView.activePointerId)
+        sendEvent(tD, tD + 16, android.view.MotionEvent.ACTION_POINTER_DOWN, 1, PointerSpec(3, 150f, 200f), PointerSpec(7, 620f, 580f))
+        sendEvent(tD, tD + 32, android.view.MotionEvent.ACTION_POINTER_UP, 1, PointerSpec(3, 155f, 205f), PointerSpec(7, 620f, 580f))
+        assertEquals("Ponteiro sobrevivente deve ser id=3", 3, glView.activePointerId)
+        assertEquals(155f, glView.arbiter.downX, 0.01f)
+        assertEquals(205f, glView.arbiter.downY, 0.01f)
+
+        // Agora reconecta id = 7 no índice 0 e id = 3 no índice 1 (ordem de índices invertida!) e retira id = 3 (actionIndex = 1)
+        sendEvent(tD, tD + 48, android.view.MotionEvent.ACTION_POINTER_DOWN, 0, PointerSpec(7, 610f, 570f), PointerSpec(3, 155f, 205f))
+        sendEvent(tD, tD + 64, android.view.MotionEvent.ACTION_POINTER_UP, 1, PointerSpec(7, 610f, 570f), PointerSpec(3, 155f, 205f))
+        assertEquals("Ponteiro sobrevivente deve ser id=7", 7, glView.activePointerId)
+        assertEquals(610f, glView.arbiter.downX, 0.01f)
+        assertEquals(570f, glView.arbiter.downY, 0.01f)
+
+        // Move id=7 por (25px, 0px) e verifica ausência total de salto brusco entre (155, 205) e (610, 570)
+        val yawBeforeDMove = renderer.cameraYaw
+        sendEvent(tD, tD + 80, android.view.MotionEvent.ACTION_MOVE, 0, PointerSpec(7, 635f, 570f))
+        val yawDeltaD = kotlin.math.abs(renderer.cameraYaw - yawBeforeDMove)
+        assertTrue("Deslocamento deve usar apenas os 25px do ponteiro id=7 (yawDelta=$yawDeltaD)", yawDeltaD in 5f..15f)
+        sendEvent(tD, tD + 96, android.view.MotionEvent.ACTION_UP, 0, PointerSpec(7, 635f, 570f))
+        assertEquals(GestureInteractionState.IDLE, glView.arbiter.state)
+
+        // =========================================================================
+        // TESTE E: Três dedos (1 dedo -> 2 dedos -> 3 dedos -> 2 dedos -> 1 dedo -> nenhum dedo)
+        // =========================================================================
+        renderer.resetCamera()
+        touchMode = TouchInteractionMode.MOVE_LAYERS
+        dispatchedMoves.clear()
+        cubeState = CubeState.createSolved()
+        val tE = 5000L
+
+        // 1 dedo
+        sendEvent(tE, tE, android.view.MotionEvent.ACTION_DOWN, 0, PointerSpec(0, 250f, 400f))
+        assertEquals(1, glView.activePointerCount)
+        assertEquals(GestureInteractionState.PENDING_GESTURE, glView.arbiter.state)
+
+        // 2 dedos
+        sendEvent(tE, tE + 16, android.view.MotionEvent.ACTION_POINTER_DOWN, 1, PointerSpec(0, 250f, 400f), PointerSpec(1, 550f, 400f))
+        assertEquals(2, glView.activePointerCount)
+        assertEquals(GestureInteractionState.PINCH_ZOOM, glView.arbiter.state)
+
+        // 3 dedos
+        sendEvent(
+            tE, tE + 32, android.view.MotionEvent.ACTION_POINTER_DOWN, 2,
+            PointerSpec(0, 250f, 400f), PointerSpec(1, 550f, 400f), PointerSpec(2, 400f, 200f)
+        )
+        assertEquals(3, glView.activePointerCount)
+        assertEquals(GestureInteractionState.PINCH_ZOOM, glView.arbiter.state)
+
+        // Move com 3 dedos (afastando do centro) -> ajusta zoom previsivelmente sem girar camadas
+        val distBefore3FingerPinch = renderer.cameraDistance
+        sendEvent(
+            tE, tE + 48, android.view.MotionEvent.ACTION_MOVE, 0,
+            PointerSpec(0, 200f, 430f), PointerSpec(1, 600f, 430f), PointerSpec(2, 400f, 140f)
+        )
+        assertTrue("Pinça com 3 dedos deve ajustar cameraDistance", renderer.cameraDistance < distBefore3FingerPinch)
+        assertTrue("Pinça com 3 dedos não pode disparar movimentos de camada", dispatchedMoves.isEmpty())
+
+        // 3 dedos -> 2 dedos (retira o ponteiro do meio no índice 1, id = 1)
+        sendEvent(
+            tE, tE + 64, android.view.MotionEvent.ACTION_POINTER_UP, 1,
+            PointerSpec(0, 200f, 430f), PointerSpec(1, 600f, 430f), PointerSpec(2, 400f, 140f)
+        )
+        assertEquals(2, glView.activePointerCount)
+        assertEquals("Com 2 dedos restantes na tela, o estado deve permanecer PINCH_ZOOM", GestureInteractionState.PINCH_ZOOM, glView.arbiter.state)
+        assertTrue(dispatchedMoves.isEmpty())
+
+        // Move com os 2 dedos restantes (id=0 e id=2)
+        val topMidPt = renderer.projectWorldToScreen(floatArrayOf(0.0f, 0.95f, 1.45f))!!
+        sendEvent(
+            tE, tE + 80, android.view.MotionEvent.ACTION_MOVE, 0,
+            PointerSpec(0, 180f, 440f), PointerSpec(2, topMidPt[0], topMidPt[1])
+        )
+        assertEquals(GestureInteractionState.PINCH_ZOOM, glView.arbiter.state)
+        assertTrue(dispatchedMoves.isEmpty())
+
+        // 2 dedos -> 1 dedo (retira id=0 no actionIndex=0, restando apenas id=2 sobre o topo da face frontal)
+        sendEvent(
+            tE, tE + 96, android.view.MotionEvent.ACTION_POINTER_UP, 0,
+            PointerSpec(0, 180f, 440f), PointerSpec(2, topMidPt[0], topMidPt[1])
+        )
+        assertEquals(1, glView.activePointerCount)
+        assertEquals(2, glView.activePointerId)
+        assertEquals("Ao voltar para 1 dedo após 3 dedos, deve entrar em PENDING_GESTURE", GestureInteractionState.PENDING_GESTURE, glView.arbiter.state)
+        assertTrue(dispatchedMoves.isEmpty())
+
+        // Com o último dedo sobrevivente (id=2), arrasta para a esquerda na camada superior -> executa U!
+        sendEvent(tE, tE + 112, android.view.MotionEvent.ACTION_MOVE, 0, PointerSpec(2, topMidPt[0] - 95f, topMidPt[1] - 18f))
+        assertEquals(GestureInteractionState.LAYER_ROTATION, glView.arbiter.state)
+        assertEquals(listOf(CubeMove.U), dispatchedMoves)
+
+        // 1 dedo -> nenhum dedo
+        sendEvent(tE, tE + 128, android.view.MotionEvent.ACTION_UP, 0, PointerSpec(2, topMidPt[0] - 95f, topMidPt[1] - 18f))
+        assertEquals(0, glView.activePointerCount)
+        assertEquals(android.view.MotionEvent.INVALID_POINTER_ID, glView.activePointerId)
+        assertEquals(GestureInteractionState.IDLE, glView.arbiter.state)
+
+        // =========================================================================
+        // TESTE F: Cancelamento (ACTION_CANCEL durante pinça, órbita de câmera e seleção de camada)
+        // =========================================================================
+        dispatchedMoves.clear()
+        cubeState = CubeState.createSolved()
+        val tF = 6000L
+
+        // F1: ACTION_CANCEL durante uma pinça
+        sendEvent(tF, tF, android.view.MotionEvent.ACTION_DOWN, 0, PointerSpec(0, 300f, 400f))
+        sendEvent(tF, tF + 16, android.view.MotionEvent.ACTION_POINTER_DOWN, 1, PointerSpec(0, 300f, 400f), PointerSpec(1, 500f, 400f))
+        assertEquals(GestureInteractionState.PINCH_ZOOM, glView.arbiter.state)
+        sendEvent(tF, tF + 32, android.view.MotionEvent.ACTION_CANCEL, 0, PointerSpec(0, 300f, 400f), PointerSpec(1, 500f, 400f))
+        assertEquals(GestureInteractionState.IDLE, glView.arbiter.state)
+        assertEquals(0, glView.activePointerCount)
+        assertEquals(android.view.MotionEvent.INVALID_POINTER_ID, glView.activePointerId)
+        assertFalse(renderer.isUserTouching)
+        assertTrue(dispatchedMoves.isEmpty())
+
+        // F2: ACTION_CANCEL durante uma órbita de câmera
+        touchMode = TouchInteractionMode.ROTATE_CAMERA
+        sendEvent(tF + 100, tF + 100, android.view.MotionEvent.ACTION_DOWN, 0, PointerSpec(0, 400f, 400f))
+        sendEvent(tF + 100, tF + 116, android.view.MotionEvent.ACTION_MOVE, 0, PointerSpec(0, 450f, 380f))
+        assertEquals(GestureInteractionState.CAMERA_ORBIT, glView.arbiter.state)
+        sendEvent(tF + 100, tF + 132, android.view.MotionEvent.ACTION_CANCEL, 0, PointerSpec(0, 450f, 380f))
+        assertEquals(GestureInteractionState.IDLE, glView.arbiter.state)
+        assertFalse(renderer.isUserTouching)
+        assertTrue(dispatchedMoves.isEmpty())
+
+        // F3: ACTION_CANCEL durante uma seleção/prévia de camada (antes de atingir layerSwipeSlopPx)
+        renderer.resetCamera()
+        touchMode = TouchInteractionMode.MOVE_LAYERS
+        val centerFacePt = renderer.projectWorldToScreen(floatArrayOf(0f, 0f, 1.45f))!!
+        sendEvent(tF + 200, tF + 200, android.view.MotionEvent.ACTION_DOWN, 0, PointerSpec(0, centerFacePt[0], centerFacePt[1]))
+        // Arrasta 55% do slop -> ativa previewTouchHit e previewTouchMove, mas ainda não dispara movimento
+        val halfSlop = glView.arbiter.layerSwipeSlopPx * 0.55f
+        sendEvent(tF + 200, tF + 216, android.view.MotionEvent.ACTION_MOVE, 0, PointerSpec(0, centerFacePt[0], centerFacePt[1] + halfSlop))
+        assertNotNull("Deve ter selecionado peça em preview antes do cancelamento", renderer.previewTouchHit)
+        assertNotNull("Deve ter sugerido movimento em preview antes do cancelamento", renderer.previewTouchMove)
+        assertTrue("Não deve ter disparado movimento antes do slop completo", dispatchedMoves.isEmpty())
+
+        sendEvent(tF + 200, tF + 232, android.view.MotionEvent.ACTION_CANCEL, 0, PointerSpec(0, centerFacePt[0], centerFacePt[1] + halfSlop))
+        assertEquals(GestureInteractionState.IDLE, glView.arbiter.state)
+        assertNull("ACTION_CANCEL deve limpar previewTouchHit", renderer.previewTouchHit)
+        assertNull("ACTION_CANCEL deve limpar previewTouchMove", renderer.previewTouchMove)
+        assertNull("ACTION_CANCEL deve limpar initialHit", glView.arbiter.initialHit)
+        assertFalse(renderer.isUserTouching)
+        assertTrue("ACTION_CANCEL jamais pode executar o movimento que estava apenas sugerido", dispatchedMoves.isEmpty())
+
+        // =========================================================================
+        // TESTE G: Compatibilidade com as animações (giro já disparado + 2º dedo durante a animação)
+        // Integrado diretamente ao CuboMestreViewModel no Modo Explorar com animação multi-quadro real
+        // =========================================================================
+        vm.forceMultiFrameAnimationInTest = true
+        try {
+            composeTestRule.runOnUiThread {
+                vm.navigateTo(com.example.viewmodel.AppScreen.EXPLORE)
+                vm.resetExploreCubeSolved()
+            }
+            composeTestRule.waitForIdle()
+
+            renderer.resetCamera()
+            val vmRenderer = CubeGLRenderer().apply {
+                configureViewport(800, 800)
+                resetCamera()
+            }
+            val vmDispatchedMoves = mutableListOf<CubeMove>()
+            val vmGlView = com.example.renderer.CubeTouchGLSurfaceView(
+                context = context,
+                cubeRenderer = vmRenderer,
+                allowFaceSwipeProvider = { true },
+                isAnimatingProvider = { vm.exploreState.value.activeAnimation != null },
+                touchModeProvider = { TouchInteractionMode.MOVE_LAYERS },
+                onSwipeMove = { move ->
+                    vmDispatchedMoves.add(move)
+                    vm.executeExploreMove(move)
+                }
+            )
+
+            fun sendVmEvent(
+                downTime: Long,
+                eventTime: Long,
+                actionMasked: Int,
+                actionIndex: Int = 0,
+                vararg pointers: PointerSpec
+            ) {
+                val ev = buildMotionEvent(downTime, eventTime, actionMasked, actionIndex, pointers.toList())
+                try {
+                    vmGlView.onTouchEvent(ev)
+                } finally {
+                    ev.recycle()
+                }
+            }
+
+            val rPt = vmRenderer.projectWorldToScreen(floatArrayOf(0.95f, 0f, 1.45f))!!
+            val tG = 7000L
+            // 1. Inicia arraste de camada com 1 dedo e ultrapassa o limiar -> dispara R e inicia animação 3D no ViewModel
+            sendVmEvent(tG, tG, android.view.MotionEvent.ACTION_DOWN, 0, PointerSpec(0, rPt[0], rPt[1]))
+            sendVmEvent(tG, tG + 16, android.view.MotionEvent.ACTION_MOVE, 0, PointerSpec(0, rPt[0] + 10f, rPt[1] - 90f))
+            assertEquals("Movimento R deve ter sido aceito e enviado ao ViewModel", listOf(CubeMove.R), vmDispatchedMoves)
+
+            // Avança 48ms para que a rotação de R esteja no meio da animação física (~25%..50%)
+            org.robolectric.shadows.ShadowLooper.idleMainLooper(48, java.util.concurrent.TimeUnit.MILLISECONDS)
+            assertNotNull("Animação 3D de R deve estar em andamento quando o 2º dedo toca a tela", vm.exploreState.value.activeAnimation)
+
+            // 2. Enquanto R está animando, o usuário encosta o 2º dedo e realiza uma pinça!
+            val distBeforeAnimPinch = vmRenderer.cameraDistance
+            sendVmEvent(
+                tG, tG + 64, android.view.MotionEvent.ACTION_POINTER_DOWN, 1,
+                PointerSpec(0, rPt[0] + 10f, rPt[1] - 90f), PointerSpec(1, rPt[0] - 200f, rPt[1] - 90f)
+            )
+            assertEquals(GestureInteractionState.PINCH_ZOOM, vmGlView.arbiter.state)
+            sendVmEvent(
+                tG, tG + 80, android.view.MotionEvent.ACTION_MOVE, 0,
+                PointerSpec(0, rPt[0] + 70f, rPt[1] - 90f), PointerSpec(1, rPt[0] - 280f, rPt[1] - 90f)
+            )
+            assertTrue("Pinça durante animação deve ajustar cameraDistance", vmRenderer.cameraDistance < distBeforeAnimPinch)
+            assertEquals("Pinça jamais pode duplicar o movimento nem disparar outro", 1, vmDispatchedMoves.size)
+            assertNotNull("A animação previamente aceita deve continuar em andamento sem ser cancelada", vm.exploreState.value.activeAnimation)
+
+            // 3. O usuário levanta o 2º dedo enquanto a animação ainda está terminando e move o dedo 1 residualmente
+            sendVmEvent(
+                tG, tG + 96, android.view.MotionEvent.ACTION_POINTER_UP, 1,
+                PointerSpec(0, rPt[0] + 70f, rPt[1] - 90f), PointerSpec(1, rPt[0] - 280f, rPt[1] - 90f)
+            )
+            assertEquals("Com animação ativa ao sair da pinça, deve entrar em ANIMATING", GestureInteractionState.ANIMATING, vmGlView.arbiter.state)
+            sendVmEvent(tG, tG + 112, android.view.MotionEvent.ACTION_MOVE, 0, PointerSpec(0, rPt[0] + 75f, rPt[1] - 120f))
+            assertEquals("Movimento residual durante animação pós-pinça não pode disparar novo giro", 1, vmDispatchedMoves.size)
+
+            // 4. A animação termina seus quadros até 100% e consolida R no CubeState
+            var ticks = 0
+            while (vm.exploreState.value.activeAnimation != null && ticks < 100) {
+                org.robolectric.shadows.ShadowLooper.idleMainLooper(16, java.util.concurrent.TimeUnit.MILLISECONDS)
+                ticks++
+            }
+            sendVmEvent(tG, tG + 300, android.view.MotionEvent.ACTION_UP, 0, PointerSpec(0, rPt[0] + 75f, rPt[1] - 120f))
+
+            assertNull(vm.exploreState.value.activeAnimation)
+            assertEquals("Exatamente 1 movimento (R) deve constar no histórico", listOf(CubeMove.R), vm.exploreState.value.moveHistory)
+            assertEquals("CubeState final deve corresponder exatamente a Solved.applyMove(R)", CubeState.createSolved().applyMove(CubeMove.R), vm.exploreState.value.cubeState)
+        } finally {
+            vm.forceMultiFrameAnimationInTest = false
+        }
+
+        // =========================================================================
+        // TESTE H: Telas e densidades diferentes (mdpi 1.0x, xhdpi 2.0x, xxhdpi 3.0x, xxxhdpi 3.5x)
+        // =========================================================================
+        data class ScreenSpec(val width: Int, val height: Int, val density: Float)
+        val screenConfigs = listOf(
+            ScreenSpec(320, 560, 1.0f),   // mdpi compacto
+            ScreenSpec(360, 780, 2.0f),   // xhdpi padrão
+            ScreenSpec(412, 915, 3.0f),   // xxhdpi moderno
+            ScreenSpec(800, 1280, 3.5f)   // xxxhdpi alta densidade / tablet
+        )
+
+        for (spec in screenConfigs) {
+            val testRenderer = CubeGLRenderer().apply {
+                configureViewport(spec.width, spec.height)
+                resetCamera()
+            }
+            val movesForDensity = mutableListOf<CubeMove>()
+            val testArbiter = CubeGestureArbiter(
+                renderer = testRenderer,
+                allowFaceSwipeProvider = { true },
+                isAnimatingProvider = { false },
+                touchModeProvider = { TouchInteractionMode.MOVE_LAYERS },
+                onLayerMoveResolved = { movesForDensity.add(it) }
+            ).apply {
+                screenDensity = spec.density
+            }
+
+            assertEquals(8f * spec.density, testArbiter.orbitTouchSlopPx, 0.01f)
+            assertEquals(18f * spec.density, testArbiter.layerSwipeSlopPx, 0.01f)
+            assertEquals(6f * spec.density, testArbiter.pinchTouchSlopPx, 0.01f)
+
+            // Simula pinça -> retirada de 1 dedo -> arrasto intencional de 24dp sobre a camada central M
+            val centerScreen = testRenderer.projectWorldToScreen(floatArrayOf(0f, 0f, 1.45f))!!
+            testArbiter.onDown(centerScreen[0] - 40f, centerScreen[1], pointerId = 0)
+            testArbiter.onPointerDown(2, activeX = centerScreen[0] - 40f, activeY = centerScreen[1], primaryPointerId = 0)
+            testArbiter.onPinchScale(1.10f)
+
+            val updatedCenter = testRenderer.projectWorldToScreen(floatArrayOf(0f, 0f, 1.45f))!!
+            testArbiter.onTransitionToSinglePointer(updatedCenter[0], updatedCenter[1], remainingPointerId = 1)
+
+            // Arrasta apenas 10dp (< 18dp de layerSwipeSlopPx) -> não deve disparar
+            testArbiter.onMove(updatedCenter[0], updatedCenter[1] + 10f * spec.density)
+            assertTrue("Em densidade ${spec.density}x, 10dp não pode disparar movimento", movesForDensity.isEmpty())
+
+            // Arrasta 26dp (> 18dp de layerSwipeSlopPx) para baixo na coluna central -> deve disparar M
+            testArbiter.onMove(updatedCenter[0], updatedCenter[1] + 26f * spec.density)
+            assertEquals(
+                "Em tela ${spec.width}x${spec.height} @ ${spec.density}x, arraste vertical central de 26dp pós-pinça deve resolver M",
+                listOf(CubeMove.M),
+                movesForDensity
+            )
+            testArbiter.onUpOrCancel()
+        }
+        ShadowTrace.reset()
+    }
 }
 
 

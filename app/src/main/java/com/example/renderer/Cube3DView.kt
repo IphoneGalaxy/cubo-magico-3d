@@ -105,15 +105,31 @@ class CubeGestureArbiter(
     var state: GestureInteractionState = GestureInteractionState.IDLE
         private set
 
+    var activePointerId: Int = MotionEvent.INVALID_POINTER_ID
+        private set
+
+    var activePointerCount: Int = 0
+        private set
+
     var screenDensity: Float = 1f
 
-    private var downX = 0f
-    private var downY = 0f
-    private var lastX = 0f
-    private var lastY = 0f
-    private var initialHit: CubeTouchHit? = null
-    private var lockedToLayerIntent = false
-    private var moveDispatchedInGesture = false
+    var downX: Float = 0f
+        private set
+    var downY: Float = 0f
+        private set
+    var lastX: Float = 0f
+        private set
+    var lastY: Float = 0f
+        private set
+    var initialHit: CubeTouchHit? = null
+        private set
+    var lockedToLayerIntent: Boolean = false
+        private set
+    var moveDispatchedInGesture: Boolean = false
+        private set
+
+    var transitionedFromMultiTouch: Boolean = false
+        private set
 
     val orbitTouchSlopPx: Float
         get() = 8f * screenDensity.coerceAtLeast(1f)
@@ -121,8 +137,14 @@ class CubeGestureArbiter(
     val layerSwipeSlopPx: Float
         get() = 18f * screenDensity.coerceAtLeast(1f)
 
-    fun onDown(x: Float, y: Float) {
+    val pinchTouchSlopPx: Float
+        get() = 6f * screenDensity.coerceAtLeast(1f)
+
+    fun onDown(x: Float, y: Float, pointerId: Int = 0) {
         renderer.onUserTouchStart()
+        activePointerId = pointerId
+        activePointerCount = 1
+        transitionedFromMultiTouch = false
         downX = x
         downY = y
         lastX = x
@@ -155,10 +177,21 @@ class CubeGestureArbiter(
         }
     }
 
-    fun onPointerDown(pointerCount: Int) {
+    fun onPointerDown(
+        pointerCount: Int,
+        activeX: Float = lastX,
+        activeY: Float = lastY,
+        primaryPointerId: Int = activePointerId
+    ) {
         renderer.onUserTouchStart()
+        activePointerCount = pointerCount.coerceAtLeast(2)
+        activePointerId = primaryPointerId
+        lastX = activeX
+        lastY = activeY
         if (pointerCount >= 2) {
-            // Dois ou mais dedos: prioriza imediatamente o zoom por pinça e cancela qualquer giro pendente
+            // Dois ou mais dedos: prioriza imediatamente o zoom por pinça e cancela qualquer giro pendente ainda não confirmado.
+            // Nota: se um movimento válido já havia sido enviado ao ViewModel (moveDispatchedInGesture == true),
+            // sua animação prossegue normalmente sem ser desfeita, enquanto novos giros ficam bloqueados durante a pinça.
             state = GestureInteractionState.PINCH_ZOOM
             initialHit = null
             lockedToLayerIntent = false
@@ -168,7 +201,16 @@ class CubeGestureArbiter(
         }
     }
 
+    fun updateMultiTouchReference(activeX: Float, activeY: Float) {
+        lastX = activeX
+        lastY = activeY
+    }
+
     fun onPinchScale(scaleFactor: Float) {
+        // Impede que callbacks residuais de escala reativem PINCH_ZOOM quando apenas 1 dedo permaneceu na tela
+        if (activePointerCount == 1 && transitionedFromMultiTouch) {
+            return
+        }
         if (state != GestureInteractionState.PINCH_ZOOM) {
             state = GestureInteractionState.PINCH_ZOOM
             initialHit = null
@@ -177,7 +219,8 @@ class CubeGestureArbiter(
             renderer.previewTouchMove = null
         }
         if (scaleFactor > 0.01f && scaleFactor != 1.0f) {
-            renderer.cameraDistance = (renderer.cameraDistance / scaleFactor)
+            val clampedFactor = scaleFactor.coerceIn(0.45f, 2.25f)
+            renderer.cameraDistance = (renderer.cameraDistance / clampedFactor)
                 .coerceIn(CubeGLRenderer.MIN_DISTANCE, CubeGLRenderer.MAX_DISTANCE)
             synchronized(this) {
                 renderer.projectWorldToScreen(floatArrayOf(0f, 0f, 0f))
@@ -186,8 +229,87 @@ class CubeGestureArbiter(
         }
     }
 
+    /**
+     * Chamado em ACTION_POINTER_UP quando ainda restam 2 ou mais dedos na tela (ex.: 3 dedos -> 2 dedos).
+     * Mantém o estado em [GestureInteractionState.PINCH_ZOOM] e atualiza o ponteiro de referência sem saltos.
+     */
+    fun onMultiPointersRemaining(
+        remainingPointerCount: Int,
+        survivingX: Float,
+        survivingY: Float,
+        survivingPointerId: Int
+    ) {
+        renderer.onUserTouchStart()
+        activePointerCount = remainingPointerCount.coerceAtLeast(2)
+        activePointerId = survivingPointerId
+        downX = survivingX
+        downY = survivingY
+        lastX = survivingX
+        lastY = survivingY
+        state = GestureInteractionState.PINCH_ZOOM
+        initialHit = null
+        lockedToLayerIntent = false
+        renderer.previewTouchHit = null
+        renderer.previewTouchMove = null
+    }
+
+    /**
+     * Chamado em ACTION_POINTER_UP quando resta exatamente 1 dedo na tela após uma interação multitoque.
+     * Encerra a interpretação de pinça, atualiza as coordenadas de referência para o ponteiro sobrevivente,
+     * limpa seleções antigas e prepara uma nova classificação de gesto de 1 dedo respeitando o touch slop.
+     */
+    fun onTransitionToSinglePointer(
+        remainingX: Float,
+        remainingY: Float,
+        remainingPointerId: Int = activePointerId
+    ) {
+        // Mantém o estado de toque ativo para que a Home não retome a rotação automática enquanto o dedo permanece na tela
+        renderer.onUserTouchStart()
+        activePointerCount = 1
+        activePointerId = remainingPointerId
+        transitionedFromMultiTouch = true
+
+        // Zera deslocamentos acumulados da pinça e ancora no dedo sobrevivente
+        downX = remainingX
+        downY = remainingY
+        lastX = remainingX
+        lastY = remainingY
+
+        // Elimina qualquer seleção antiga de peça/camada e permite exatamente 1 novo movimento se houver novo arraste intencional
+        initialHit = null
+        moveDispatchedInGesture = false
+        renderer.previewTouchHit = null
+        renderer.previewTouchMove = null
+
+        val canManipulateLayers = allowFaceSwipeProvider() &&
+            touchModeProvider() == TouchInteractionMode.MOVE_LAYERS
+        lockedToLayerIntent = canManipulateLayers
+
+        state = if (isAnimatingProvider() && lockedToLayerIntent) {
+            GestureInteractionState.ANIMATING
+        } else {
+            GestureInteractionState.PENDING_GESTURE
+        }
+        onCameraUpdated()
+    }
+
+    /**
+     * Ressincroniza com segurança caso o ID do ponteiro ativo mude inesperadamente durante um evento de movimento,
+     * evitando saltos bruscos de câmera ou cálculos de deslocamento inválidos.
+     */
+    fun onPointerIdRebound(newX: Float, newY: Float, newPointerId: Int) {
+        activePointerId = newPointerId
+        downX = newX
+        downY = newY
+        lastX = newX
+        lastY = newY
+        initialHit = null
+        renderer.previewTouchHit = null
+        renderer.previewTouchMove = null
+    }
+
     fun onMove(x: Float, y: Float) {
-        // Se o gesto foi classificado como PINCH_ZOOM ou IDLE, ignora movimentos de 1 dedo
+        // Se o gesto estiver em PINCH_ZOOM (2+ dedos) ou IDLE (sem toque), ignora movimentos de 1 dedo
         if (state == GestureInteractionState.PINCH_ZOOM || state == GestureInteractionState.IDLE) {
             lastX = x
             lastY = y
@@ -199,21 +321,66 @@ class CubeGestureArbiter(
         lastX = x
         lastY = y
 
+        // Se ainda não confirmou rotação de camada ou órbita, sincroniza a intenção com o modo atual
+        if (state == GestureInteractionState.PENDING_GESTURE || state == GestureInteractionState.ANIMATING) {
+            lockedToLayerIntent = allowFaceSwipeProvider() &&
+                touchModeProvider() == TouchInteractionMode.MOVE_LAYERS
+        }
+
         // CASO 1: Modo Mover Camadas -> NUNCA move a câmera!
         if (lockedToLayerIntent) {
             if (isAnimatingProvider()) {
                 state = GestureInteractionState.ANIMATING
+                if (transitionedFromMultiTouch) {
+                    // Se uma animação disparada antes da pinça ainda está terminando, mantém a origem atualizada
+                    // no dedo restante para impedir que resíduos da pinça disparem outro giro ao fim da animação.
+                    downX = x
+                    downY = y
+                    initialHit = null
+                }
                 return
             }
 
-            // Se o usuário iniciou o toque ligeiramente fora da borda do cubo e arrastou para dentro,
-            // captura a primeira peça atingida ao cruzar a silhueta do cubo.
+            if (state == GestureInteractionState.ANIMATING) {
+                state = GestureInteractionState.PENDING_GESTURE
+            }
+
+            val totalDxFromDown = x - downX
+            val totalDyFromDown = y - downY
+            val distFromDown = hypot(totalDxFromDown, totalDyFromDown)
+
             if (initialHit == null) {
-                val enteredHit = renderer.pickCubieAtScreen(x, y, allowEdgePadding = true)
-                if (enteredHit != null) {
-                    initialHit = enteredHit
-                    renderer.previewTouchHit = enteredHit
-                    onCameraUpdated()
+                if (transitionedFromMultiTouch) {
+                    // Após retirar o 2º dedo, só realiza raycasting quando o dedo restante realmente iniciar um deslocamento
+                    if (distFromDown < 2f) {
+                        return
+                    }
+                    val hitAtRemainingOrigin = renderer.pickCubieAtScreen(downX, downY, allowEdgePadding = true)
+                    if (hitAtRemainingOrigin != null) {
+                        initialHit = hitAtRemainingOrigin
+                        renderer.previewTouchHit = hitAtRemainingOrigin
+                        onCameraUpdated()
+                    } else {
+                        val enteredHit = renderer.pickCubieAtScreen(x, y, allowEdgePadding = true)
+                        if (enteredHit != null) {
+                            initialHit = enteredHit
+                            downX = x
+                            downY = y
+                            renderer.previewTouchHit = enteredHit
+                            onCameraUpdated()
+                        }
+                    }
+                } else {
+                    // Toque de 1 dedo iniciado fora da silhueta do cubo que entrou na malha durante o arraste:
+                    // ancora downX/downY no ponto de entrada na peça para exigir o layerSwipeSlopPx sobre a peça.
+                    val enteredHit = renderer.pickCubieAtScreen(x, y, allowEdgePadding = true)
+                    if (enteredHit != null) {
+                        initialHit = enteredHit
+                        downX = x
+                        downY = y
+                        renderer.previewTouchHit = enteredHit
+                        onCameraUpdated()
+                    }
                 }
             }
 
@@ -249,7 +416,7 @@ class CubeGestureArbiter(
         val totalDy = y - downY
         val totalDist = hypot(totalDx, totalDy)
 
-        if (state == GestureInteractionState.PENDING_GESTURE) {
+        if (state == GestureInteractionState.PENDING_GESTURE || state == GestureInteractionState.ANIMATING) {
             if (totalDist >= orbitTouchSlopPx) {
                 state = GestureInteractionState.CAMERA_ORBIT
             } else {
@@ -268,6 +435,9 @@ class CubeGestureArbiter(
         renderer.onUserTouchEnd()
         val hadPreview = renderer.previewTouchHit != null || renderer.previewTouchMove != null
         state = GestureInteractionState.IDLE
+        activePointerId = MotionEvent.INVALID_POINTER_ID
+        activePointerCount = 0
+        transitionedFromMultiTouch = false
         initialHit = null
         lockedToLayerIntent = false
         moveDispatchedInGesture = false
@@ -609,14 +779,29 @@ private fun directionArrowForMove(move: CubeMove): String = when (move) {
  * entre rotação de camada, órbita de câmera e zoom por pinça, bloqueando interceptação de scroll pai.
  */
 @SuppressLint("ViewConstructor")
-private class CubeTouchGLSurfaceView(
+class CubeTouchGLSurfaceView(
     context: Context,
     val cubeRenderer: CubeGLRenderer,
-    allowFaceSwipeProvider: () -> Boolean,
-    isAnimatingProvider: () -> Boolean,
-    touchModeProvider: () -> TouchInteractionMode,
-    onSwipeMove: (CubeMove) -> Unit
+    allowFaceSwipeProvider: () -> Boolean = { true },
+    isAnimatingProvider: () -> Boolean = { false },
+    touchModeProvider: () -> TouchInteractionMode = { TouchInteractionMode.MOVE_LAYERS },
+    onSwipeMove: (CubeMove) -> Unit = {}
 ) : GLSurfaceView(context) {
+
+    private val isRobolectricEnv: Boolean =
+        Build.FINGERPRINT.equals("robolectric", ignoreCase = true)
+
+    var activePointerId: Int = MotionEvent.INVALID_POINTER_ID
+        private set
+
+    var activePointerCount: Int = 0
+        private set
+
+    private var effectivePointersInCurrentEvent: Int = 0
+    private var scaleAppliedInCurrentEvent: Boolean = false
+    private var pinchInProgress: Boolean = false
+    private var initialPinchSpan: Float = 0f
+    private var lastPinchSpan: Float = 0f
 
     val arbiter = CubeGestureArbiter(
         renderer = cubeRenderer,
@@ -639,46 +824,230 @@ private class CubeTouchGLSurfaceView(
         context,
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-                arbiter.onPointerDown(2)
+                if (effectivePointersInCurrentEvent < 2) return false
+                arbiter.onPointerDown(
+                    pointerCount = effectivePointersInCurrentEvent,
+                    activeX = arbiter.lastX,
+                    activeY = arbiter.lastY,
+                    primaryPointerId = activePointerId
+                )
                 return true
             }
 
             override fun onScale(detector: ScaleGestureDetector): Boolean {
-                arbiter.onPinchScale(detector.scaleFactor)
+                if (effectivePointersInCurrentEvent < 2) return false
+                val factor = detector.scaleFactor
+                if (kotlin.math.abs(factor - 1.0f) > 0.002f) {
+                    scaleAppliedInCurrentEvent = true
+                    pinchInProgress = true
+                    arbiter.onPinchScale(factor)
+                }
                 return true
             }
         }
-    )
+    ).apply {
+        // Desativa QuickScale de 1 dedo (duplo toque + arraste) para que 1 dedo seja exclusivo para camadas/câmera
+        isQuickScaleEnabled = false
+    }
 
     init {
-        setEGLContextClientVersion(2)
-        setEGLConfigChooser(8, 8, 8, 8, 16, 0)
-        setRenderer(cubeRenderer)
-        renderMode = RENDERMODE_CONTINUOUSLY
+        if (!isRobolectricEnv) {
+            setEGLContextClientVersion(2)
+            setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+            setRenderer(cubeRenderer)
+            renderMode = RENDERMODE_CONTINUOUSLY
+        }
+    }
+
+    override fun requestRender() {
+        if (!isRobolectricEnv) {
+            super.requestRender()
+        }
+    }
+
+    private fun computeActiveSpan(event: MotionEvent, ignoreIndex: Int = -1): Float {
+        var sumX = 0f
+        var sumY = 0f
+        var count = 0
+        for (i in 0 until event.pointerCount) {
+            if (i == ignoreIndex) continue
+            sumX += event.getX(i)
+            sumY += event.getY(i)
+            count++
+        }
+        if (count < 2) return 0f
+        val focusX = sumX / count
+        val focusY = sumY / count
+        var devSum = 0f
+        for (i in 0 until event.pointerCount) {
+            if (i == ignoreIndex) continue
+            devSum += hypot(event.getX(i) - focusX, event.getY(i) - focusY)
+        }
+        // Multiplicado por 2 para coincidir com a distância euclidiana exata entre 2 ponteiros
+        return (devSum / count) * 2f
     }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         // Impede que qualquer container pai do Compose intercepte o toque para rolar a página
         parent?.requestDisallowInterceptTouchEvent(true)
+        arbiter.screenDensity = context.resources.displayMetrics.density.coerceAtLeast(1f)
+
+        val action = event.actionMasked
+        val actionIndex = event.actionIndex
+
+        effectivePointersInCurrentEvent = when (action) {
+            MotionEvent.ACTION_POINTER_UP -> (event.pointerCount - 1).coerceAtLeast(0)
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> 0
+            else -> event.pointerCount
+        }
+        scaleAppliedInCurrentEvent = false
         scaleDetector.onTouchEvent(event)
 
-        when (event.actionMasked) {
+        when (action) {
             MotionEvent.ACTION_DOWN -> {
-                arbiter.onDown(event.x, event.y)
+                val pointerId = event.getPointerId(0)
+                activePointerId = pointerId
+                activePointerCount = 1
+                pinchInProgress = false
+                initialPinchSpan = 0f
+                lastPinchSpan = 0f
+                arbiter.onDown(event.getX(0), event.getY(0), pointerId = pointerId)
             }
 
             MotionEvent.ACTION_POINTER_DOWN -> {
-                arbiter.onPointerDown(event.pointerCount)
+                activePointerCount = event.pointerCount
+                if (activePointerId == MotionEvent.INVALID_POINTER_ID || event.findPointerIndex(activePointerId) < 0) {
+                    val safeIdx = actionIndex.coerceIn(0, event.pointerCount - 1)
+                    activePointerId = event.getPointerId(safeIdx)
+                }
+                val activeIdx = event.findPointerIndex(activePointerId).coerceAtLeast(0)
+                val span = computeActiveSpan(event)
+                lastPinchSpan = span
+                if (event.pointerCount == 2 || initialPinchSpan <= 0f) {
+                    initialPinchSpan = span
+                    pinchInProgress = false
+                }
+                arbiter.onPointerDown(
+                    pointerCount = event.pointerCount,
+                    activeX = event.getX(activeIdx),
+                    activeY = event.getY(activeIdx),
+                    primaryPointerId = activePointerId
+                )
             }
 
             MotionEvent.ACTION_MOVE -> {
-                if (event.pointerCount == 1) {
-                    arbiter.onMove(event.x, event.y)
+                activePointerCount = event.pointerCount
+                if (event.pointerCount >= 2) {
+                    if (arbiter.state != GestureInteractionState.PINCH_ZOOM) {
+                        val activeIdx = event.findPointerIndex(activePointerId).coerceAtLeast(0)
+                        arbiter.onPointerDown(
+                            pointerCount = event.pointerCount,
+                            activeX = event.getX(activeIdx),
+                            activeY = event.getY(activeIdx),
+                            primaryPointerId = activePointerId
+                        )
+                    }
+                    val currentSpan = computeActiveSpan(event)
+                    if (!scaleAppliedInCurrentEvent && currentSpan > 10f && lastPinchSpan > 10f) {
+                        if (pinchInProgress || kotlin.math.abs(currentSpan - initialPinchSpan) >= arbiter.pinchTouchSlopPx) {
+                            pinchInProgress = true
+                            val manualScale = currentSpan / lastPinchSpan
+                            if (kotlin.math.abs(manualScale - 1.0f) > 0.002f) {
+                                arbiter.onPinchScale(manualScale)
+                            }
+                        }
+                    }
+                    if (currentSpan > 10f) {
+                        lastPinchSpan = currentSpan
+                    }
+                    val activeIdx = event.findPointerIndex(activePointerId)
+                    if (activeIdx >= 0) {
+                        arbiter.updateMultiTouchReference(event.getX(activeIdx), event.getY(activeIdx))
+                    }
+                } else if (event.pointerCount == 1) {
+                    var pointerIdx = event.findPointerIndex(activePointerId)
+                    if (pointerIdx < 0) {
+                        activePointerId = event.getPointerId(0)
+                        pointerIdx = 0
+                        arbiter.onPointerIdRebound(
+                            newX = event.getX(0),
+                            newY = event.getY(0),
+                            newPointerId = activePointerId
+                        )
+                        return true
+                    }
+                    arbiter.onMove(event.getX(pointerIdx), event.getY(pointerIdx))
+                }
+            }
+
+            MotionEvent.ACTION_POINTER_UP -> {
+                val liftedIndex = actionIndex
+                val liftedPointerId = event.getPointerId(liftedIndex)
+                val remainingPointers = (event.pointerCount - 1).coerceAtLeast(0)
+                activePointerCount = remainingPointers
+
+                if (remainingPointers == 0) {
+                    activePointerId = MotionEvent.INVALID_POINTER_ID
+                    pinchInProgress = false
+                    initialPinchSpan = 0f
+                    lastPinchSpan = 0f
+                    parent?.requestDisallowInterceptTouchEvent(false)
+                    arbiter.onUpOrCancel()
+                    return true
+                }
+
+                // Determina o índice do ponteiro sobrevivente sem presumir que estará no índice 0
+                val survivingIndex = if (liftedPointerId == activePointerId || event.findPointerIndex(activePointerId) < 0) {
+                    var chosenIdx = -1
+                    for (i in 0 until event.pointerCount) {
+                        if (i != liftedIndex) {
+                            chosenIdx = i
+                            break
+                        }
+                    }
+                    chosenIdx.coerceAtLeast(0)
+                } else {
+                    val existingIdx = event.findPointerIndex(activePointerId)
+                    if (existingIdx >= 0 && existingIdx != liftedIndex) {
+                        existingIdx
+                    } else {
+                        (if (liftedIndex == 0) 1 else 0).coerceIn(0, event.pointerCount - 1)
+                    }
+                }
+
+                activePointerId = event.getPointerId(survivingIndex)
+                val survivingX = event.getX(survivingIndex)
+                val survivingY = event.getY(survivingIndex)
+
+                if (remainingPointers == 1) {
+                    pinchInProgress = false
+                    initialPinchSpan = 0f
+                    lastPinchSpan = 0f
+                    arbiter.onTransitionToSinglePointer(
+                        remainingX = survivingX,
+                        remainingY = survivingY,
+                        remainingPointerId = activePointerId
+                    )
+                } else {
+                    val newSpan = computeActiveSpan(event, ignoreIndex = liftedIndex)
+                    lastPinchSpan = newSpan
+                    initialPinchSpan = newSpan
+                    arbiter.onMultiPointersRemaining(
+                        remainingPointerCount = remainingPointers,
+                        survivingX = survivingX,
+                        survivingY = survivingY,
+                        survivingPointerId = activePointerId
+                    )
                 }
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                activePointerId = MotionEvent.INVALID_POINTER_ID
+                activePointerCount = 0
+                pinchInProgress = false
+                initialPinchSpan = 0f
+                lastPinchSpan = 0f
                 parent?.requestDisallowInterceptTouchEvent(false)
                 arbiter.onUpOrCancel()
             }
