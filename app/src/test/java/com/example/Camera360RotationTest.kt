@@ -825,4 +825,703 @@ class Camera360RotationTest {
         exploreRenderer.onDrawFrame(null)
         assertEquals(0f, exploreQuatBefore.angularDistanceDegrees(exploreRenderer.cameraQuaternion), 1e-5f)
     }
+
+    /**
+     * TESTES DE ROTAÇÃO COM DOIS DEDOS (TWO-FINGER TWIST / CAMERA ROLL) — CENÁRIOS 1 A 9:
+     * 1. Torção horária com dois dedos gira o cubo no sentido horário na tela.
+     * 2. Torção anti-horária com dois dedos gira o cubo no sentido anti-horário na tela.
+     * 3. Torção acumulada de 180° e 360° (incluindo travessia da fronteira -180°/+180° de atan2) mantém estabilidade numérica e unitariedade do quaternion.
+     * 4. Torção com dois dedos corrige inclinação lateral após rotações diagonais combinadas.
+     * 5. Torção com dois dedos funciona com a mesma coerência visual quando o cubo está invertido em 180°.
+     * 6. Zoom por pinça puro continua funcionando sem regressão e sem roll indevido.
+     * 7. Zoom e torção simultâneos funcionam juntos de forma fluida e sem conflito.
+     * 8. Movimento paralelo ou radial dos dois dedos sem variação angular não provoca roll indevido.
+     * 9. Ruído angular mínimo (< twistTouchSlopDeg = 1.2°) é filtrado e não provoca tremores na câmera.
+     */
+    @Test
+    fun testTwoFingerTwistClockwiseCounterClockwise180And360BoundaryDiagonalTiltCorrectionAndCoexistenceWithPinch() {
+        val context = RuntimeEnvironment.getApplication()
+        val renderer = CubeGLRenderer().apply {
+            configureViewport(800, 800)
+            resetCamera()
+        }
+        val dispatchedMoves = mutableListOf<CubeMove>()
+        val glView = CubeTouchGLSurfaceView(
+            context = context,
+            cubeRenderer = renderer,
+            allowFaceSwipeProvider = { true },
+            isAnimatingProvider = { false },
+            touchModeProvider = { TouchInteractionMode.MOVE_LAYERS },
+            onSwipeMove = { dispatchedMoves.add(it) }
+        )
+        glView.arbiter.screenDensity = 1f
+
+        data class PointerSpec(val id: Int, val x: Float, val y: Float)
+
+        fun sendTouch(
+            downTime: Long,
+            eventTime: Long,
+            actionMasked: Int,
+            actionIndex: Int = 0,
+            vararg pointers: PointerSpec
+        ) {
+            val props = Array(pointers.size) { idx ->
+                MotionEvent.PointerProperties().apply {
+                    id = pointers[idx].id
+                    toolType = MotionEvent.TOOL_TYPE_FINGER
+                }
+            }
+            val coords = Array(pointers.size) { idx ->
+                MotionEvent.PointerCoords().apply {
+                    x = pointers[idx].x
+                    y = pointers[idx].y
+                    pressure = 1.0f
+                    size = 1.0f
+                }
+            }
+            val combinedAction = if (actionMasked == MotionEvent.ACTION_POINTER_DOWN ||
+                actionMasked == MotionEvent.ACTION_POINTER_UP
+            ) {
+                actionMasked or (actionIndex shl MotionEvent.ACTION_POINTER_INDEX_SHIFT)
+            } else {
+                actionMasked
+            }
+            val ev = MotionEvent.obtain(
+                downTime,
+                eventTime,
+                combinedAction,
+                pointers.size,
+                props,
+                coords,
+                0,
+                0,
+                1.0f,
+                1.0f,
+                0,
+                0,
+                InputDevice.SOURCE_TOUCHSCREEN,
+                0
+            )
+            try {
+                glView.onTouchEvent(ev)
+            } finally {
+                ev.recycle()
+            }
+        }
+
+        fun pointerPairAtAngle(
+            centerX: Float,
+            centerY: Float,
+            radius: Float,
+            angleDeg: Float,
+            id1: Int = 0,
+            id2: Int = 1
+        ): Pair<PointerSpec, PointerSpec> {
+            val rad = Math.toRadians(angleDeg.toDouble())
+            val dx = (radius * kotlin.math.cos(rad)).toFloat()
+            val dy = (radius * kotlin.math.sin(rad)).toFloat()
+            return Pair(
+                PointerSpec(id1, centerX - dx, centerY - dy),
+                PointerSpec(id2, centerX + dx, centerY + dy)
+            )
+        }
+
+        // =========================================================================
+        // 1 e 2. Torção horária (+30°) e anti-horária (-30°) com dois dedos:
+        // Verifica direção visual real na tela (ponto superior da face visível gira para a direita no sentido horário
+        // e de volta para a esquerda no sentido anti-horário) sem alterar a posição do olho (eyePos).
+        // =========================================================================
+        renderer.cameraYaw = 0f
+        renderer.cameraPitch = 0f
+        assertEquals(0f, renderer.cameraRoll, 1e-4f)
+        val initialEye = renderer.getCameraEyePosition()
+        val topFrontWorld = floatArrayOf(0f, 1.0f, 1.45f)
+        val topScreenInitial = renderer.projectWorldToScreen(topFrontWorld)!!
+        assertEquals(400f, topScreenInitial[0], 0.5f)
+        assertTrue("Ponto superior deve projetar acima do centro (Y < 400)", topScreenInitial[1] < 350f)
+
+        val t1 = 1000L
+        val (p0Start, p1Start) = pointerPairAtAngle(400f, 400f, radius = 150f, angleDeg = 0f)
+        sendTouch(t1, t1, MotionEvent.ACTION_DOWN, 0, p0Start)
+        sendTouch(t1, t1 + 16, MotionEvent.ACTION_POINTER_DOWN, 1, p0Start, p1Start)
+
+        // Torce +30° no sentido horário (em coordenadas Android +Y para baixo, ângulo crescente = sentido horário)
+        for (step in 1..15) {
+            val angle = step * 2f
+            val (p0, p1) = pointerPairAtAngle(400f, 400f, radius = 150f, angleDeg = angle)
+            sendTouch(t1, t1 + 16 + step * 16L, MotionEvent.ACTION_MOVE, 0, p0, p1)
+        }
+        sendTouch(t1, t1 + 300, MotionEvent.ACTION_POINTER_UP, 1, p0Start, p1Start)
+        sendTouch(t1, t1 + 316, MotionEvent.ACTION_UP, 0, p0Start)
+
+        assertEquals("Torção horária de +30° deve acumular cameraRoll = +30°", 30f, renderer.cameraRoll, 0.2f)
+        assertEquals(
+            "Roll em torno do eixo de visão local não deve alterar a posição do olho da câmera",
+            0f,
+            vectorDistance(initialEye, renderer.getCameraEyePosition()),
+            1e-4f
+        )
+        val topScreenAfterClockwise = renderer.projectWorldToScreen(topFrontWorld)!!
+        assertTrue(
+            "Após torção horária (+30°), o topo do cubo deve deslocar-se para a DIREITA na tela (X=${topScreenAfterClockwise[0]} > ${topScreenInitial[0]})",
+            topScreenAfterClockwise[0] > topScreenInitial[0] + 15f
+        )
+
+        // Agora torce -60° no sentido anti-horário (de +30° para -30° líquidos)
+        val t2 = 2000L
+        val (p0Cw, p1Cw) = pointerPairAtAngle(400f, 400f, radius = 150f, angleDeg = 30f)
+        sendTouch(t2, t2, MotionEvent.ACTION_DOWN, 0, p0Cw)
+        sendTouch(t2, t2 + 16, MotionEvent.ACTION_POINTER_DOWN, 1, p0Cw, p1Cw)
+        for (step in 1..30) {
+            val angle = 30f - step * 2f
+            val (p0, p1) = pointerPairAtAngle(400f, 400f, radius = 150f, angleDeg = angle)
+            sendTouch(t2, t2 + 16 + step * 16L, MotionEvent.ACTION_MOVE, 0, p0, p1)
+        }
+        sendTouch(t2, t2 + 600, MotionEvent.ACTION_POINTER_UP, 1, p0Cw, p1Cw)
+        sendTouch(t2, t2 + 616, MotionEvent.ACTION_UP, 0, p0Cw)
+
+        assertEquals("Após torção anti-horária de -60°, cameraRoll deve ser -30°", -30f, renderer.cameraRoll, 0.2f)
+        val topScreenAfterCounterClockwise = renderer.projectWorldToScreen(topFrontWorld)!!
+        assertTrue(
+            "Após torção anti-horária (-30° líquidos), o topo do cubo deve deslocar-se para a ESQUERDA do centro (X=${topScreenAfterCounterClockwise[0]} < ${topScreenInitial[0]})",
+            topScreenAfterCounterClockwise[0] < topScreenInitial[0] - 15f
+        )
+
+        // =========================================================================
+        // 3. Torção acumulada de 180° e 360° (incluindo travessia de -180°/+180° de atan2 sem salto):
+        // =========================================================================
+        renderer.resetCamera()
+        val initialDefaultQuat = renderer.cameraQuaternion
+        val initialDefaultUp = renderer.getCameraUpVector()
+        val initialDefaultRight = renderer.getCameraRightVector()
+
+        val t3 = 3000L
+        // Inicia em 150° para atravessar explicitamente a fronteira +180° / -180° durante a volta de 360°
+        val startAngle360 = 150f
+        val (p0LoopStart, p1LoopStart) = pointerPairAtAngle(400f, 400f, radius = 150f, angleDeg = startAngle360)
+        sendTouch(t3, t3, MotionEvent.ACTION_DOWN, 0, p0LoopStart)
+        sendTouch(t3, t3 + 16, MotionEvent.ACTION_POINTER_DOWN, 1, p0LoopStart, p1LoopStart)
+
+        var prevQuat = renderer.cameraQuaternion
+        for (step in 1..180) {
+            val angle = startAngle360 + step * 2f // avança +2° por evento até completar +360° (cruzando 180° -> -178° no passo 16)
+            val (p0, p1) = pointerPairAtAngle(400f, 400f, radius = 150f, angleDeg = angle)
+            sendTouch(t3, t3 + 16 + step * 16L, MotionEvent.ACTION_MOVE, 0, p0, p1)
+
+            val currQuat = renderer.cameraQuaternion
+            val stepAngularDist = prevQuat.angularDistanceDegrees(currQuat)
+            assertEquals(
+                "Passo $step (angle=$angle°): incremento de roll deve ser estritamente 2° sem salto na fronteira ±180°",
+                2f,
+                stepAngularDist,
+                0.05f
+            )
+            assertTrue("Quaternion deve manter-se unitário no passo $step", currQuat.isNormalized(1e-4f))
+            prevQuat = currQuat
+
+            if (step == 90) {
+                // Em 180° de roll acumulado: upDir e rightDir inverteram de sentido (-initialUp, -initialRight)
+                assertEquals(180f, renderer.cameraRoll, 0.2f)
+                val upAt180 = renderer.getCameraUpVector()
+                val rightAt180 = renderer.getCameraRightVector()
+                assertEquals(-initialDefaultUp[0], upAt180[0], 0.02f)
+                assertEquals(-initialDefaultUp[1], upAt180[1], 0.02f)
+                assertEquals(-initialDefaultUp[2], upAt180[2], 0.02f)
+                assertEquals(-initialDefaultRight[0], rightAt180[0], 0.02f)
+                assertEquals(-initialDefaultRight[1], rightAt180[1], 0.02f)
+                assertEquals(-initialDefaultRight[2], rightAt180[2], 0.02f)
+            }
+        }
+        sendTouch(t3, t3 + 4000, MotionEvent.ACTION_POINTER_UP, 1, p0LoopStart, p1LoopStart)
+        sendTouch(t3, t3 + 4016, MotionEvent.ACTION_UP, 0, p0LoopStart)
+
+        assertEquals("Após volta completa de 360°, cameraRoll deve registrar 360°", 360f, renderer.cameraRoll, 0.2f)
+        assertEquals("normalizedCameraRoll após 360° deve ser 0°", 0f, renderer.normalizedCameraRoll, 0.2f)
+        assertTrue(
+            "Após 360° de torção, cameraQuaternion deve coincidir com a orientação inicial",
+            renderer.cameraQuaternion.angularDistanceDegrees(initialDefaultQuat) < 0.1f
+        )
+
+        // =========================================================================
+        // 4. Correção de inclinação lateral após rotações diagonais de 1 dedo:
+        // =========================================================================
+        renderer.cameraYaw = 0f
+        renderer.cameraPitch = 45f
+        // Com a câmera inclinada (pitch = 45°), orbitar no referencial local da câmera introduz inclinação lateral (rightDir.y != 0)
+        renderer.orbitCamera(dx = 120f, dy = 0f)
+        val rightTilted = renderer.getCameraRightVector()
+        val upTilted = renderer.getCameraUpVector()
+        val eyeTilted = renderer.getCameraEyePosition()
+        // Como a pós-multiplicação por qRoll(theta) transforma right' = cos(theta)*right + sin(theta)*up,
+        // para nivelar right'.y = 0 basta aplicar theta = atan2(-right.y, up.y):
+        val correctiveRollDeg = Math.toDegrees(kotlin.math.atan2((-rightTilted[1]).toDouble(), upTilted[1].toDouble())).toFloat()
+        assertTrue("Inclinação lateral deve estar presente antes da torção corretiva (medido: $correctiveRollDeg°)", abs(correctiveRollDeg) > 25f)
+
+        renderer.rollCamera(correctiveRollDeg)
+        val rightCorrected = renderer.getCameraRightVector()
+        assertEquals(
+            "Torção corretiva deve nivelar perfeitamente a inclinação lateral (rightDir.y == 0)",
+            0f,
+            rightCorrected[1],
+            1e-3f
+        )
+        assertEquals(
+            "Nivelar a inclinação lateral com roll não deve alterar o ponto de vista (eyePos)",
+            0f,
+            vectorDistance(eyeTilted, renderer.getCameraEyePosition()),
+            1e-4f
+        )
+
+        // =========================================================================
+        // 5. Torção com dois dedos quando o cubo está invertido em 180° (de cabeça para baixo):
+        // =========================================================================
+        renderer.cameraYaw = 0f
+        renderer.cameraPitch = 180f // câmera invertida em 180° olhando de -Z para +Z com up = (0, -1, 0)
+        assertTrue("Câmera deve estar invertida em 180°", renderer.isCameraUpsideDown)
+        // Na câmera invertida em 180°, o ponto visualmente no TOPO da tela na face visível (-Z) é (0, -1.0, -1.45)
+        val visualTopWhenInvertedWorld = floatArrayOf(0f, -1.0f, -1.45f)
+        val screenBeforeTwistInverted = renderer.projectWorldToScreen(visualTopWhenInvertedWorld)!!
+        assertEquals(400f, screenBeforeTwistInverted[0], 0.5f)
+        assertTrue("Ponto visualmente no topo deve estar na metade superior da tela (Y < 400)", screenBeforeTwistInverted[1] < 350f)
+
+        // Torce +25° no sentido horário com dois dedos
+        renderer.rollCamera(25f)
+        val screenAfterTwistInverted = renderer.projectWorldToScreen(visualTopWhenInvertedWorld)!!
+        assertTrue(
+            "Mesmo com o cubo invertido em 180°, torcer 2 dedos no sentido horário (+25°) deve girar o topo visual para a DIREITA na tela (antes=${screenBeforeTwistInverted[0]}, depois=${screenAfterTwistInverted[0]})",
+            screenAfterTwistInverted[0] > screenBeforeTwistInverted[0] + 12f
+        )
+
+        // =========================================================================
+        // 6, 7, 8 e 9. Coexistência com Zoom por Pinça, Zoom+Twist simultâneos, Movimento sem variação angular e Filtro de Ruído:
+        // =========================================================================
+        // 6 & 8: Pinça radial pura (distância aumenta de 200px para 360px mantendo ângulo 0°) -> altera APENAS zoom, zero roll!
+        renderer.resetCamera()
+        val distBeforePurePinch = renderer.cameraDistance
+        val quatBeforePurePinch = renderer.cameraQuaternion
+        val t6 = 6000L
+        sendTouch(t6, t6, MotionEvent.ACTION_DOWN, 0, PointerSpec(0, 300f, 400f))
+        sendTouch(t6, t6 + 16, MotionEvent.ACTION_POINTER_DOWN, 1, PointerSpec(0, 300f, 400f), PointerSpec(1, 500f, 400f))
+        sendTouch(t6, t6 + 32, MotionEvent.ACTION_MOVE, 0, PointerSpec(0, 220f, 400f), PointerSpec(1, 580f, 400f))
+        sendTouch(t6, t6 + 48, MotionEvent.ACTION_POINTER_UP, 1, PointerSpec(0, 220f, 400f), PointerSpec(1, 580f, 400f))
+        sendTouch(t6, t6 + 64, MotionEvent.ACTION_UP, 0, PointerSpec(0, 220f, 400f))
+
+        assertTrue("Pinça pura deve reduzir cameraDistance", renderer.cameraDistance < distBeforePurePinch)
+        assertEquals("Pinça radial sem variação angular deve manter cameraRoll == 0°", 0f, renderer.cameraRoll, 1e-5f)
+        assertEquals(
+            "Pinça radial sem variação angular não deve alterar cameraQuaternion",
+            0f,
+            quatBeforePurePinch.angularDistanceDegrees(renderer.cameraQuaternion),
+            1e-5f
+        )
+
+        // 8b: Translação paralela pura de dois dedos (ambos se movem +60px em X e +40px em Y mantendo distância e ângulo) -> nem zoom nem roll!
+        renderer.resetCamera()
+        val distBeforeParallel = renderer.cameraDistance
+        val quatBeforeParallel = renderer.cameraQuaternion
+        val t8 = 8000L
+        sendTouch(t8, t8, MotionEvent.ACTION_DOWN, 0, PointerSpec(0, 300f, 400f))
+        sendTouch(t8, t8 + 16, MotionEvent.ACTION_POINTER_DOWN, 1, PointerSpec(0, 300f, 400f), PointerSpec(1, 500f, 400f))
+        sendTouch(t8, t8 + 32, MotionEvent.ACTION_MOVE, 0, PointerSpec(0, 330f, 420f), PointerSpec(1, 530f, 420f))
+        sendTouch(t8, t8 + 48, MotionEvent.ACTION_MOVE, 0, PointerSpec(0, 360f, 440f), PointerSpec(1, 560f, 440f))
+        sendTouch(t8, t8 + 64, MotionEvent.ACTION_POINTER_UP, 1, PointerSpec(0, 360f, 440f), PointerSpec(1, 560f, 440f))
+        sendTouch(t8, t8 + 80, MotionEvent.ACTION_UP, 0, PointerSpec(0, 360f, 440f))
+
+        assertEquals("Movimento paralelo de 2 dedos não deve alterar cameraDistance", distBeforeParallel, renderer.cameraDistance, 1e-4f)
+        assertEquals("Movimento paralelo de 2 dedos não deve provocar roll", 0f, renderer.cameraRoll, 1e-5f)
+        assertEquals(0f, quatBeforeParallel.angularDistanceDegrees(renderer.cameraQuaternion), 1e-5f)
+
+        // 9: Ruído angular mínimo (< twistTouchSlopDeg = 1.2°) e span constante -> filtrado sem tremores!
+        renderer.resetCamera()
+        val quatBeforeNoise = renderer.cameraQuaternion
+        val distBeforeNoise = renderer.cameraDistance
+        val t9 = 9000L
+        val (p0N0, p1N0) = pointerPairAtAngle(400f, 400f, radius = 150f, angleDeg = 0f)
+        val (p0N1, p1N1) = pointerPairAtAngle(400f, 400f, radius = 150f, angleDeg = 0.65f)
+        val (p0N2, p1N2) = pointerPairAtAngle(400f, 400f, radius = 150f, angleDeg = -0.45f)
+        val (p0N3, p1N3) = pointerPairAtAngle(400f, 400f, radius = 150f, angleDeg = 0.90f)
+        sendTouch(t9, t9, MotionEvent.ACTION_DOWN, 0, p0N0)
+        sendTouch(t9, t9 + 16, MotionEvent.ACTION_POINTER_DOWN, 1, p0N0, p1N0)
+        sendTouch(t9, t9 + 32, MotionEvent.ACTION_MOVE, 0, p0N1, p1N1)
+        sendTouch(t9, t9 + 48, MotionEvent.ACTION_MOVE, 0, p0N2, p1N2)
+        sendTouch(t9, t9 + 64, MotionEvent.ACTION_MOVE, 0, p0N3, p1N3)
+        sendTouch(t9, t9 + 80, MotionEvent.ACTION_POINTER_UP, 1, p0N3, p1N3)
+        sendTouch(t9, t9 + 96, MotionEvent.ACTION_UP, 0, p0N3)
+
+        assertEquals("Ruído angular menor que 1.2° não deve alterar cameraRoll", 0f, renderer.cameraRoll, 1e-5f)
+        assertEquals("Ruído angular menor que 1.2° não deve alterar cameraQuaternion", 0f, quatBeforeNoise.angularDistanceDegrees(renderer.cameraQuaternion), 1e-5f)
+        assertEquals("Torção pura com raio constante não deve alterar cameraDistance", distBeforeNoise, renderer.cameraDistance, 1e-4f)
+
+        // 7: Zoom e torção simultâneos (raio aumenta de 120px para 210px enquanto o ângulo gira +40°) -> ambos funcionam juntos!
+        renderer.resetCamera()
+        val distBeforeSimultaneous = renderer.cameraDistance
+        val t7 = 7000L
+        val (p0Sim0, p1Sim0) = pointerPairAtAngle(400f, 400f, radius = 120f, angleDeg = 0f)
+        sendTouch(t7, t7, MotionEvent.ACTION_DOWN, 0, p0Sim0)
+        sendTouch(t7, t7 + 16, MotionEvent.ACTION_POINTER_DOWN, 1, p0Sim0, p1Sim0)
+        for (step in 1..10) {
+            val radius = 120f + step * 9f   // 120px -> 210px (span 240px -> 420px)
+            val angle = step * 4f           // 0° -> +40°
+            val (p0, p1) = pointerPairAtAngle(400f, 400f, radius = radius, angleDeg = angle)
+            sendTouch(t7, t7 + 16 + step * 16L, MotionEvent.ACTION_MOVE, 0, p0, p1)
+        }
+        sendTouch(t7, t7 + 300, MotionEvent.ACTION_POINTER_UP, 1, p0Sim0, p1Sim0)
+        sendTouch(t7, t7 + 316, MotionEvent.ACTION_UP, 0, p0Sim0)
+
+        assertTrue("Durante zoom + torção simultâneos, cameraDistance deve diminuir", renderer.cameraDistance < distBeforeSimultaneous - 0.5f)
+        assertEquals("Durante zoom + torção simultâneos, cameraRoll deve acumular +40°", 40f, renderer.cameraRoll, 0.25f)
+        assertTrue("Nenhum movimento de camada deve ser disparado durante o multitoque", dispatchedMoves.isEmpty())
+
+        // 9b: Rotação muito lenta dos dedos (micro-passos de 0.05° por quadro, abaixo de minTwistFrameDeltaDeg = 0.08°)
+        // não pode perder deslocamento acumulado ao longo do gesto:
+        renderer.resetCamera()
+        val tSlow = 9500L
+        val (pSlow0, pSlow1) = pointerPairAtAngle(400f, 400f, radius = 150f, angleDeg = 0f)
+        sendTouch(tSlow, tSlow, MotionEvent.ACTION_DOWN, 0, pSlow0)
+        sendTouch(tSlow, tSlow + 16, MotionEvent.ACTION_POINTER_DOWN, 1, pSlow0, pSlow1)
+        // 100 micro-passos de +0.05° = +5.0° totais
+        for (step in 1..100) {
+            val angle = step * 0.05f
+            val (p0, p1) = pointerPairAtAngle(400f, 400f, radius = 150f, angleDeg = angle)
+            sendTouch(tSlow, tSlow + 16 + step * 16L, MotionEvent.ACTION_MOVE, 0, p0, p1)
+        }
+        sendTouch(tSlow, tSlow + 2000, MotionEvent.ACTION_POINTER_UP, 1, pSlow0, pSlow1)
+        sendTouch(tSlow, tSlow + 2016, MotionEvent.ACTION_UP, 0, pSlow0)
+        assertEquals(
+            "Rotação muito lenta (0.05°/frame por 100 quadros) deve acumular +5.0° sem perda de micro-movimentos",
+            5.0f,
+            renderer.cameraRoll,
+            0.15f
+        )
+    }
+
+    /**
+     * TESTES DE ROTAÇÃO COM DOIS DEDOS (TWO-FINGER TWIST / CAMERA ROLL) — CENÁRIOS 10 A 17:
+     * 10. Troca ou remoção de ponteiros (IDs não-sequenciais, inversão de índices, 3 dedos -> 2 dedos) não causa salto brusco de orientação.
+     * 11. Transição de 2 dedos para 1 dedo preserva a orientação atual e permite novo gesto de 1 dedo (órbita ou camada).
+     * 12. ACTION_CANCEL encerra o gesto de dois dedos de forma limpa (cancelando prévia de camada pendente).
+     * 13. Nenhum movimento matemático involuntário ocorre durante o gesto de dois dedos.
+     * 14. CubeState, histórico de movimentos e algoritmos pedagógicos permanecem intactos.
+     * 15. A rotação automática da Home continua funcionando normalmente após torção com dois dedos.
+     * 16. O raycasting e os movimentos de camada continuam corretos após torção com dois dedos (ex.: roll de 90° e 180°).
+     * 17. O botão de recentralização restaura a orientação inicial (incluindo cameraRoll = 0° e cameraQuaternion).
+     */
+    @Test
+    fun testTwoFingerTwistPointerTransitionsCancelHomeAutoRotationRaycastingAndRecenter() {
+        lateinit var vm: CuboMestreViewModel
+        composeTestRule.activityRule.scenario.onActivity { act ->
+            vm = ViewModelProvider(act)[CuboMestreViewModel::class.java]
+        }
+        val context = RuntimeEnvironment.getApplication()
+
+        data class PointerSpec(val id: Int, val x: Float, val y: Float)
+
+        fun buildEvent(
+            downTime: Long,
+            eventTime: Long,
+            actionMasked: Int,
+            actionIndex: Int = 0,
+            pointers: List<PointerSpec>
+        ): MotionEvent {
+            val props = Array(pointers.size) { idx ->
+                MotionEvent.PointerProperties().apply {
+                    id = pointers[idx].id
+                    toolType = MotionEvent.TOOL_TYPE_FINGER
+                }
+            }
+            val coords = Array(pointers.size) { idx ->
+                MotionEvent.PointerCoords().apply {
+                    x = pointers[idx].x
+                    y = pointers[idx].y
+                    pressure = 1.0f
+                    size = 1.0f
+                }
+            }
+            val combinedAction = if (actionMasked == MotionEvent.ACTION_POINTER_DOWN ||
+                actionMasked == MotionEvent.ACTION_POINTER_UP
+            ) {
+                actionMasked or (actionIndex shl MotionEvent.ACTION_POINTER_INDEX_SHIFT)
+            } else {
+                actionMasked
+            }
+            return MotionEvent.obtain(
+                downTime,
+                eventTime,
+                combinedAction,
+                pointers.size,
+                props,
+                coords,
+                0,
+                0,
+                1.0f,
+                1.0f,
+                0,
+                0,
+                InputDevice.SOURCE_TOUCHSCREEN,
+                0
+            )
+        }
+
+        fun pointerPairAtAngle(
+            centerX: Float,
+            centerY: Float,
+            radius: Float,
+            angleDeg: Float,
+            id1: Int = 0,
+            id2: Int = 1
+        ): Pair<PointerSpec, PointerSpec> {
+            val rad = Math.toRadians(angleDeg.toDouble())
+            val dx = (radius * kotlin.math.cos(rad)).toFloat()
+            val dy = (radius * kotlin.math.sin(rad)).toFloat()
+            return Pair(
+                PointerSpec(id1, centerX - dx, centerY - dy),
+                PointerSpec(id2, centerX + dx, centerY + dy)
+            )
+        }
+
+        val renderer = CubeGLRenderer().apply {
+            configureViewport(800, 800)
+            resetCamera()
+        }
+        val dispatchedMoves = mutableListOf<CubeMove>()
+        var touchMode = TouchInteractionMode.MOVE_LAYERS
+        val glView = CubeTouchGLSurfaceView(
+            context = context,
+            cubeRenderer = renderer,
+            allowFaceSwipeProvider = { true },
+            isAnimatingProvider = { false },
+            touchModeProvider = { touchMode },
+            onSwipeMove = { dispatchedMoves.add(it) }
+        )
+        glView.arbiter.screenDensity = 1f
+
+        fun sendTouch(
+            downTime: Long,
+            eventTime: Long,
+            actionMasked: Int,
+            actionIndex: Int = 0,
+            vararg pointers: PointerSpec
+        ) {
+            val ev = buildEvent(downTime, eventTime, actionMasked, actionIndex, pointers.toList())
+            try {
+                glView.onTouchEvent(ev)
+            } finally {
+                ev.recycle()
+            }
+        }
+
+        // =========================================================================
+        // 10 & 11. Identidade de ponteiros (IDs 4 e 9, inversão da ordem nos índices do MotionEvent,
+        //          3 dedos -> 2 dedos -> 1 dedo sem salto de 180°):
+        // =========================================================================
+        val t10 = 10000L
+        val (pA0, pB0) = pointerPairAtAngle(400f, 400f, radius = 140f, angleDeg = 0f, id1 = 4, id2 = 9)
+        sendTouch(t10, t10, MotionEvent.ACTION_DOWN, 0, pA0)
+        sendTouch(t10, t10 + 16, MotionEvent.ACTION_POINTER_DOWN, 1, pA0, pB0)
+
+        // Torce +20° com os ponteiros na ordem [id=4, id=9], e depois envia os mesmos ponteiros na ordem invertida de array [id=9, id=4]!
+        // Como o árbitro busca cada dedo pelo ID (findPointerIndex), inverter a ordem no array NÃO pode gerar salto de 180°!
+        val (pA10, pB10) = pointerPairAtAngle(400f, 400f, radius = 140f, angleDeg = 10f, id1 = 4, id2 = 9)
+        sendTouch(t10, t10 + 32, MotionEvent.ACTION_MOVE, 0, pA10, pB10)
+        val (pA20, pB20) = pointerPairAtAngle(400f, 400f, radius = 140f, angleDeg = 20f, id1 = 4, id2 = 9)
+        // Ordem invertida no array do evento: pB20 (id=9) no índice 0 e pA20 (id=4) no índice 1
+        sendTouch(t10, t10 + 48, MotionEvent.ACTION_MOVE, 0, pB20, pA20)
+        assertEquals(
+            "Inverter a ordem dos índices no MotionEvent mantendo os IDs 4 e 9 não pode causar salto de 180°",
+            20f,
+            renderer.cameraRoll,
+            0.2f
+        )
+
+        // Adiciona um 3º dedo (id=12): 3 dedos ativos não devem produzir roll inesperado
+        val rollBefore3rdFinger = renderer.cameraRoll
+        val pC = PointerSpec(12, 400f, 180f)
+        sendTouch(t10, t10 + 64, MotionEvent.ACTION_POINTER_DOWN, 2, pA20, pB20, pC)
+        sendTouch(
+            t10, t10 + 80, MotionEvent.ACTION_MOVE, 0,
+            PointerSpec(4, pA20.x - 15f, pA20.y + 20f),
+            PointerSpec(9, pB20.x + 15f, pB20.y - 20f),
+            PointerSpec(12, 420f, 160f)
+        )
+        assertEquals("Movimento com 3 dedos não deve alterar cameraRoll", rollBefore3rdFinger, renderer.cameraRoll, 1e-4f)
+
+        // Retira o dedo id=4 (actionIndex=0), restando 2 dedos (id=9 e id=12) -> reancora sem salto!
+        sendTouch(
+            t10, t10 + 96, MotionEvent.ACTION_POINTER_UP, 0,
+            PointerSpec(4, pA20.x - 15f, pA20.y + 20f),
+            PointerSpec(9, pB20.x + 15f, pB20.y - 20f),
+            PointerSpec(12, 420f, 160f)
+        )
+        assertEquals("Retirar 1 dedo passando de 3 para 2 dedos não deve causar salto em cameraRoll", rollBefore3rdFinger, renderer.cameraRoll, 1e-4f)
+
+        // Retira mais 1 dedo (id=12, actionIndex=1), restando apenas 1 dedo (id=9) -> preserva orientação e transita para PENDING_GESTURE
+        val quatBeforeSingleTransition = renderer.cameraQuaternion
+        sendTouch(
+            t10, t10 + 112, MotionEvent.ACTION_POINTER_UP, 1,
+            PointerSpec(9, 450f, 400f),
+            PointerSpec(12, 420f, 160f)
+        )
+        assertEquals(GestureInteractionState.PENDING_GESTURE, glView.arbiter.state)
+        assertEquals(0f, quatBeforeSingleTransition.angularDistanceDegrees(renderer.cameraQuaternion), 1e-5f)
+
+        // Com o dedo restante (id=9), no modo ROTATE_CAMERA, arrasta para orbitar normalmente
+        touchMode = TouchInteractionMode.ROTATE_CAMERA
+        sendTouch(t10, t10 + 128, MotionEvent.ACTION_MOVE, 0, PointerSpec(9, 480f, 400f))
+        assertEquals(GestureInteractionState.CAMERA_ORBIT, glView.arbiter.state)
+        assertTrue("Dedo sobrevivente após torção deve conseguir orbitar a câmera suavemente", renderer.cameraQuaternion.angularDistanceDegrees(quatBeforeSingleTransition) > 1f)
+        sendTouch(t10, t10 + 144, MotionEvent.ACTION_UP, 0, PointerSpec(9, 480f, 400f))
+        assertEquals(GestureInteractionState.IDLE, glView.arbiter.state)
+
+        // =========================================================================
+        // 12 & 13. Cancelamento de camada pendente ao entrar o 2º dedo e ACTION_CANCEL durante torção:
+        // =========================================================================
+        renderer.resetCamera()
+        touchMode = TouchInteractionMode.MOVE_LAYERS
+        dispatchedMoves.clear()
+        val frontCenterScreen = renderer.projectWorldToScreen(floatArrayOf(0f, 0f, 1.45f))!!
+        val t12 = 12000L
+
+        // 1º dedo toca sobre a face frontal e arrasta 55% do layerSwipeSlopPx (ativa previewTouchHit e previewTouchMove sem confirmar movimento)
+        sendTouch(t12, t12, MotionEvent.ACTION_DOWN, 0, PointerSpec(0, frontCenterScreen[0], frontCenterScreen[1]))
+        val previewStepPx = glView.arbiter.layerSwipeSlopPx * 0.55f
+        sendTouch(t12, t12 + 16, MotionEvent.ACTION_MOVE, 0, PointerSpec(0, frontCenterScreen[0], frontCenterScreen[1] + previewStepPx))
+        assertNotNull("Deve haver previewTouchHit antes do 2º dedo", renderer.previewTouchHit)
+        assertNotNull("Deve haver previewTouchMove antes do 2º dedo", renderer.previewTouchMove)
+        assertTrue("Movimento ainda não foi confirmado", dispatchedMoves.isEmpty())
+
+        // 2º dedo toca a tela e realiza uma torção de +15° -> cancela imediatamente o preview de camada!
+        val (pTw0, pTw1) = pointerPairAtAngle(400f, 400f, radius = 140f, angleDeg = 0f)
+        sendTouch(t12, t12 + 32, MotionEvent.ACTION_POINTER_DOWN, 1, pTw0, pTw1)
+        assertEquals(GestureInteractionState.PINCH_ZOOM, glView.arbiter.state)
+        assertEquals("2º dedo deve limpar previewTouchHit imediatamente", null, renderer.previewTouchHit)
+        assertEquals("2º dedo deve limpar previewTouchMove imediatamente", null, renderer.previewTouchMove)
+
+        val (pTw15A, pTw15B) = pointerPairAtAngle(400f, 400f, radius = 140f, angleDeg = 15f)
+        sendTouch(t12, t12 + 48, MotionEvent.ACTION_MOVE, 0, pTw15A, pTw15B)
+        assertEquals(15f, renderer.cameraRoll, 0.2f)
+        assertTrue("Torção com 2 dedos jamais deve disparar movimento de camada", dispatchedMoves.isEmpty())
+
+        // ACTION_CANCEL durante a torção encerra o gesto de forma limpa
+        sendTouch(t12, t12 + 64, MotionEvent.ACTION_CANCEL, 0, pTw15A, pTw15B)
+        assertEquals(GestureInteractionState.IDLE, glView.arbiter.state)
+        assertEquals(0, glView.activePointerCount)
+        assertFalse("Após ACTION_CANCEL, isUserTouching deve ser false", renderer.isUserTouching)
+        assertTrue("Nenhum movimento involuntário após ACTION_CANCEL", dispatchedMoves.isEmpty())
+
+        // =========================================================================
+        // 16. Raycasting e resolução de movimentos de camada (resolveMoveFromSwipe) após torção com 2 dedos:
+        // Se o cubo estiver olhando para a face FRONT (yaw=0°, pitch=0°) mas girado em +90° (sentido horário) por torção,
+        // a face R (x = +1) agora está na parte INFERIOR da tela, e a face U (y = +1) está na DIREITA da tela!
+        // =========================================================================
+        renderer.cameraYaw = 0f
+        renderer.cameraPitch = 0f
+        renderer.rollCamera(90f) // gira o cubo +90° no sentido horário na tela
+
+        // Projeta a peça (x=0, y=+1, z=+1.45) da camada U: após +90° horários, ela deve estar à DIREITA do centro (X > 440, Y ~ 400)
+        val uEdgeAfter90Roll = renderer.projectWorldToScreen(floatArrayOf(0f, 0.95f, 1.45f))!!
+        assertTrue(
+            "Após roll horário de +90°, a aresta U deve estar à direita do centro na tela (X=${uEdgeAfter90Roll[0]})",
+            uEdgeAfter90Roll[0] > 440f && abs(uEdgeAfter90Roll[1] - 400f) < 15f
+        )
+        val hitUAfter90Roll = renderer.pickCubieAtScreen(uEdgeAfter90Roll[0], uEdgeAfter90Roll[1])
+        assertNotNull("Raycasting deve atingir a peça após torção de +90°", hitUAfter90Roll)
+        assertEquals(CubeFace.FRONT, hitUAfter90Roll!!.hitFace)
+        assertEquals(0, hitUAfter90Roll.cubieX)
+        assertEquals(1, hitUAfter90Roll.cubieY)
+
+        // Na visão normal (0°), o movimento U desloca a face frontal para a ESQUERDA (-X_screen).
+        // Após girar o cubo +90° no sentido horário na tela, esse mesmo movimento físico U desloca a face frontal para CIMA (-Y_screen)!
+        dispatchedMoves.clear()
+        touchMode = TouchInteractionMode.MOVE_LAYERS
+        val t16 = 16000L
+        sendTouch(t16, t16, MotionEvent.ACTION_DOWN, 0, PointerSpec(0, uEdgeAfter90Roll[0], uEdgeAfter90Roll[1]))
+        val fullSwipePx = glView.arbiter.layerSwipeSlopPx * 1.5f
+        sendTouch(t16, t16 + 16, MotionEvent.ACTION_MOVE, 0, PointerSpec(0, uEdgeAfter90Roll[0], uEdgeAfter90Roll[1] - fullSwipePx))
+        sendTouch(t16, t16 + 32, MotionEvent.ACTION_UP, 0, PointerSpec(0, uEdgeAfter90Roll[0], uEdgeAfter90Roll[1] - fullSwipePx))
+        assertEquals(
+            "Após torção de +90°, arrastar verticalmente para cima na camada U (que está à direita na tela) deve resolver U",
+            listOf(CubeMove.U),
+            dispatchedMoves
+        )
+
+        // =========================================================================
+        // 14, 15 e 17. Integração com Home (rotação automática após torção), Explorar, Aprender e Botão Recentralizar:
+        // =========================================================================
+        composeTestRule.runOnUiThread {
+            vm.navigateTo(AppScreen.HOME)
+            vm.resetHomePreviewCube()
+        }
+        composeTestRule.waitForIdle()
+
+        val homeRenderer = Cube3DViewAuditHolder.lastActiveRenderer!!
+        homeRenderer.configureViewport(800, 800)
+        homeRenderer.resetCamera()
+        homeRenderer.clearAutoRotateCooldownForTest()
+        val homeCubeBefore = vm.homePreviewState.value.cubeState
+
+        // Executa torção de +35° com dois dedos na Home via CubeGestureArbiter
+        val homeArbiter = CubeGestureArbiter(
+            renderer = homeRenderer,
+            allowFaceSwipeProvider = { true },
+            isAnimatingProvider = { false },
+            touchModeProvider = { TouchInteractionMode.MOVE_LAYERS }
+        ).apply {
+            screenDensity = 1f
+        }
+        homeArbiter.onDown(260f, 400f, pointerId = 0)
+        homeArbiter.onPointerDown(2, activeX = 260f, activeY = 400f, primaryPointerId = 0)
+        homeArbiter.anchorTwoFingerTwist(0, 260f, 400f, 1, 540f, 400f)
+        val (hP0, hP1) = pointerPairAtAngle(400f, 400f, radius = 140f, angleDeg = 35f)
+        homeArbiter.updateTwoFingerTwist(0, hP0.x, hP0.y, 1, hP1.x, hP1.y)
+        assertEquals(35f, homeRenderer.cameraRoll, 0.2f)
+        assertFalse("Enquanto os 2 dedos estão na tela, a Home não deve auto-girar", homeRenderer.advanceIdleAutoRotationIfEligible())
+
+        homeArbiter.onUpOrCancel()
+        val quatAfterHomeTwist = homeRenderer.cameraQuaternion
+
+        // Após 1900ms de inatividade, a rotação automática da Home retoma suavemente a partir da orientação torcida!
+        org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofMillis(1900))
+        assertTrue("Rotação automática da Home deve retomar após torção com 2 dedos", homeRenderer.advanceIdleAutoRotationIfEligible())
+        assertEquals(
+            "Retomada da rotação automática após torção deve partir da orientação atual (passo de 0.35° sem salto)",
+            0.35f,
+            quatAfterHomeTwist.angularDistanceDegrees(homeRenderer.cameraQuaternion),
+            0.02f
+        )
+        assertEquals("Estado matemático do cubo na Home deve permanecer intacto", homeCubeBefore, vm.homePreviewState.value.cubeState)
+
+        // 17. Botão de recentralização restaura yaw, pitch, roll = 0° e cameraQuaternion inicial
+        composeTestRule.onNodeWithTag("recenter_camera_button").assertIsDisplayed().performClick()
+        composeTestRule.waitForIdle()
+        assertEquals(CubeGLRenderer.DEFAULT_YAW, homeRenderer.cameraYaw, 0.01f)
+        assertEquals(CubeGLRenderer.DEFAULT_PITCH, homeRenderer.cameraPitch, 0.01f)
+        assertEquals("Recentralizar câmera deve zerar cameraRoll", 0f, homeRenderer.cameraRoll, 0.01f)
+        val defaultQuat = CameraQuaternion.fromYawPitch(CubeGLRenderer.DEFAULT_YAW, CubeGLRenderer.DEFAULT_PITCH)
+        assertTrue(
+            "Recentralizar câmera deve restaurar exatamente o quaternion padrão",
+            homeRenderer.cameraQuaternion.angularDistanceDegrees(defaultQuat) < 0.01f
+        )
+
+        // Verifica também que torção no Modo Explorar preserva CubeState, histórico e algoritmos pedagógicos
+        composeTestRule.runOnUiThread {
+            vm.navigateTo(AppScreen.EXPLORE)
+            vm.resetExploreCubeSolved()
+            vm.executeExploreMove(CubeMove.F)
+        }
+        composeTestRule.waitForIdle()
+        val exploreCubeBefore = vm.exploreState.value.cubeState
+        val exploreHistoryBefore = vm.exploreState.value.moveHistory.toList()
+        val exploreRenderer = Cube3DViewAuditHolder.lastActiveRenderer!!
+        exploreRenderer.rollCamera(-45f)
+        assertEquals(-45f, exploreRenderer.cameraRoll, 0.01f)
+        assertEquals("Torção no Modo Explorar não altera CubeState", exploreCubeBefore, vm.exploreState.value.cubeState)
+        assertEquals("Torção no Modo Explorar não altera histórico", exploreHistoryBefore, vm.exploreState.value.moveHistory)
+        assertEquals("F U R U' R' F' F U R U' R' F'", CurriculumRepository.getStep(4).cases[1].fullResolutionAlgorithm)
+
+        composeTestRule.onNodeWithTag("recenter_camera_button").assertIsDisplayed().performClick()
+        composeTestRule.waitForIdle()
+        assertEquals(0f, exploreRenderer.cameraRoll, 0.01f)
+        assertTrue(exploreRenderer.cameraQuaternion.angularDistanceDegrees(defaultQuat) < 0.01f)
+    }
 }
+

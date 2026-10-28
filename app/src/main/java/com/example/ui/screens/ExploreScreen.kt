@@ -142,7 +142,7 @@ fun ExploreScreen(
                 .fillMaxSize()
                 .widthIn(max = 720.dp)
                 .padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             // 1. Cabeçalho Compacto e Fixo
             ExploreCompactHeader(
@@ -151,7 +151,13 @@ fun ExploreScreen(
                 onOpenNotationGuide = stableOpenNotationGuide
             )
 
-            // 2. Área Principal do Cubo 3D (elástica, ocupando o centro da tela sem exigir rolagem)
+            // 2. Faixa dedicada de status do cubo (separada do viewport 3D para evitar sobreposição com active_move_banner)
+            ExploreStatusStrip(
+                isCubeSolved = isCubeSolved,
+                moveCount = exploreState.moveHistory.size
+            )
+
+            // 3. Área Principal do Cubo 3D (elástica, ocupando o centro da tela sem exigir rolagem)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -172,48 +178,9 @@ fun ExploreScreen(
                     onMoveSwiped = stableExecuteMove,
                     modifier = Modifier.fillMaxSize()
                 )
-
-                // Indicador compacto de estado resolvido e contador de movimentos
-                Surface(
-                    color = if (isCubeSolved) {
-                        SuccessEmerald.copy(alpha = 0.90f)
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.90f)
-                    },
-                    shape = RoundedCornerShape(50),
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(10.dp)
-                        .testTag("explore_status_badge")
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
-                        if (isCubeSolved) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-                        Text(
-                            text = if (isCubeSolved) {
-                                "Cubo Resolvido • ${exploreState.moveHistory.size} mov."
-                            } else {
-                                "Em exploração • ${exploreState.moveHistory.size} mov."
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isCubeSolved) Color.White else MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
             }
 
-            // 3. Painel Fixo de Comandos de Camadas e Ações Rápidas (isolado de recomposições de quadros intermediários)
+            // 4. Painel Fixo de Comandos de Camadas e Ações Rápidas (isolado de recomposições de quadros intermediários)
             ExploreControlsCard(
                 canUndo = canUndo,
                 onExecuteMove = stableExecuteMove,
@@ -222,6 +189,53 @@ fun ExploreScreen(
                 onResetCubeSolved = stableResetCubeSolved,
                 onRecenterCamera = stableRecenterCamera
             )
+        }
+    }
+}
+
+@Composable
+private fun ExploreStatusStrip(
+    isCubeSolved: Boolean,
+    moveCount: Int
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Start,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            color = if (isCubeSolved) {
+                SuccessEmerald.copy(alpha = 0.90f)
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.90f)
+            },
+            shape = RoundedCornerShape(50),
+            modifier = Modifier.testTag("explore_status_badge")
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                if (isCubeSolved) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+                Text(
+                    text = if (isCubeSolved) {
+                        "Cubo Resolvido • $moveCount mov."
+                    } else {
+                        "Em exploração • $moveCount mov."
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isCubeSolved) Color.White else MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }

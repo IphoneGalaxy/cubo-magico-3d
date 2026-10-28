@@ -17,6 +17,7 @@ import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -254,6 +255,9 @@ class CubeGLRenderer(
     private var _cameraPitch: Float = DEFAULT_PITCH
 
     @Volatile
+    private var _cameraRoll: Float = 0f
+
+    @Volatile
     var cameraQuaternion: CameraQuaternion = CameraQuaternion.fromYawPitch(DEFAULT_YAW, DEFAULT_PITCH)
         private set
 
@@ -263,6 +267,7 @@ class CubeGLRenderer(
             if (!value.isFinite()) return
             synchronized(vpLock) {
                 _cameraYaw = value
+                _cameraRoll = 0f
                 cameraQuaternion = CameraQuaternion.fromYawPitch(_cameraYaw, _cameraPitch)
                 updateViewProjectionLocked()
             }
@@ -274,7 +279,25 @@ class CubeGLRenderer(
             if (!value.isFinite()) return
             synchronized(vpLock) {
                 _cameraPitch = value
+                _cameraRoll = 0f
                 cameraQuaternion = CameraQuaternion.fromYawPitch(_cameraYaw, _cameraPitch)
+                updateViewProjectionLocked()
+            }
+        }
+
+    /**
+     * Rotação lateral acumulada (camera roll) em graus em torno do eixo local de visão da câmera (+Z local),
+     * produzida pelo gesto de torção com dois dedos (two-finger twist).
+     */
+    var cameraRoll: Float
+        get() = _cameraRoll
+        set(value) {
+            if (!value.isFinite()) return
+            synchronized(vpLock) {
+                val delta = value - _cameraRoll
+                _cameraRoll = value
+                val qRoll = CameraQuaternion.fromAxisAngle(0f, 0f, 1f, delta)
+                cameraQuaternion = (cameraQuaternion * qRoll).normalized()
                 updateViewProjectionLocked()
             }
         }
@@ -283,12 +306,13 @@ class CubeGLRenderer(
      * Inclinação vertical normalizada no intervalo (-180°, +180°].
      */
     val normalizedCameraPitch: Float
-        get() {
-            var p = _cameraPitch % 360f
-            if (p > 180f) p -= 360f
-            if (p <= -180f) p += 360f
-            return p
-        }
+        get() = normalizeAngleDeltaDegrees(_cameraPitch)
+
+    /**
+     * Rotação lateral (camera roll) normalizada no intervalo (-180°, +180°].
+     */
+    val normalizedCameraRoll: Float
+        get() = normalizeAngleDeltaDegrees(_cameraRoll)
 
     /**
      * Indica se a câmera está atualmente invertida verticalmente (vetor Up local apontando para -Y global).
@@ -554,6 +578,23 @@ class CubeGLRenderer(
             val qYaw = CameraQuaternion.fromAxisAngle(0f, 1f, 0f, deltaYawDeg)
             val qPitch = CameraQuaternion.fromAxisAngle(1f, 0f, 0f, -deltaPitchDeg)
             cameraQuaternion = (cameraQuaternion * qYaw * qPitch).normalized()
+            updateViewProjectionLocked()
+        }
+    }
+
+    /**
+     * Aplica uma rotação incremental de torção (camera roll) em graus em torno do eixo local de visão (+Z da câmera),
+     * compondo por pós-multiplicação sobre [cameraQuaternion] e mantendo sua normalização unitária.
+     * Em coordenadas de tela Android, valores positivos (+deltaRollDegrees) giram visualmente o cubo
+     * no sentido horário na tela e valores negativos (-deltaRollDegrees) no sentido anti-horário,
+     * inclusive quando a câmera está invertida em 180°.
+     */
+    fun rollCamera(deltaRollDegrees: Float) {
+        if (!deltaRollDegrees.isFinite() || abs(deltaRollDegrees) < 1e-6f) return
+        synchronized(vpLock) {
+            _cameraRoll += deltaRollDegrees
+            val qRoll = CameraQuaternion.fromAxisAngle(0f, 0f, 1f, deltaRollDegrees)
+            cameraQuaternion = (cameraQuaternion * qRoll).normalized()
             updateViewProjectionLocked()
         }
     }
@@ -1491,6 +1532,7 @@ class CubeGLRenderer(
         synchronized(vpLock) {
             _cameraYaw = DEFAULT_YAW
             _cameraPitch = DEFAULT_PITCH
+            _cameraRoll = 0f
             cameraDistance = DEFAULT_DISTANCE
             cameraQuaternion = CameraQuaternion.fromYawPitch(DEFAULT_YAW, DEFAULT_PITCH)
             updateViewProjectionLocked()
@@ -1506,6 +1548,29 @@ class CubeGLRenderer(
         const val YAW_SENSITIVITY = 0.40f
         const val PITCH_SENSITIVITY = 0.34f
         const val MAX_AUDIT_RECORDED_ANGLES = 1024
+
+        /**
+         * Calcula o ângulo instantâneo em graus [-180°, +180°] entre dois ponteiros ativos na tela usando atan2.
+         * Em coordenadas de tela Android (+X para a direita, +Y para baixo), variações positivas (+Δθ)
+         * correspondem ao giro horário dos dois dedos e variações negativas (-Δθ) ao giro anti-horário.
+         */
+        fun computeTwoFingerAngleDegrees(x1: Float, y1: Float, x2: Float, y2: Float): Float {
+            val dx = x2 - x1
+            val dy = y2 - y1
+            return Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
+        }
+
+        /**
+         * Normaliza uma diferença angular incremental para o intervalo (-180°, +180°],
+         * evitando saltos ou descontinuidades quando o ângulo atravessa a fronteira -180°/+180°.
+         */
+        fun normalizeAngleDeltaDegrees(rawDeltaDegrees: Float): Float {
+            if (!rawDeltaDegrees.isFinite()) return 0f
+            var delta = rawDeltaDegrees % 360f
+            if (delta > 180f) delta -= 360f
+            if (delta <= -180f) delta += 360f
+            return delta
+        }
 
         private const val VERTEX_SHADER_CODE = """
             uniform mat4 uMVPMatrix;

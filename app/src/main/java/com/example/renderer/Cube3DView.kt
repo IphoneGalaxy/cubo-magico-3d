@@ -134,6 +134,23 @@ class CubeGestureArbiter(
     var transitionedFromMultiTouch: Boolean = false
         private set
 
+    var twistPointerId1: Int = MotionEvent.INVALID_POINTER_ID
+        private set
+    var twistPointerId2: Int = MotionEvent.INVALID_POINTER_ID
+        private set
+    var twistAnchorValid: Boolean = false
+        private set
+    var initialTwistAngleDeg: Float = 0f
+        private set
+    var lastTwistAngleDeg: Float = 0f
+        private set
+    var lastTwistSpanPx: Float = 0f
+        private set
+    var accumulatedTwistFromAnchorDeg: Float = 0f
+        private set
+    var twistInProgress: Boolean = false
+        private set
+
     val orbitTouchSlopPx: Float
         get() = 8f * screenDensity.coerceAtLeast(1f)
 
@@ -143,11 +160,127 @@ class CubeGestureArbiter(
     val pinchTouchSlopPx: Float
         get() = 6f * screenDensity.coerceAtLeast(1f)
 
+    val twistTouchSlopDeg: Float = 1.2f
+
+    val minTwistFrameDeltaDeg: Float = 0.08f
+
+    val minTwistSpanPx: Float
+        get() = 24f * screenDensity.coerceAtLeast(1f)
+
+    val maxSingleFrameSpanJumpForTwistPx: Float
+        get() = kotlin.math.max(75f, 32f * screenDensity.coerceAtLeast(1f))
+
+    fun clearTwoFingerTwistAnchor() {
+        twistPointerId1 = MotionEvent.INVALID_POINTER_ID
+        twistPointerId2 = MotionEvent.INVALID_POINTER_ID
+        twistAnchorValid = false
+        initialTwistAngleDeg = 0f
+        lastTwistAngleDeg = 0f
+        lastTwistSpanPx = 0f
+        accumulatedTwistFromAnchorDeg = 0f
+        twistInProgress = false
+    }
+
+    fun anchorTwoFingerTwist(
+        pointerId1: Int,
+        x1: Float,
+        y1: Float,
+        pointerId2: Int,
+        x2: Float,
+        y2: Float
+    ) {
+        if (pointerId1 == pointerId2 ||
+            pointerId1 == MotionEvent.INVALID_POINTER_ID ||
+            pointerId2 == MotionEvent.INVALID_POINTER_ID
+        ) {
+            clearTwoFingerTwistAnchor()
+            return
+        }
+        val span = hypot(x2 - x1, y2 - y1)
+        if (span < minTwistSpanPx) {
+            clearTwoFingerTwistAnchor()
+            return
+        }
+        val angle = CubeGLRenderer.computeTwoFingerAngleDegrees(x1, y1, x2, y2)
+        twistPointerId1 = pointerId1
+        twistPointerId2 = pointerId2
+        initialTwistAngleDeg = angle
+        lastTwistAngleDeg = angle
+        lastTwistSpanPx = span
+        accumulatedTwistFromAnchorDeg = 0f
+        twistInProgress = false
+        twistAnchorValid = true
+    }
+
+    fun onTwoFingerTwist(deltaAngleDegrees: Float) {
+        if (activePointerCount == 1 && transitionedFromMultiTouch) {
+            return
+        }
+        if (state != GestureInteractionState.PINCH_ZOOM) {
+            state = GestureInteractionState.PINCH_ZOOM
+            initialHit = null
+            lockedToLayerIntent = false
+            renderer.previewTouchHit = null
+            renderer.previewTouchMove = null
+        }
+        if (!deltaAngleDegrees.isFinite() || kotlin.math.abs(deltaAngleDegrees) < 1e-4f) {
+            return
+        }
+        renderer.rollCamera(deltaAngleDegrees)
+        onCameraUpdated()
+    }
+
+    fun updateTwoFingerTwist(
+        pointerId1: Int,
+        x1: Float,
+        y1: Float,
+        pointerId2: Int,
+        x2: Float,
+        y2: Float
+    ) {
+        if (activePointerCount != 2 || (activePointerCount == 1 && transitionedFromMultiTouch)) {
+            clearTwoFingerTwistAnchor()
+            return
+        }
+        val span = hypot(x2 - x1, y2 - y1)
+        if (span < minTwistSpanPx) {
+            clearTwoFingerTwistAnchor()
+            return
+        }
+        if (!twistAnchorValid ||
+            pointerId1 != twistPointerId1 ||
+            pointerId2 != twistPointerId2 ||
+            kotlin.math.abs(span - lastTwistSpanPx) > maxSingleFrameSpanJumpForTwistPx
+        ) {
+            anchorTwoFingerTwist(pointerId1, x1, y1, pointerId2, x2, y2)
+            return
+        }
+        lastTwistSpanPx = span
+        val currentAngle = CubeGLRenderer.computeTwoFingerAngleDegrees(x1, y1, x2, y2)
+
+        if (!twistInProgress) {
+            val rawDelta = CubeGLRenderer.normalizeAngleDeltaDegrees(currentAngle - lastTwistAngleDeg)
+            lastTwistAngleDeg = currentAngle
+            accumulatedTwistFromAnchorDeg += rawDelta
+            if (kotlin.math.abs(accumulatedTwistFromAnchorDeg) >= twistTouchSlopDeg) {
+                twistInProgress = true
+                onTwoFingerTwist(accumulatedTwistFromAnchorDeg)
+            }
+        } else {
+            val rawDelta = CubeGLRenderer.normalizeAngleDeltaDegrees(currentAngle - lastTwistAngleDeg)
+            if (kotlin.math.abs(rawDelta) >= minTwistFrameDeltaDeg) {
+                lastTwistAngleDeg = currentAngle
+                onTwoFingerTwist(rawDelta)
+            }
+        }
+    }
+
     fun onDown(x: Float, y: Float, pointerId: Int = 0) {
         renderer.onUserTouchStart()
         activePointerId = pointerId
         activePointerCount = 1
         transitionedFromMultiTouch = false
+        clearTwoFingerTwistAnchor()
         downX = x
         downY = y
         lastX = x
@@ -191,10 +324,13 @@ class CubeGestureArbiter(
         activePointerId = primaryPointerId
         lastX = activeX
         lastY = activeY
+        if (pointerCount != 2) {
+            clearTwoFingerTwistAnchor()
+        }
         if (pointerCount >= 2) {
-            // Dois ou mais dedos: prioriza imediatamente o zoom por pinça e cancela qualquer giro pendente ainda não confirmado.
+            // Dois ou mais dedos: prioriza imediatamente o gesto multitoque (pinça + torção) e cancela qualquer giro pendente ainda não confirmado.
             // Nota: se um movimento válido já havia sido enviado ao ViewModel (moveDispatchedInGesture == true),
-            // sua animação prossegue normalmente sem ser desfeita, enquanto novos giros ficam bloqueados durante a pinça.
+            // sua animação prossegue normalmente sem ser desfeita, enquanto novos giros ficam bloqueados durante o multitoque.
             state = GestureInteractionState.PINCH_ZOOM
             initialHit = null
             lockedToLayerIntent = false
@@ -254,11 +390,12 @@ class CubeGestureArbiter(
         lockedToLayerIntent = false
         renderer.previewTouchHit = null
         renderer.previewTouchMove = null
+        clearTwoFingerTwistAnchor()
     }
 
     /**
      * Chamado em ACTION_POINTER_UP quando resta exatamente 1 dedo na tela após uma interação multitoque.
-     * Encerra a interpretação de pinça, atualiza as coordenadas de referência para o ponteiro sobrevivente,
+     * Encerra a interpretação de pinça/torção, atualiza as coordenadas de referência para o ponteiro sobrevivente,
      * limpa seleções antigas e prepara uma nova classificação de gesto de 1 dedo respeitando o touch slop.
      */
     fun onTransitionToSinglePointer(
@@ -271,6 +408,7 @@ class CubeGestureArbiter(
         activePointerCount = 1
         activePointerId = remainingPointerId
         transitionedFromMultiTouch = true
+        clearTwoFingerTwistAnchor()
 
         // Zera deslocamentos acumulados da pinça e ancora no dedo sobrevivente
         downX = remainingX
@@ -302,6 +440,7 @@ class CubeGestureArbiter(
      */
     fun onPointerIdRebound(newX: Float, newY: Float, newPointerId: Int) {
         activePointerId = newPointerId
+        clearTwoFingerTwistAnchor()
         downX = newX
         downY = newY
         lastX = newX
@@ -440,6 +579,7 @@ class CubeGestureArbiter(
         activePointerId = MotionEvent.INVALID_POINTER_ID
         activePointerCount = 0
         transitionedFromMultiTouch = false
+        clearTwoFingerTwistAnchor()
         initialHit = null
         lockedToLayerIntent = false
         moveDispatchedInGesture = false
@@ -882,6 +1022,9 @@ class CubeTouchGLSurfaceView(
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
                 if (effectivePointersInCurrentEvent < 2) return false
+                if (initialPinchSpan <= 0f) {
+                    initialPinchSpan = detector.currentSpan
+                }
                 arbiter.onPointerDown(
                     pointerCount = effectivePointersInCurrentEvent,
                     activeX = arbiter.lastX,
@@ -893,6 +1036,10 @@ class CubeTouchGLSurfaceView(
 
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 if (effectivePointersInCurrentEvent < 2) return false
+                val refSpan = if (initialPinchSpan > 0f) initialPinchSpan else detector.currentSpan
+                if (!pinchInProgress && kotlin.math.abs(detector.currentSpan - refSpan) < arbiter.pinchTouchSlopPx) {
+                    return true
+                }
                 val factor = detector.scaleFactor
                 if (kotlin.math.abs(factor - 1.0f) > 0.002f) {
                     scaleAppliedInCurrentEvent = true
@@ -1069,6 +1216,18 @@ class CubeTouchGLSurfaceView(
                     activeY = event.getY(activeIdx),
                     primaryPointerId = activePointerId
                 )
+                if (event.pointerCount == 2) {
+                    arbiter.anchorTwoFingerTwist(
+                        pointerId1 = event.getPointerId(0),
+                        x1 = event.getX(0),
+                        y1 = event.getY(0),
+                        pointerId2 = event.getPointerId(1),
+                        x2 = event.getX(1),
+                        y2 = event.getY(1)
+                    )
+                } else {
+                    arbiter.clearTwoFingerTwistAnchor()
+                }
             }
 
             MotionEvent.ACTION_MOVE -> {
@@ -1089,12 +1248,39 @@ class CubeTouchGLSurfaceView(
                             pinchInProgress = true
                             val manualScale = currentSpan / lastPinchSpan
                             if (kotlin.math.abs(manualScale - 1.0f) > 0.002f) {
+                                lastPinchSpan = currentSpan
                                 arbiter.onPinchScale(manualScale)
                             }
+                        } else {
+                            lastPinchSpan = currentSpan
                         }
-                    }
-                    if (currentSpan > 10f) {
+                    } else if (currentSpan > 10f && (scaleAppliedInCurrentEvent || lastPinchSpan <= 10f)) {
                         lastPinchSpan = currentSpan
+                    }
+                    if (event.pointerCount == 2) {
+                        val idx1 = if (arbiter.twistAnchorValid) event.findPointerIndex(arbiter.twistPointerId1) else -1
+                        val idx2 = if (arbiter.twistAnchorValid) event.findPointerIndex(arbiter.twistPointerId2) else -1
+                        if (idx1 >= 0 && idx2 >= 0 && idx1 != idx2) {
+                            arbiter.updateTwoFingerTwist(
+                                pointerId1 = arbiter.twistPointerId1,
+                                x1 = event.getX(idx1),
+                                y1 = event.getY(idx1),
+                                pointerId2 = arbiter.twistPointerId2,
+                                x2 = event.getX(idx2),
+                                y2 = event.getY(idx2)
+                            )
+                        } else {
+                            arbiter.anchorTwoFingerTwist(
+                                pointerId1 = event.getPointerId(0),
+                                x1 = event.getX(0),
+                                y1 = event.getY(0),
+                                pointerId2 = event.getPointerId(1),
+                                x2 = event.getX(1),
+                                y2 = event.getY(1)
+                            )
+                        }
+                    } else {
+                        arbiter.clearTwoFingerTwistAnchor()
                     }
                     val activeIdx = event.findPointerIndex(activePointerId)
                     if (activeIdx >= 0) {

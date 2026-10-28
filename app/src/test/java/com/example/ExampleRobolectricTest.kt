@@ -2486,6 +2486,173 @@ class ExampleRobolectricTest {
         }
         ShadowTrace.reset()
     }
+
+    @Test
+    @Config(qualifiers = "w360dp-h780dp-xhdpi")
+    fun testExploreStatusBadgeAndActiveMoveBannerZeroOverlapAcrossWidthsFontScalesAndThemes() {
+        fun collectNodeTextLayouts(tag: String): List<androidx.compose.ui.text.TextLayoutResult> {
+            val node = composeTestRule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode()
+            val textLayouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            fun collectFrom(sNode: androidx.compose.ui.semantics.SemanticsNode) {
+                if (sNode.config.contains(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult)) {
+                    sNode.config[androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult].action?.invoke(textLayouts)
+                }
+                sNode.children.forEach { collectFrom(it) }
+            }
+            collectFrom(node)
+            return textLayouts
+        }
+
+        fun assertNoVisualTextOverflow(tag: String, contextInfo: String): String {
+            val textLayouts = collectNodeTextLayouts(tag)
+            assertTrue("Nó '$tag' deve produzir TextLayoutResult ($contextInfo)", textLayouts.isNotEmpty())
+            for (layout in textLayouts) {
+                val renderedText = layout.layoutInput.text.text
+                assertFalse(
+                    "Texto de '$tag' ('$renderedText') NÃO pode sofrer corte vertical em $contextInfo (didOverflowHeight=${layout.didOverflowHeight})",
+                    layout.didOverflowHeight
+                )
+                assertFalse(
+                    "Texto de '$tag' ('$renderedText') NÃO pode exceder maxLines em $contextInfo",
+                    layout.multiParagraph.didExceedMaxLines
+                )
+                for (line in 0 until layout.lineCount) {
+                    assertFalse(
+                        "Linha $line de '$tag' ('$renderedText') NÃO pode sofrer elipse/truncamento em $contextInfo",
+                        layout.isLineEllipsized(line)
+                    )
+                }
+                assertEquals(
+                    "Todos os caracteres de '$tag' ('$renderedText') devem estar visíveis no layout em $contextInfo",
+                    renderedText.length,
+                    layout.getLineEnd(layout.lineCount - 1)
+                )
+            }
+            return textLayouts.joinToString(" ") { it.layoutInput.text.text }
+        }
+
+        val widthQualifiers = listOf(
+            "w320dp-h740dp-xhdpi",
+            "w360dp-h780dp-xhdpi",
+            "w393dp-h852dp-xhdpi"
+        )
+        val fontScales = listOf(1.0f, 1.3f, 1.5f)
+        val themes = listOf(true, false) // true = escuro, false = claro
+        val movesToVerify = listOf(
+            CubeMove.R,       // horário
+            CubeMove.F,       // horário
+            CubeMove.R_PRIME, // anti-horário
+            CubeMove.F_PRIME, // anti-horário
+            CubeMove.R2,      // 180°
+            CubeMove.F2       // 180°
+        )
+
+        try {
+            for (qualifiers in widthQualifiers) {
+                for (fontScale in fontScales) {
+                    org.robolectric.RuntimeEnvironment.setQualifiers(qualifiers)
+                    org.robolectric.RuntimeEnvironment.getApplication().resources.configuration.fontScale = fontScale
+                    lateinit var vm: com.example.viewmodel.CuboMestreViewModel
+                    composeTestRule.activityRule.scenario.onActivity { act ->
+                        act.resources.configuration.fontScale = fontScale
+                        act.recreate()
+                    }
+                    composeTestRule.waitForIdle()
+                    composeTestRule.activityRule.scenario.onActivity { act ->
+                        vm = androidx.lifecycle.ViewModelProvider(act)[com.example.viewmodel.CuboMestreViewModel::class.java]
+                    }
+                    vm.forceMultiFrameAnimationInTest = true
+
+                    for (isDark in themes) {
+                        composeTestRule.runOnUiThread {
+                            if (vm.progressState.value.isDarkTheme != isDark) {
+                                vm.toggleDarkTheme()
+                            }
+                            vm.openExploreScreen()
+                        }
+                        composeTestRule.waitForIdle()
+
+                        for (isSolvedState in listOf(true, false)) {
+                            composeTestRule.runOnUiThread {
+                                vm.forceMultiFrameAnimationInTest = false
+                                vm.resetExploreCubeSolved()
+                                if (isSolvedState) {
+                                    // Simula 8 movimentos que preservam o cubo resolvido ("Cubo Resolvido • 8 mov.")
+                                    repeat(4) {
+                                        vm.executeExploreMove(CubeMove.R)
+                                        vm.executeExploreMove(CubeMove.R_PRIME)
+                                    }
+                                } else {
+                                    vm.scrambleExploreCube()
+                                }
+                            }
+                            composeTestRule.waitForIdle()
+
+                            for (move in movesToVerify) {
+                                composeTestRule.runOnUiThread {
+                                    vm.forceMultiFrameAnimationInTest = true
+                                    vm.executeExploreMove(move)
+                                }
+                                composeTestRule.waitForIdle()
+
+                                val ctx = "$qualifiers | font=${fontScale}x | dark=$isDark | solved=$isSolvedState | move=${move.notation}"
+
+                                val statusNode = composeTestRule.onNodeWithTag("explore_status_badge").assertIsDisplayed().fetchSemanticsNode()
+                                val bannerNode = composeTestRule.onNodeWithTag("active_move_banner").assertIsDisplayed().fetchSemanticsNode()
+                                val viewportNode = composeTestRule.onNodeWithTag("cube_3d_viewport").assertIsDisplayed().fetchSemanticsNode()
+
+                                val statusBounds = statusNode.boundsInRoot
+                                val bannerBounds = bannerNode.boundsInRoot
+                                val viewportBounds = viewportNode.boundsInRoot
+
+                                // 1. Zero interseção geométrica entre explore_status_badge e active_move_banner
+                                assertFalse(
+                                    "Não pode haver interseção entre explore_status_badge ($statusBounds) e active_move_banner ($bannerBounds) em $ctx",
+                                    statusBounds.overlaps(bannerBounds)
+                                )
+                                assertTrue(
+                                    "explore_status_badge deve ficar inteiramente acima do viewport 3D e do active_move_banner em $ctx (statusBottom=${statusBounds.bottom}, viewportTop=${viewportBounds.top}, bannerTop=${bannerBounds.top})",
+                                    statusBounds.bottom <= viewportBounds.top + 1f && statusBounds.bottom <= bannerBounds.top + 1f
+                                )
+                                assertTrue(
+                                    "active_move_banner deve estar contido dentro dos limites horizontais do viewport 3D em $ctx (banner=$bannerBounds, viewport=$viewportBounds)",
+                                    bannerBounds.left >= viewportBounds.left - 1f && bannerBounds.right <= viewportBounds.right + 1f
+                                )
+
+                                // 2. Textos totalmente legíveis, sem cortes ou overflow visual
+                                val statusText = assertNoVisualTextOverflow("explore_status_badge", ctx)
+                                val bannerText = assertNoVisualTextOverflow("active_move_banner", ctx)
+
+                                val expectedStatusPrefix = if (isSolvedState) "Cubo Resolvido • 8 mov." else "Em exploração •"
+                                assertTrue(
+                                    "Texto de explore_status_badge ('$statusText') deve conter '$expectedStatusPrefix' em $ctx",
+                                    statusText.contains(expectedStatusPrefix)
+                                )
+                                assertTrue(
+                                    "Texto de active_move_banner ('$bannerText') deve conter notação '${move.notation}' e direção '${move.titlePt}' em $ctx",
+                                    bannerText.contains(move.notation) && bannerText.contains(move.titlePt)
+                                )
+
+                                // Limpa animação em curso sem alterar o estado base (resolvido 8 mov. / em exploração)
+                                composeTestRule.runOnUiThread {
+                                    vm.onAppBackgrounded()
+                                    vm.onAppForegrounded()
+                                    vm.forceMultiFrameAnimationInTest = false
+                                }
+                                composeTestRule.waitForIdle()
+                            }
+                        }
+                    }
+                    vm.forceMultiFrameAnimationInTest = false
+                    ShadowTrace.reset()
+                }
+            }
+        } finally {
+            org.robolectric.RuntimeEnvironment.setQualifiers("w360dp-h780dp-xhdpi")
+            org.robolectric.RuntimeEnvironment.getApplication().resources.configuration.fontScale = 1.0f
+            ShadowTrace.reset()
+        }
+    }
 }
 
 
