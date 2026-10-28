@@ -28,25 +28,15 @@ val SuccessEmerald = Color(0xFF10B981)
 val WarningAmber = Color(0xFFF59E0B)
 val ErrorCoral = Color(0xFFEF4444)
 
-// Light Mode Palette (WCAG AA High-Contrast Calibrated)
+// Light Mode Palette
 val LightBackground = Color(0xFFF4F7FB)
 val LightSurface = Color(0xFFFFFFFF)
 val LightCard = Color(0xFFEBF0F7)
-val LightBorder = Color(0xFF94A3B8)
-val TurquoiseLightMode = Color(0xFF005B4F)
-val VioletLightMode = Color(0xFF5B21B6)
-val VioletButtonDark = Color(0xFF7C3AED)
+val LightBorder = Color(0xFFD5DFED)
+val TurquoiseLightMode = Color(0xFF00897B)
+val VioletLightMode = Color(0xFF673AB7)
 val TextPrimaryLight = Color(0xFF0F172A)
-val TextSecondaryLight = Color(0xFF334155)
-val SuccessEmeraldLightMode = Color(0xFF065F46)
-val SuccessBadgeBackground = Color(0xFF047857)
-val WarningAmberLightMode = Color(0xFF92400E)
-
-// Step Miniature Contrast Base & Contours
-val MiniCubeLightSurface = Color(0xFF1E293B)
-val MiniCubeLightDimmed = Color(0xFF3B4A63)
-val MiniCubeStickerStrokeDark = Color(0xFF475569)
-val MiniCubeStickerStrokeLight = Color(0xFF64748B)
+val TextSecondaryLight = Color(0xFF475569)
 
 // Traditional Vivid Rubik's Cube Sticker Colors
 val StickerWhite = Color(0xFFF8FAFC)

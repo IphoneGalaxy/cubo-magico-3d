@@ -89,8 +89,11 @@ import com.example.model.CubeMove
 import com.example.model.CubeState
 import com.example.renderer.ActiveLayerAnimation
 import com.example.renderer.InteractiveCube3DView
-import com.example.ui.theme.CuboMestreTheme
 import com.example.ui.theme.JetBrainsMonoFontFamily
+import com.example.ui.theme.SuccessEmerald
+import com.example.ui.theme.TurquoisePrimary
+import com.example.ui.theme.VioletAccent
+import com.example.ui.theme.WarningAmber
 import com.example.viewmodel.ExplanationPanelState
 import com.example.viewmodel.LearningMode
 import com.example.viewmodel.LessonUiState
@@ -500,7 +503,6 @@ private fun LessonCompactHeader(
     onOpenNotationGuide: () -> Unit,
     onOpenCaseDetail: () -> Unit = {}
 ) {
-    val themeColors = CuboMestreTheme.colors
     val fontScale = LocalDensity.current.fontScale
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         // Quando a tela é estreita (< 460dp, ou seja, qualquer celular em retrato),
@@ -547,13 +549,13 @@ private fun LessonCompactHeader(
                         }
 
                         Surface(
-                            color = themeColors.turquoiseAccent.copy(alpha = 0.14f),
+                            color = TurquoisePrimary.copy(alpha = 0.16f),
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
                                 text = "$stepNumber/7",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = themeColors.turquoiseAccent,
+                                color = TurquoisePrimary,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
@@ -588,7 +590,7 @@ private fun LessonCompactHeader(
                                 Icon(
                                     imageVector = Icons.Outlined.Speed,
                                     contentDescription = "Velocidade da demonstração",
-                                    tint = themeColors.turquoiseAccent,
+                                    tint = TurquoisePrimary,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Text(
@@ -608,7 +610,7 @@ private fun LessonCompactHeader(
                                 .clip(CircleShape)
                                 .background(
                                     if (highlightTargetPieces) {
-                                        themeColors.turquoiseAccent.copy(alpha = 0.18f)
+                                        TurquoisePrimary.copy(alpha = 0.22f)
                                     } else {
                                         MaterialTheme.colorScheme.surfaceVariant
                                     }
@@ -619,7 +621,7 @@ private fun LessonCompactHeader(
                                 imageVector = Icons.Default.Visibility,
                                 contentDescription = "Destacar peças importantes",
                                 tint = if (highlightTargetPieces) {
-                                    themeColors.turquoiseAccent
+                                    TurquoisePrimary
                                 } else {
                                     MaterialTheme.colorScheme.onSurfaceVariant
                                 },
@@ -638,7 +640,7 @@ private fun LessonCompactHeader(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Outlined.MenuBook,
                                 contentDescription = "Guia de Notação",
-                                tint = themeColors.violetAccent,
+                                tint = VioletAccent,
                                 modifier = Modifier.size(17.dp)
                             )
                         }
@@ -688,13 +690,13 @@ private fun LessonCompactHeader(
                     }
 
                     Surface(
-                        color = themeColors.turquoiseAccent.copy(alpha = 0.14f),
+                        color = TurquoisePrimary.copy(alpha = 0.16f),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
                             text = "$stepNumber/7",
                             style = MaterialTheme.typography.labelMedium,
-                            color = themeColors.turquoiseAccent,
+                            color = TurquoisePrimary,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
@@ -742,7 +744,7 @@ private fun LessonCompactHeader(
                             Icon(
                                 imageVector = Icons.Outlined.Speed,
                                 contentDescription = "Velocidade da demonstração",
-                                tint = themeColors.turquoiseAccent,
+                                tint = TurquoisePrimary,
                                 modifier = Modifier.size(15.dp)
                             )
                             Text(
@@ -762,7 +764,7 @@ private fun LessonCompactHeader(
                             .clip(CircleShape)
                             .background(
                                 if (highlightTargetPieces) {
-                                    themeColors.turquoiseAccent.copy(alpha = 0.18f)
+                                    TurquoisePrimary.copy(alpha = 0.22f)
                                 } else {
                                     MaterialTheme.colorScheme.surfaceVariant
                                 }
@@ -773,7 +775,7 @@ private fun LessonCompactHeader(
                             imageVector = Icons.Default.Visibility,
                             contentDescription = "Destacar peças importantes",
                             tint = if (highlightTargetPieces) {
-                                themeColors.turquoiseAccent
+                                TurquoisePrimary
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             },
@@ -792,7 +794,7 @@ private fun LessonCompactHeader(
                         Icon(
                             imageVector = Icons.AutoMirrored.Outlined.MenuBook,
                             contentDescription = "Guia de Notação",
-                            tint = themeColors.violetAccent,
+                            tint = VioletAccent,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -807,7 +809,6 @@ private fun LessonModeSelectorBar(
     currentMode: LearningMode,
     onSelectMode: (LearningMode) -> Unit
 ) {
-    val themeColors = CuboMestreTheme.colors
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -820,7 +821,7 @@ private fun LessonModeSelectorBar(
             val isSelected = currentMode == mode
             val tag = if (mode == LearningMode.LEARN) "mode_learn_tab" else "mode_practice_tab"
             Surface(
-                color = if (isSelected) themeColors.turquoiseAccent else Color.Transparent,
+                color = if (isSelected) TurquoisePrimary else Color.Transparent,
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier
                     .weight(1f)
@@ -832,7 +833,7 @@ private fun LessonModeSelectorBar(
                     Text(
                         text = mode.shortLabelPt,
                         style = MaterialTheme.typography.labelMedium,
-                        color = if (isSelected) themeColors.onTurquoiseAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (isSelected) Color(0xFF00201C) else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1
                     )
@@ -877,8 +878,6 @@ private fun LessonCubeViewportBox(
     }
     val effectiveHighlightEnabled = highlightTargetPieces || isLShapeIntermediateMilestone
 
-    val themeColors = CuboMestreTheme.colors
-
     SideEffect {
         LessonRecompositionTracker.viewportRecompositions++
     }
@@ -917,7 +916,7 @@ private fun LessonCubeViewportBox(
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.94f),
                 shape = RoundedCornerShape(50),
                 modifier = Modifier
-                    .border(1.dp, themeColors.warningText.copy(alpha = 0.85f), RoundedCornerShape(50))
+                    .border(1.dp, WarningAmber.copy(alpha = 0.85f), RoundedCornerShape(50))
                     .testTag("l_shape_intermediate_badge")
             ) {
                 Row(
@@ -928,7 +927,7 @@ private fun LessonCubeViewportBox(
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
                         contentDescription = null,
-                        tint = themeColors.warningText,
+                        tint = WarningAmber,
                         modifier = Modifier.size(15.dp)
                     )
                     Text(
@@ -952,10 +951,10 @@ private fun LessonCubeViewportBox(
                 .padding(8.dp)
         ) {
             Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.94f),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f),
                 shape = RoundedCornerShape(50),
                 modifier = Modifier
-                    .border(1.dp, themeColors.turquoiseAccent.copy(alpha = 0.7f), RoundedCornerShape(50))
+                    .border(1.dp, TurquoisePrimary.copy(alpha = 0.7f), RoundedCornerShape(50))
                     .testTag("demo_completed_banner")
             ) {
                 Row(
@@ -966,7 +965,7 @@ private fun LessonCubeViewportBox(
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
                         contentDescription = null,
-                        tint = themeColors.turquoiseAccent,
+                        tint = TurquoisePrimary,
                         modifier = Modifier.size(15.dp)
                     )
                     Text(
@@ -990,7 +989,7 @@ private fun LessonCubeViewportBox(
                 .padding(8.dp)
         ) {
             Surface(
-                color = themeColors.successBadgeBg.copy(alpha = 0.96f),
+                color = SuccessEmerald.copy(alpha = 0.94f),
                 shape = RoundedCornerShape(50),
                 tonalElevation = 6.dp,
                 modifier = Modifier.testTag("goal_achieved_banner")
@@ -1030,7 +1029,7 @@ private fun LessonCubeViewportBox(
                 .padding(8.dp)
         ) {
             Surface(
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
                 shape = RoundedCornerShape(50),
                 modifier = Modifier
                     .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(50))
@@ -1039,7 +1038,7 @@ private fun LessonCubeViewportBox(
                 Text(
                     text = feedbackMessage.orEmpty(),
                     style = MaterialTheme.typography.labelSmall,
-                    color = themeColors.turquoiseAccent,
+                    color = TurquoisePrimary,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                 )
@@ -1062,7 +1061,6 @@ private fun LessonCaseAndAlgorithmCard(
     onRepeatSequenceDemo: () -> Unit = {},
     isCompactHeight: Boolean = false
 ) {
-    val themeColors = CuboMestreTheme.colors
     val step = remember(stepNumber) { CurriculumRepository.getStep(stepNumber) }
     val currentCase = remember(step, caseIndex) {
         step.cases.getOrElse(caseIndex) { step.cases.first() }
@@ -1138,7 +1136,7 @@ private fun LessonCaseAndAlgorithmCard(
                                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                                 contentDescription = "Caso anterior",
                                 tint = if (canPrevCase) {
-                                    themeColors.turquoiseAccent
+                                    TurquoisePrimary
                                 } else {
                                     MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
                                 },
@@ -1149,7 +1147,7 @@ private fun LessonCaseAndAlgorithmCard(
                                     text = "Anterior",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = if (canPrevCase) {
-                                        themeColors.turquoiseAccent
+                                        TurquoisePrimary
                                     } else {
                                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
                                     },
@@ -1190,7 +1188,7 @@ private fun LessonCaseAndAlgorithmCard(
                                     text = "Próximo",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = if (canNextCase) {
-                                        themeColors.turquoiseAccent
+                                        TurquoisePrimary
                                     } else {
                                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
                                     },
@@ -1202,7 +1200,7 @@ private fun LessonCaseAndAlgorithmCard(
                                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                                 contentDescription = "Próximo caso",
                                 tint = if (canNextCase) {
-                                    themeColors.turquoiseAccent
+                                    TurquoisePrimary
                                 } else {
                                     MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
                                 },
@@ -1219,7 +1217,7 @@ private fun LessonCaseAndAlgorithmCard(
                 Text(
                     text = caseSituationTitle,
                     style = MaterialTheme.typography.labelMedium,
-                    color = themeColors.turquoiseAccent,
+                    color = TurquoisePrimary,
                     fontWeight = FontWeight.Bold,
                     maxLines = if (fontScale >= 1.25f) 3 else 2,
                     lineHeight = 14.sp,
@@ -1242,7 +1240,7 @@ private fun LessonCaseAndAlgorithmCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
-                        color = themeColors.turquoiseAccent.copy(alpha = 0.14f),
+                        color = TurquoisePrimary.copy(alpha = 0.16f),
                         shape = RoundedCornerShape(6.dp),
                         modifier = Modifier
                             .height(22.dp)
@@ -1257,13 +1255,13 @@ private fun LessonCaseAndAlgorithmCard(
                             Icon(
                                 imageVector = Icons.Default.Info,
                                 contentDescription = "Entender o caso",
-                                tint = themeColors.turquoiseAccent,
+                                tint = TurquoisePrimary,
                                 modifier = Modifier.size(12.dp)
                             )
                             Text(
                                 text = "Entender o caso",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = themeColors.turquoiseAccent,
+                                color = TurquoisePrimary,
                                 fontWeight = FontWeight.SemiBold,
                                 textAlign = TextAlign.Center,
                                 maxLines = 1,
@@ -1276,7 +1274,7 @@ private fun LessonCaseAndAlgorithmCard(
                         step.cases.forEachIndexed { idx, _ ->
                             val selected = idx == caseIndex
                             Surface(
-                                color = if (selected) themeColors.violetAccent else MaterialTheme.colorScheme.surface,
+                                color = if (selected) VioletAccent else MaterialTheme.colorScheme.surface,
                                 shape = RoundedCornerShape(6.dp),
                                 modifier = Modifier
                                     .width((60 * fontScale).dp)
@@ -1309,11 +1307,11 @@ private fun LessonCaseAndAlgorithmCard(
                         if (showCaseOrientationTip) {
                             Spacer(modifier = Modifier.height(2.dp))
                             Surface(
-                                color = themeColors.turquoiseAccent.copy(alpha = 0.12f),
+                                color = TurquoisePrimary.copy(alpha = 0.12f),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .border(1.dp, themeColors.turquoiseAccent.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                                    .border(1.dp, TurquoisePrimary.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
                                     .testTag("case_orientation_tip_banner")
                             ) {
                                 Row(
@@ -1399,13 +1397,13 @@ private fun LessonCaseAndAlgorithmCard(
                             if (activePhase != null) {
                                 // Painel de Fases Pedagógicas (Caso 2 da Cruz Amarela: Linha Horizontal -> L -> Cruz)
                                 Surface(
-                                    color = themeColors.turquoiseAccent.copy(alpha = 0.12f),
+                                    color = TurquoisePrimary.copy(alpha = 0.12f),
                                     shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .border(
                                             1.dp,
-                                            themeColors.turquoiseAccent.copy(alpha = 0.4f),
+                                            TurquoisePrimary.copy(alpha = 0.4f),
                                             RoundedCornerShape(8.dp)
                                         )
                                         .testTag("pedagogical_phases_panel")
@@ -1422,7 +1420,7 @@ private fun LessonCaseAndAlgorithmCard(
                                             Text(
                                                 text = activePhase.title,
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = themeColors.turquoiseAccent,
+                                                color = TurquoisePrimary,
                                                 fontWeight = FontWeight.ExtraBold,
                                                 maxLines = 2,
                                                 lineHeight = 13.sp,
@@ -1439,7 +1437,7 @@ private fun LessonCaseAndAlgorithmCard(
                                                     text = activePhase.algorithmText,
                                                     fontFamily = JetBrainsMonoFontFamily,
                                                     style = MaterialTheme.typography.labelSmall,
-                                                    color = themeColors.violetText,
+                                                    color = VioletAccent,
                                                     fontWeight = FontWeight.Bold,
                                                     maxLines = 1,
                                                     modifier = Modifier
@@ -1465,13 +1463,13 @@ private fun LessonCaseAndAlgorithmCard(
                                             activePhase.completionSummaryText.isNotBlank()
                                         ) {
                                             Surface(
-                                                color = themeColors.warningText.copy(alpha = 0.14f),
+                                                color = WarningAmber.copy(alpha = 0.18f),
                                                 shape = RoundedCornerShape(6.dp),
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .border(
                                                         1.dp,
-                                                        themeColors.warningText.copy(alpha = 0.6f),
+                                                        WarningAmber.copy(alpha = 0.6f),
                                                         RoundedCornerShape(6.dp)
                                                     )
                                                     .testTag("phase_transition_message_banner")
@@ -1479,7 +1477,7 @@ private fun LessonCaseAndAlgorithmCard(
                                                 Text(
                                                     text = activePhase.completionSummaryText,
                                                     style = MaterialTheme.typography.labelSmall,
-                                                    color = themeColors.warningText,
+                                                    color = WarningAmber,
                                                     fontWeight = FontWeight.Bold,
                                                     maxLines = 3,
                                                     lineHeight = 13.sp,
@@ -1500,7 +1498,7 @@ private fun LessonCaseAndAlgorithmCard(
                                             val isPhase2Active = activePhase.phaseNumber == 2
 
                                             Surface(
-                                                color = if (isPhase1Active) themeColors.turquoiseAccent else MaterialTheme.colorScheme.surface,
+                                                color = if (isPhase1Active) TurquoisePrimary else MaterialTheme.colorScheme.surface,
                                                 shape = RoundedCornerShape(6.dp),
                                                 modifier = Modifier
                                                     .weight(1f)
@@ -1512,7 +1510,7 @@ private fun LessonCaseAndAlgorithmCard(
                                                     Text(
                                                         text = "▶ Fase 1 (Linha→L)",
                                                         style = MaterialTheme.typography.labelSmall,
-                                                        color = if (isPhase1Active) themeColors.onTurquoiseAccent else MaterialTheme.colorScheme.onSurface,
+                                                        color = if (isPhase1Active) Color(0xFF00201C) else MaterialTheme.colorScheme.onSurface,
                                                         fontWeight = FontWeight.Bold,
                                                         maxLines = 1
                                                     )
@@ -1520,7 +1518,7 @@ private fun LessonCaseAndAlgorithmCard(
                                             }
 
                                             Surface(
-                                                color = if (isPhase2Active) themeColors.turquoiseAccent else MaterialTheme.colorScheme.surface,
+                                                color = if (isPhase2Active) TurquoisePrimary else MaterialTheme.colorScheme.surface,
                                                 shape = RoundedCornerShape(6.dp),
                                                 modifier = Modifier
                                                     .weight(1f)
@@ -1532,7 +1530,7 @@ private fun LessonCaseAndAlgorithmCard(
                                                     Text(
                                                         text = "▶ Fase 2 (L→Cruz)",
                                                         style = MaterialTheme.typography.labelSmall,
-                                                        color = if (isPhase2Active) themeColors.onTurquoiseAccent else MaterialTheme.colorScheme.onSurface,
+                                                        color = if (isPhase2Active) Color(0xFF00201C) else MaterialTheme.colorScheme.onSurface,
                                                         fontWeight = FontWeight.Bold,
                                                         maxLines = 1
                                                     )
@@ -1540,11 +1538,11 @@ private fun LessonCaseAndAlgorithmCard(
                                             }
 
                                             Surface(
-                                                color = themeColors.violetAccent.copy(alpha = 0.16f),
+                                                color = VioletAccent.copy(alpha = 0.25f),
                                                 shape = RoundedCornerShape(6.dp),
                                                 modifier = Modifier
                                                     .height(22.dp)
-                                                    .border(1.dp, themeColors.violetAccent.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                                                    .border(1.dp, VioletAccent.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
                                                     .clickable { onPlayDemoPhase(0) }
                                                     .testTag("play_full_phases_button")
                                             ) {
@@ -1555,7 +1553,7 @@ private fun LessonCaseAndAlgorithmCard(
                                                     Text(
                                                         text = "▶ 2 Fases",
                                                         style = MaterialTheme.typography.labelSmall,
-                                                        color = themeColors.violetText,
+                                                        color = Color.White,
                                                         fontWeight = FontWeight.Bold,
                                                         maxLines = 1
                                                     )
@@ -1587,7 +1585,7 @@ private fun LessonCaseAndAlgorithmCard(
                                         "Algoritmo (${demoMoves.size} mov.)"
                                     },
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = themeColors.violetText,
+                                    color = VioletAccent,
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 1
                                 )
@@ -1603,7 +1601,7 @@ private fun LessonCaseAndAlgorithmCard(
                                         Text(
                                             text = if (showFullAlgorithm) "Compactar" else "Ver todos",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = themeColors.turquoiseAccent,
+                                            color = TurquoisePrimary,
                                             fontWeight = FontWeight.SemiBold,
                                             maxLines = 1,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -1616,7 +1614,7 @@ private fun LessonCaseAndAlgorithmCard(
                             Text(
                                 text = moveStatusText,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = themeColors.turquoiseAccent,
+                                color = TurquoisePrimary,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = if (fontScale >= 1.25f) 3 else 2,
                                 lineHeight = 14.sp,
@@ -1638,16 +1636,16 @@ private fun LessonCaseAndAlgorithmCard(
                                 demoMoves.forEachIndexed { index, move ->
                                     if (phases.isNotEmpty() && index == 6) {
                                         Surface(
-                                            color = themeColors.warningText.copy(alpha = 0.16f),
+                                            color = WarningAmber.copy(alpha = 0.22f),
                                             shape = RoundedCornerShape(6.dp),
                                             modifier = Modifier
-                                                .border(1.dp, themeColors.warningText, RoundedCornerShape(6.dp))
+                                                .border(1.dp, WarningAmber, RoundedCornerShape(6.dp))
                                                 .testTag("phase_transition_badge")
                                         ) {
                                             Text(
                                                 text = "→ L →",
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = themeColors.warningText,
+                                                color = WarningAmber,
                                                 fontWeight = FontWeight.ExtraBold,
                                                 maxLines = 1,
                                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
@@ -1658,13 +1656,13 @@ private fun LessonCaseAndAlgorithmCard(
                                     val isCurrent = index == visualMoveIndex
                                     val isDone = index <= currentMoveIndex && index != visualMoveIndex
                                     val bgColor = when {
-                                        isCurrent -> themeColors.turquoiseAccent
-                                        isDone -> themeColors.turquoiseAccent.copy(alpha = 0.16f)
+                                        isCurrent -> TurquoisePrimary
+                                        isDone -> TurquoisePrimary.copy(alpha = 0.20f)
                                         else -> MaterialTheme.colorScheme.surfaceVariant
                                     }
                                     val txtColor = when {
-                                        isCurrent -> themeColors.onTurquoiseAccent
-                                        isDone -> themeColors.turquoiseAccent
+                                        isCurrent -> Color(0xFF00201C)
+                                        isDone -> TurquoisePrimary
                                         else -> MaterialTheme.colorScheme.onSurface
                                     }
 
@@ -1710,7 +1708,7 @@ private fun LessonCaseAndAlgorithmCard(
                                         val isCurrent = index == visualMoveIndex
                                         Surface(
                                             color = if (isCurrent) {
-                                                themeColors.turquoiseAccent.copy(alpha = 0.18f)
+                                                TurquoisePrimary.copy(alpha = 0.25f)
                                             } else {
                                                 MaterialTheme.colorScheme.surfaceVariant
                                             },
@@ -1720,7 +1718,7 @@ private fun LessonCaseAndAlgorithmCard(
                                                 text = "${index + 1}.${move.notation}",
                                                 fontFamily = JetBrainsMonoFontFamily,
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = if (isCurrent) themeColors.turquoiseAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                color = if (isCurrent) TurquoisePrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
                                                 maxLines = 1,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -1757,7 +1755,6 @@ private fun LearnPlaybackControlsCard(
     val canBack = currentMoveIndex >= 0 && !isPlayingDemo
     val canForward = currentMoveIndex < demoMoves.lastIndex && !isPlayingDemo
     val fontScale = LocalDensity.current.fontScale
-    val themeColors = CuboMestreTheme.colors
 
     Card(
         colors = CardDefaults.cardColors(
@@ -1815,8 +1812,8 @@ private fun LearnPlaybackControlsCard(
                     shape = RoundedCornerShape(50),
                     contentPadding = PaddingValues(horizontal = if (isTight) 10.dp else 14.dp, vertical = 0.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = themeColors.turquoiseAccent,
-                        contentColor = themeColors.onTurquoiseAccent
+                        containerColor = TurquoisePrimary,
+                        contentColor = Color(0xFF00201C)
                     ),
                     modifier = Modifier
                         .height(iconBtnSize)
@@ -1864,7 +1861,7 @@ private fun LearnPlaybackControlsCard(
                     Icon(
                         imageVector = Icons.Default.Repeat,
                         contentDescription = "Repetir sequência",
-                        tint = themeColors.violetAccent
+                        tint = VioletAccent
                     )
                 }
             }
@@ -1903,7 +1900,6 @@ private fun PracticeInteractiveCard(
         )
     }
     val fontScale = LocalDensity.current.fontScale
-    val themeColors = CuboMestreTheme.colors
 
     Card(
         colors = CardDefaults.cardColors(
@@ -1967,14 +1963,14 @@ private fun PracticeInteractiveCard(
                                         else -> "Teclado completo"
                                     },
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = themeColors.turquoiseAccent,
+                                    color = TurquoisePrimary,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1
                                 )
                                 Icon(
                                     imageVector = if (isMovesExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                                     contentDescription = "Alternar teclado completo de movimentos",
-                                    tint = themeColors.turquoiseAccent,
+                                    tint = TurquoisePrimary,
                                     modifier = Modifier.size(14.dp)
                                 )
                             }
@@ -1995,7 +1991,7 @@ private fun PracticeInteractiveCard(
                                 imageVector = Icons.AutoMirrored.Filled.Undo,
                                 contentDescription = "Desfazer último movimento",
                                 tint = if (canUndo) {
-                                    themeColors.turquoiseAccent
+                                    TurquoisePrimary
                                 } else {
                                     MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
                                 },
@@ -2014,7 +2010,7 @@ private fun PracticeInteractiveCard(
                             Icon(
                                 imageVector = Icons.Default.Refresh,
                                 contentDescription = "Reiniciar exercício",
-                                tint = themeColors.warningText,
+                                tint = WarningAmber,
                                 modifier = Modifier.size(15.dp)
                             )
                         }
@@ -2031,7 +2027,7 @@ private fun PracticeInteractiveCard(
                     PRACTICE_FAMILIES.forEach { fam ->
                         val isSelected = fam == activeFamily
                         Surface(
-                            color = if (isSelected) themeColors.violetAccent else MaterialTheme.colorScheme.surface,
+                            color = if (isSelected) VioletAccent else MaterialTheme.colorScheme.surface,
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier
                                 .weight(1f)
@@ -2072,7 +2068,7 @@ private fun PracticeInteractiveCard(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(32.dp)
-                                .border(1.dp, themeColors.turquoiseAccent.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                                .border(1.dp, TurquoisePrimary.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
                                 .clickable { onExecuteMove(move) }
                                 .testTag("practice_family_action_${move.notation}")
                         ) {
@@ -2085,7 +2081,7 @@ private fun PracticeInteractiveCard(
                                     text = move.notation,
                                     fontFamily = JetBrainsMonoFontFamily,
                                     fontWeight = FontWeight.Bold,
-                                    color = themeColors.turquoiseAccent,
+                                    color = TurquoisePrimary,
                                     style = MaterialTheme.typography.labelLarge,
                                     maxLines = 1
                                 )
@@ -2135,7 +2131,7 @@ private fun PracticeInteractiveCard(
                                         text = move.notation,
                                         fontFamily = JetBrainsMonoFontFamily,
                                         fontWeight = FontWeight.Bold,
-                                        color = themeColors.turquoiseAccent,
+                                        color = TurquoisePrimary,
                                         style = MaterialTheme.typography.labelMedium,
                                         maxLines = 1
                                     )
@@ -2171,7 +2167,6 @@ private fun ExpandableExplanationPanel(
     }
     val activeMove = currentCase.fullMoveList.getOrNull(currentMoveIndex) ?: selectedNotationMove
     val fontScale = LocalDensity.current.fontScale
-    val themeColors = CuboMestreTheme.colors
 
     Card(
         colors = CardDefaults.cardColors(
@@ -2195,7 +2190,7 @@ private fun ExpandableExplanationPanel(
                     Text(
                         text = step.shortGoal,
                         style = MaterialTheme.typography.labelSmall,
-                        color = themeColors.turquoiseAccent,
+                        color = TurquoisePrimary,
                         fontWeight = FontWeight.Bold,
                         maxLines = if (fontScale >= 1.25f) 3 else 2,
                         lineHeight = 14.sp,
@@ -2217,7 +2212,7 @@ private fun ExpandableExplanationPanel(
                             ExplanationPanelState.entries.forEach { st ->
                                 val selected = panelState == st
                                 Surface(
-                                    color = if (selected) themeColors.turquoiseAccent.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant,
+                                    color = if (selected) TurquoisePrimary.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant,
                                     shape = RoundedCornerShape(6.dp),
                                     modifier = Modifier
                                         .height(20.dp)
@@ -2231,7 +2226,7 @@ private fun ExpandableExplanationPanel(
                                         Text(
                                             text = st.labelPt,
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = if (selected) themeColors.turquoiseAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            color = if (selected) TurquoisePrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                                             maxLines = 1
                                         )
@@ -2249,7 +2244,7 @@ private fun ExpandableExplanationPanel(
                         Text(
                             text = step.shortGoal,
                             style = MaterialTheme.typography.labelSmall,
-                            color = themeColors.turquoiseAccent,
+                            color = TurquoisePrimary,
                             fontWeight = FontWeight.Bold,
                             maxLines = 3,
                             lineHeight = 14.sp,
@@ -2267,7 +2262,7 @@ private fun ExpandableExplanationPanel(
                             ExplanationPanelState.entries.forEach { st ->
                                 val selected = panelState == st
                                 Surface(
-                                    color = if (selected) themeColors.turquoiseAccent.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant,
+                                    color = if (selected) TurquoisePrimary.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant,
                                     shape = RoundedCornerShape(6.dp),
                                     modifier = Modifier
                                         .height(22.dp)
@@ -2281,7 +2276,7 @@ private fun ExpandableExplanationPanel(
                                         Text(
                                             text = st.labelPt,
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = if (selected) themeColors.turquoiseAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            color = if (selected) TurquoisePrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                                             maxLines = 1
                                         )
@@ -2311,7 +2306,7 @@ private fun ExpandableExplanationPanel(
                         Text(
                             text = "Objetivo da etapa: ${step.goalSimple}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = themeColors.turquoiseAccent,
+                            color = TurquoisePrimary,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
@@ -2352,7 +2347,7 @@ private fun ExpandableExplanationPanel(
                         Text(
                             text = "Objetivo: ${step.goalSimple}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = themeColors.turquoiseAccent,
+                            color = TurquoisePrimary,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
@@ -2368,7 +2363,7 @@ private fun ExpandableExplanationPanel(
                         Text(
                             text = "Dica do Professor: ${currentCase.pedagogicalNote}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = themeColors.turquoiseAccent
+                            color = TurquoisePrimary
                         )
                         if (activeMove != null) {
                             Text(
@@ -2380,11 +2375,11 @@ private fun ExpandableExplanationPanel(
 
                         currentCase.pdfValidationNote?.let { pdfNote ->
                             Surface(
-                                color = themeColors.warningText.copy(alpha = 0.14f),
+                                color = WarningAmber.copy(alpha = 0.14f),
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .border(1.dp, themeColors.warningText.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                                    .border(1.dp, WarningAmber.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
                                     .testTag("pdf_validation_note_card")
                             ) {
                                 Row(
@@ -2394,7 +2389,7 @@ private fun ExpandableExplanationPanel(
                                     Icon(
                                         imageVector = Icons.Default.Info,
                                         contentDescription = null,
-                                        tint = themeColors.warningText,
+                                        tint = WarningAmber,
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Text(
@@ -2430,7 +2425,6 @@ private fun CaseDetailedExplanationModal(
     val totalCases = step.cases.size
     val caseNum = caseIndex + 1
     val moves = currentCase.fullMoveList
-    val themeColors = CuboMestreTheme.colors
 
     Box(
         modifier = Modifier
@@ -2468,7 +2462,7 @@ private fun CaseDetailedExplanationModal(
                         Text(
                             text = "Etapa ${step.number} de 7 — ${step.title}",
                             style = MaterialTheme.typography.labelMedium,
-                            color = themeColors.turquoiseAccent,
+                            color = TurquoisePrimary,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
@@ -2522,7 +2516,7 @@ private fun CaseDetailedExplanationModal(
                             Text(
                                 text = "O que acontece neste caso",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = themeColors.turquoiseAccent,
+                                color = TurquoisePrimary,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
@@ -2537,12 +2531,12 @@ private fun CaseDetailedExplanationModal(
                     // 2. Dica do Professor
                     Card(
                         colors = CardDefaults.cardColors(
-                            containerColor = themeColors.turquoiseAccent.copy(alpha = 0.12f)
+                            containerColor = TurquoisePrimary.copy(alpha = 0.12f)
                         ),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(1.dp, themeColors.turquoiseAccent.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                            .border(1.dp, TurquoisePrimary.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
                     ) {
                         Column(
                             modifier = Modifier.padding(12.dp),
@@ -2551,7 +2545,7 @@ private fun CaseDetailedExplanationModal(
                             Text(
                                 text = "Dica do Professor",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = themeColors.turquoiseAccent,
+                                color = TurquoisePrimary,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
@@ -2578,14 +2572,14 @@ private fun CaseDetailedExplanationModal(
                             Text(
                                 text = "Algoritmo completo (${moves.size} movimentos)",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = themeColors.violetText,
+                                color = VioletAccent,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = currentCase.fullResolutionAlgorithm,
                                 fontFamily = JetBrainsMonoFontFamily,
                                 style = MaterialTheme.typography.titleSmall,
-                                color = themeColors.turquoiseAccent,
+                                color = TurquoisePrimary,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.testTag("case_detail_algorithm_text")
                             )
@@ -2593,11 +2587,11 @@ private fun CaseDetailedExplanationModal(
                             if (currentCase.pedagogicalPhases.isNotEmpty()) {
                                 currentCase.pedagogicalPhases.forEach { phase ->
                                     Surface(
-                                        color = themeColors.turquoiseAccent.copy(alpha = 0.12f),
+                                        color = TurquoisePrimary.copy(alpha = 0.12f),
                                         shape = RoundedCornerShape(8.dp),
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .border(1.dp, themeColors.turquoiseAccent.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                                            .border(1.dp, TurquoisePrimary.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
                                             .testTag("case_detail_phase_${phase.phaseNumber}")
                                     ) {
                                         Column(
@@ -2607,7 +2601,7 @@ private fun CaseDetailedExplanationModal(
                                             Text(
                                                 text = phase.title,
                                                 style = MaterialTheme.typography.labelMedium,
-                                                color = themeColors.turquoiseAccent,
+                                                color = TurquoisePrimary,
                                                 fontWeight = FontWeight.Bold
                                             )
                                             Text(
@@ -2619,14 +2613,14 @@ private fun CaseDetailedExplanationModal(
                                                 text = "Algoritmo: ${phase.algorithmText}",
                                                 fontFamily = JetBrainsMonoFontFamily,
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = themeColors.violetText,
+                                                color = VioletAccent,
                                                 fontWeight = FontWeight.Bold
                                             )
                                             if (phase.completionSummaryText.isNotBlank()) {
                                                 Text(
                                                     text = phase.completionSummaryText,
                                                     style = MaterialTheme.typography.bodySmall,
-                                                    color = themeColors.warningText,
+                                                    color = WarningAmber,
                                                     fontWeight = FontWeight.SemiBold
                                                 )
                                             }
@@ -2639,7 +2633,7 @@ private fun CaseDetailedExplanationModal(
                                 val isCurrent = idx == currentMoveIndex
                                 Surface(
                                     color = if (isCurrent) {
-                                        themeColors.turquoiseAccent.copy(alpha = 0.2f)
+                                        TurquoisePrimary.copy(alpha = 0.2f)
                                     } else {
                                         MaterialTheme.colorScheme.surface
                                     },
@@ -2653,7 +2647,7 @@ private fun CaseDetailedExplanationModal(
                                         Text(
                                             text = "Passo ${idx + 1}: ${move.notation} — ${move.titlePt}",
                                             style = MaterialTheme.typography.labelMedium,
-                                            color = if (isCurrent) themeColors.turquoiseAccent else MaterialTheme.colorScheme.onSurface,
+                                            color = if (isCurrent) TurquoisePrimary else MaterialTheme.colorScheme.onSurface,
                                             fontWeight = FontWeight.Bold
                                         )
                                         Text(
@@ -2682,7 +2676,7 @@ private fun CaseDetailedExplanationModal(
                             Text(
                                 text = "Objetivo da Etapa ${step.number}",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = themeColors.turquoiseAccent,
+                                color = TurquoisePrimary,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
@@ -2705,12 +2699,12 @@ private fun CaseDetailedExplanationModal(
                     currentCase.pdfValidationNote?.let { pdfNote ->
                         Card(
                             colors = CardDefaults.cardColors(
-                                containerColor = themeColors.warningText.copy(alpha = 0.14f)
+                                containerColor = WarningAmber.copy(alpha = 0.14f)
                             ),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .border(1.dp, themeColors.warningText.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                                .border(1.dp, WarningAmber.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
                                 .testTag("case_detail_pdf_note")
                         ) {
                             Column(
@@ -2720,7 +2714,7 @@ private fun CaseDetailedExplanationModal(
                                 Text(
                                     text = "Validação Pedagógica do Material",
                                     style = MaterialTheme.typography.labelMedium,
-                                    color = themeColors.warningText,
+                                    color = WarningAmber,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
@@ -2739,8 +2733,8 @@ private fun CaseDetailedExplanationModal(
                     onClick = onDismiss,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = themeColors.turquoiseAccent,
-                        contentColor = themeColors.onTurquoiseAccent
+                        containerColor = TurquoisePrimary,
+                        contentColor = Color(0xFF00201C)
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2772,7 +2766,6 @@ private fun StepNavigationFooterBar(
     val canPrev = stepNumber > 1
     val canNext = stepNumber < 7
     val fontScale = LocalDensity.current.fontScale
-    val themeColors = CuboMestreTheme.colors
 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val showIcons = maxWidth >= 340.dp && fontScale < 1.25f
@@ -2820,7 +2813,7 @@ private fun StepNavigationFooterBar(
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
                         contentDescription = "Concluir etapa",
-                        tint = themeColors.successText,
+                        tint = SuccessEmerald,
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(3.dp))
@@ -2828,7 +2821,7 @@ private fun StepNavigationFooterBar(
                 Text(
                     text = if (isStepCompleted) "Concluída" else "Concluir",
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (isStepCompleted) themeColors.successText else MaterialTheme.colorScheme.onSurface,
+                    color = if (isStepCompleted) SuccessEmerald else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1
                 )
             }
@@ -2839,7 +2832,7 @@ private fun StepNavigationFooterBar(
                 shape = RoundedCornerShape(12.dp),
                 contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = themeColors.violetAccent,
+                    containerColor = VioletAccent,
                     contentColor = Color.White
                 ),
                 modifier = Modifier

@@ -52,8 +52,9 @@ import com.example.model.CubeMove
 import com.example.model.CubeState
 import com.example.renderer.ActiveLayerAnimation
 import com.example.renderer.InteractiveCube3DView
-import com.example.ui.theme.CuboMestreTheme
 import com.example.ui.theme.JetBrainsMonoFontFamily
+import com.example.ui.theme.TurquoisePrimary
+import com.example.ui.theme.VioletAccent
 
 @Composable
 fun NotationGuideModal(
@@ -85,7 +86,6 @@ fun NotationGuideModal(
                     .fillMaxSize()
                     .padding(14.dp)
             ) {
-                val themeColors = CuboMestreTheme.colors
                 val isLandscape = maxWidth > maxHeight && maxHeight < 540.dp
 
                 Column(modifier = Modifier.fillMaxSize()) {
@@ -96,13 +96,13 @@ fun NotationGuideModal(
 
                     // 2. Orientação pedagógica curta
                     Surface(
-                        color = themeColors.turquoiseAccent.copy(alpha = 0.12f),
+                        color = TurquoisePrimary.copy(alpha = 0.12f),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .border(
                                 1.dp,
-                                themeColors.turquoiseAccent.copy(alpha = 0.40f),
+                                TurquoisePrimary.copy(alpha = 0.35f),
                                 RoundedCornerShape(10.dp)
                             )
                             .testTag("notation_orientation_banner")
@@ -110,7 +110,7 @@ fun NotationGuideModal(
                         Text(
                             text = "Toque em uma notação para observar o movimento no cubo.",
                             style = MaterialTheme.typography.labelMedium,
-                            color = themeColors.turquoiseAccent,
+                            color = TurquoisePrimary,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier
                                 .padding(horizontal = 12.dp, vertical = 6.dp)
@@ -258,7 +258,6 @@ private fun Notation3DPreviewViewport(
     onResetCube: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val themeColors = CuboMestreTheme.colors
     Card(
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
@@ -295,7 +294,7 @@ private fun Notation3DPreviewViewport(
                     .padding(8.dp)
                     .border(
                         width = 1.dp,
-                        color = themeColors.turquoiseAccent.copy(alpha = 0.5f),
+                        color = TurquoisePrimary.copy(alpha = 0.5f),
                         shape = RoundedCornerShape(50)
                     )
                     .clickable { onResetCube() }
@@ -309,13 +308,13 @@ private fun Notation3DPreviewViewport(
                     Icon(
                         imageVector = Icons.Default.Refresh,
                         contentDescription = "Restaurar cubo do guia",
-                        tint = themeColors.turquoiseAccent,
+                        tint = TurquoisePrimary,
                         modifier = Modifier.size(13.dp)
                     )
                     Text(
                         text = "Restaurar",
                         style = MaterialTheme.typography.labelSmall,
-                        color = themeColors.turquoiseAccent,
+                        color = TurquoisePrimary,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -329,7 +328,6 @@ private fun NotationSelectedMoveCard(
     selectedMove: CubeMove,
     onReplayMove: () -> Unit
 ) {
-    val themeColors = CuboMestreTheme.colors
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = RoundedCornerShape(14.dp),
@@ -337,7 +335,7 @@ private fun NotationSelectedMoveCard(
             .fillMaxWidth()
             .border(
                 1.dp,
-                themeColors.turquoiseAccent.copy(alpha = 0.45f),
+                TurquoisePrimary.copy(alpha = 0.45f),
                 RoundedCornerShape(14.dp)
             )
             .testTag("notation_selected_move_card")
@@ -357,7 +355,7 @@ private fun NotationSelectedMoveCard(
                 Text(
                     text = "${selectedMove.notation} — ${selectedMove.titlePt}",
                     style = MaterialTheme.typography.titleSmall,
-                    color = themeColors.turquoiseAccent,
+                    color = TurquoisePrimary,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -378,8 +376,8 @@ private fun NotationSelectedMoveCard(
                 shape = RoundedCornerShape(12.dp),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = themeColors.turquoiseAccent,
-                    contentColor = themeColors.onTurquoiseAccent
+                    containerColor = TurquoisePrimary,
+                    contentColor = Color(0xFF00201C)
                 ),
                 modifier = Modifier
                     .height(38.dp)
@@ -455,7 +453,6 @@ private fun NotationFamilyCard(
     selectedMove: CubeMove,
     onSelectMove: (CubeMove) -> Unit
 ) {
-    val themeColors = CuboMestreTheme.colors
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
@@ -496,14 +493,14 @@ private fun NotationFamilyCard(
                 group.moves.forEach { move ->
                     val isSelected = move == selectedMove
                     Surface(
-                        color = if (isSelected) themeColors.turquoiseAccent else MaterialTheme.colorScheme.surface,
+                        color = if (isSelected) TurquoisePrimary else MaterialTheme.colorScheme.surface,
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .weight(1f)
                             .height(44.dp)
                             .border(
                                 width = 1.dp,
-                                color = if (isSelected) themeColors.turquoiseAccent else MaterialTheme.colorScheme.outline,
+                                color = if (isSelected) TurquoisePrimary else MaterialTheme.colorScheme.outline,
                                 shape = RoundedCornerShape(12.dp)
                             )
                             .clickable { onSelectMove(move) }
@@ -518,7 +515,7 @@ private fun NotationFamilyCard(
                                 text = move.notation,
                                 fontFamily = JetBrainsMonoFontFamily,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isSelected) themeColors.onTurquoiseAccent else MaterialTheme.colorScheme.onSurface,
+                                color = if (isSelected) Color(0xFF00201C) else MaterialTheme.colorScheme.onSurface,
                                 style = MaterialTheme.typography.titleSmall
                             )
                             val sub = when {
@@ -529,7 +526,7 @@ private fun NotationFamilyCard(
                             Text(
                                 text = sub,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (isSelected) themeColors.onTurquoiseAccent else themeColors.violetText,
+                                color = if (isSelected) Color(0xFF00201C) else VioletAccent,
                                 maxLines = 1
                             )
                         }
