@@ -54,6 +54,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -61,17 +62,13 @@ import com.example.curriculum.CurriculumRepository
 import com.example.curriculum.CurriculumStep
 import com.example.data.StepStatus
 import com.example.data.UserProgressState
+import com.example.ui.theme.CuboMestreTheme
 import com.example.ui.theme.StickerBlue
-import com.example.ui.theme.StickerDimmed
 import com.example.ui.theme.StickerGreen
 import com.example.ui.theme.StickerOrange
 import com.example.ui.theme.StickerRed
 import com.example.ui.theme.StickerWhite
 import com.example.ui.theme.StickerYellow
-import com.example.ui.theme.SuccessEmerald
-import com.example.ui.theme.TurquoisePrimary
-import com.example.ui.theme.VioletAccent
-import com.example.ui.theme.WarningAmber
 import com.example.viewmodel.LearningMode
 
 @Composable
@@ -85,6 +82,7 @@ fun CourseScreen(
 ) {
     BackHandler(onBack = onBackToHome)
 
+    val themeColors = CuboMestreTheme.colors
     var showStudyFlowGuide by rememberSaveable { mutableStateOf(true) }
 
     Box(
@@ -151,7 +149,7 @@ fun CourseScreen(
                             .clip(CircleShape)
                             .background(
                                 if (showStudyFlowGuide) {
-                                    TurquoisePrimary.copy(alpha = 0.2f)
+                                    themeColors.turquoiseAccent.copy(alpha = 0.16f)
                                 } else {
                                     MaterialTheme.colorScheme.surfaceVariant
                                 }
@@ -161,7 +159,7 @@ fun CourseScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Outlined.HelpOutline,
                             contentDescription = "Como estudar o curso",
-                            tint = TurquoisePrimary
+                            tint = themeColors.turquoiseAccent
                         )
                     }
 
@@ -176,7 +174,7 @@ fun CourseScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Outlined.MenuBook,
                             contentDescription = "Abrir Guia de Notação",
-                            tint = TurquoisePrimary
+                            tint = themeColors.turquoiseAccent
                         )
                     }
                 }
@@ -209,8 +207,8 @@ fun CourseScreen(
                         Spacer(modifier = Modifier.height(6.dp))
                         LinearProgressIndicator(
                             progress = { progressState.completionFraction },
-                            color = TurquoisePrimary,
-                            trackColor = MaterialTheme.colorScheme.surface,
+                            color = themeColors.turquoiseAccent,
+                            trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(7.dp)
@@ -221,7 +219,7 @@ fun CourseScreen(
                     Text(
                         text = "${(progressState.completionFraction * 100).toInt()}%",
                         style = MaterialTheme.typography.titleLarge,
-                        color = TurquoisePrimary,
+                        color = themeColors.turquoiseAccent,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -239,7 +237,7 @@ fun CourseScreen(
                         .fillMaxWidth()
                         .border(
                             1.dp,
-                            TurquoisePrimary.copy(alpha = 0.45f),
+                            themeColors.turquoiseAccent.copy(alpha = 0.45f),
                             RoundedCornerShape(16.dp)
                         )
                         .testTag("course_study_flow_banner")
@@ -253,7 +251,7 @@ fun CourseScreen(
                             Text(
                                 text = "Fluxo recomendado de estudo",
                                 style = MaterialTheme.typography.titleSmall,
-                                color = TurquoisePrimary,
+                                color = themeColors.turquoiseAccent,
                                 fontWeight = FontWeight.Bold
                             )
                             IconButton(
@@ -322,9 +320,10 @@ private fun StepCourseCard(
     onPracticeClick: () -> Unit,
     onRepeatClick: () -> Unit
 ) {
+    val themeColors = CuboMestreTheme.colors
     val statusColor = when (status) {
-        StepStatus.COMPLETED -> SuccessEmerald
-        StepStatus.IN_PROGRESS -> TurquoisePrimary
+        StepStatus.COMPLETED -> themeColors.successText
+        StepStatus.IN_PROGRESS -> themeColors.turquoiseAccent
         StepStatus.NOT_STARTED -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
@@ -338,7 +337,7 @@ private fun StepCourseCard(
             .border(
                 width = if (status == StepStatus.IN_PROGRESS) 1.5.dp else 1.dp,
                 color = if (status == StepStatus.IN_PROGRESS) {
-                    TurquoisePrimary.copy(alpha = 0.7f)
+                    themeColors.turquoiseAccent.copy(alpha = 0.7f)
                 } else {
                     MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
                 },
@@ -362,13 +361,13 @@ private fun StepCourseCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
-                            color = VioletAccent.copy(alpha = 0.18f),
+                            color = themeColors.violetAccent.copy(alpha = 0.14f),
                             shape = RoundedCornerShape(50)
                         ) {
                             Text(
                                 text = "ETAPA ${step.number}/7 • ${step.cases.size} ${if (step.cases.size == 1) "caso" else "casos"}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = VioletAccent,
+                                color = themeColors.violetText,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
@@ -376,7 +375,7 @@ private fun StepCourseCard(
                         }
 
                         Surface(
-                            color = statusColor.copy(alpha = 0.15f),
+                            color = statusColor.copy(alpha = 0.14f),
                             shape = RoundedCornerShape(50)
                         ) {
                             Row(
@@ -435,8 +434,8 @@ private fun StepCourseCard(
                     shape = RoundedCornerShape(14.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = TurquoisePrimary,
-                        contentColor = Color(0xFF00201C)
+                        containerColor = themeColors.turquoiseAccent,
+                        contentColor = themeColors.onTurquoiseAccent
                     ),
                     modifier = Modifier
                         .weight(1f)
@@ -469,7 +468,7 @@ private fun StepCourseCard(
                     Icon(
                         imageVector = Icons.Outlined.SportsEsports,
                         contentDescription = null,
-                        tint = VioletAccent,
+                        tint = themeColors.violetAccent,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
@@ -493,7 +492,7 @@ private fun StepCourseCard(
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "Repetir etapa concluída",
-                            tint = WarningAmber
+                            tint = themeColors.warningText
                         )
                     }
                 }
@@ -504,10 +503,13 @@ private fun StepCourseCard(
 
 /**
  * Ilustração 3x3 representativa do objetivo visual de cada uma das 7 etapas do PDF.
+ * Utiliza base escura dedicada de alto contraste e contorno nítido por adesivo para garantir
+ * visibilidade imediata das peças brancas (Etapa 1 e Etapa 2) tanto no tema claro quanto no escuro.
  */
 @Composable
 private fun StepMiniCubeDiagram(stepNumber: Int) {
-    val d = StickerDimmed
+    val themeColors = CuboMestreTheme.colors
+    val d = themeColors.miniCubeDimmedCell
     val w = StickerWhite
     val y = StickerYellow
     val b = StickerBlue
@@ -553,24 +555,38 @@ private fun StepMiniCubeDiagram(stepNumber: Int) {
         )
     }
 
+    val strokeColor = themeColors.miniCubeStickerStroke
+
     Surface(
-        color = MaterialTheme.colorScheme.surface,
+        color = themeColors.miniCubeSurface,
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .size(64.dp)
             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+            .testTag("step_mini_cube_$stepNumber")
     ) {
         Canvas(modifier = Modifier.padding(8.dp)) {
             val cellSize = (size.minDimension - 8.dp.toPx()) / 3f
             val gap = 4.dp.toPx()
+            val corner = CornerRadius(3.dp.toPx(), 3.dp.toPx())
+            val strokeWidthPx = 1.dp.toPx()
             for (row in 0..2) {
                 for (col in 0..2) {
                     val color = gridColors[row * 3 + col]
+                    val topLeft = Offset(col * (cellSize + gap), row * (cellSize + gap))
+                    val cellDim = Size(cellSize, cellSize)
                     drawRoundRect(
                         color = color,
-                        topLeft = Offset(col * (cellSize + gap), row * (cellSize + gap)),
-                        size = Size(cellSize, cellSize),
-                        cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx())
+                        topLeft = topLeft,
+                        size = cellDim,
+                        cornerRadius = corner
+                    )
+                    drawRoundRect(
+                        color = strokeColor,
+                        topLeft = topLeft,
+                        size = cellDim,
+                        cornerRadius = corner,
+                        style = Stroke(width = strokeWidthPx)
                     )
                 }
             }
