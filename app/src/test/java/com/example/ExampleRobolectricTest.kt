@@ -2653,7 +2653,270 @@ class ExampleRobolectricTest {
             ShadowTrace.reset()
         }
     }
+
+    @Test
+    @Config(qualifiers = "w360dp-h780dp-xhdpi")
+    fun testLightAndDarkThemeContrastMiniaturesAndThemeSwitchingRegressionSuite() {
+        fun collectNodeTextLayouts(tag: String): List<androidx.compose.ui.text.TextLayoutResult> {
+            val node = composeTestRule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode()
+            val textLayouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            fun collectFrom(sNode: androidx.compose.ui.semantics.SemanticsNode) {
+                if (sNode.config.contains(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult)) {
+                    sNode.config[androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult].action?.invoke(textLayouts)
+                }
+                sNode.children.forEach { collectFrom(it) }
+            }
+            collectFrom(node)
+            return textLayouts
+        }
+
+        fun assertNoVisualTextOverflow(tag: String, contextDesc: String): String {
+            val layouts = collectNodeTextLayouts(tag)
+            assertTrue("Deve haver pelo menos um TextLayoutResult em '$tag' ($contextDesc)", layouts.isNotEmpty())
+            val combinedText = layouts.joinToString(" | ") { it.layoutInput.text.text }
+            for (layout in layouts) {
+                val renderedText = layout.layoutInput.text.text
+                assertFalse(
+                    "Proibido corte/overflow visual em '$tag' ('$renderedText') em [$contextDesc]",
+                    layout.hasVisualOverflow
+                )
+            }
+            return combinedText
+        }
+
+        // =========================================================================
+        // 1. AUDITORIA MATEMÁTICA DE CONTRASTE WCAG 2.1 (TEMA CLARO E TEMA ESCURO)
+        // =========================================================================
+        val lightSurface = com.example.ui.theme.LightSurface
+        val lightSurfaceVariant = com.example.ui.theme.LightCard
+        val lightBackground = com.example.ui.theme.LightBackground
+        val lightTokens: com.example.ui.theme.CuboMestreColors = com.example.ui.theme.LightCuboMestreColors
+
+        val darkSurface = com.example.ui.theme.NavySurface
+        val darkSurfaceVariant = com.example.ui.theme.GraphiteCard
+        val darkBackground = com.example.ui.theme.NavyBackground
+        val darkTokens: com.example.ui.theme.CuboMestreColors = com.example.ui.theme.DarkCuboMestreColors
+
+        val themeSuites: List<Triple<String, Triple<androidx.compose.ui.graphics.Color, androidx.compose.ui.graphics.Color, androidx.compose.ui.graphics.Color>, com.example.ui.theme.CuboMestreColors>> = listOf(
+            Triple("Tema Claro", Triple(lightSurface, lightSurfaceVariant, lightBackground), lightTokens),
+            Triple("Tema Escuro", Triple(darkSurface, darkSurfaceVariant, darkBackground), darkTokens)
+        )
+
+        for ((themeName, bgTriple, tokens) in themeSuites) {
+            val (surface, surfaceVariant, background) = bgTriple
+            val textPrimary = if (tokens.isDark) com.example.ui.theme.TextPrimaryDark else com.example.ui.theme.TextPrimaryLight
+            val textSecondary = if (tokens.isDark) com.example.ui.theme.TextSecondaryDark else com.example.ui.theme.TextSecondaryLight
+
+            val bgList: List<Pair<String, androidx.compose.ui.graphics.Color>> = listOf(
+                "surface" to surface,
+                "surfaceVariant" to surfaceVariant,
+                "background" to background
+            )
+            for ((bgName, bg) in bgList) {
+                val cPrimary = com.example.ui.theme.calculateEffectiveWcagContrast(textPrimary, bg)
+                val cSecondary = com.example.ui.theme.calculateEffectiveWcagContrast(textSecondary, bg)
+                val cTurquoise = com.example.ui.theme.calculateEffectiveWcagContrast(tokens.turquoiseAccent, bg)
+                val cViolet = com.example.ui.theme.calculateEffectiveWcagContrast(tokens.violetText, bg)
+                val cSuccess = com.example.ui.theme.calculateEffectiveWcagContrast(tokens.successText, bg)
+                val cWarning = com.example.ui.theme.calculateEffectiveWcagContrast(tokens.warningText, bg)
+
+                assertTrue("$themeName: textPrimary sobre $bgName ($cPrimary:1) deve ser >= 4.5:1", cPrimary >= 4.5f)
+                assertTrue("$themeName: textSecondary sobre $bgName ($cSecondary:1) deve ser >= 4.5:1", cSecondary >= 4.5f)
+                assertTrue("$themeName: turquoiseAccent sobre $bgName ($cTurquoise:1) deve ser >= 4.5:1", cTurquoise >= 4.5f)
+                assertTrue("$themeName: violetText sobre $bgName ($cViolet:1) deve ser >= 4.5:1", cViolet >= 4.5f)
+                assertTrue("$themeName: successText sobre $bgName ($cSuccess:1) deve ser >= 4.5:1", cSuccess >= 4.5f)
+                assertTrue("$themeName: warningText sobre $bgName ($cWarning:1) deve ser >= 4.5:1", cWarning >= 4.5f)
+            }
+
+            // Chips e cartões translúcidos (sobre surface e surfaceVariant)
+            val cardBgList: List<Pair<String, androidx.compose.ui.graphics.Color>> = listOf(
+                "surface" to surface,
+                "surfaceVariant" to surfaceVariant
+            )
+            for ((bgName, bg) in cardBgList) {
+                val turquoiseChipBg = androidx.compose.ui.graphics.lerp(bg, tokens.turquoiseAccent, 0.22f)
+                val violetChipBg = androidx.compose.ui.graphics.lerp(bg, tokens.violetAccent, 0.16f)
+                val successChipBg = androidx.compose.ui.graphics.lerp(bg, tokens.successText, 0.15f)
+                val warningChipBg = androidx.compose.ui.graphics.lerp(bg, tokens.warningText, 0.15f)
+
+                val cTurquoiseChip = com.example.ui.theme.calculateEffectiveWcagContrast(tokens.turquoiseAccent, turquoiseChipBg)
+                val cVioletChip = com.example.ui.theme.calculateEffectiveWcagContrast(tokens.violetText, violetChipBg)
+                val cSuccessChip = com.example.ui.theme.calculateEffectiveWcagContrast(tokens.successText, successChipBg)
+                val cWarningChip = com.example.ui.theme.calculateEffectiveWcagContrast(tokens.warningText, warningChipBg)
+
+                assertTrue("$themeName: turquoiseAccent em chip sobre $bgName ($cTurquoiseChip:1) deve ser >= 4.5:1", cTurquoiseChip >= 4.5f)
+                assertTrue("$themeName: violetText em chip ('▶ 2 Fases' / 'A seguir') sobre $bgName ($cVioletChip:1) deve ser >= 4.5:1", cVioletChip >= 4.5f)
+                assertTrue("$themeName: successText em chip ('Concluída') sobre $bgName ($cSuccessChip:1) deve ser >= 4.5:1", cSuccessChip >= 4.5f)
+                assertTrue("$themeName: warningText em chip ('Em andamento') sobre $bgName ($cWarningChip:1) deve ser >= 4.5:1", cWarningChip >= 4.5f)
+            }
+
+            // Botões preenchidos e emblemas (contraste interno >= 4.5:1 e contraste do componente >= 3.0:1)
+            val cTurquoiseBtnText = com.example.ui.theme.calculateEffectiveWcagContrast(tokens.onTurquoiseAccent, tokens.turquoiseAccent)
+            val cVioletBtnText = com.example.ui.theme.calculateEffectiveWcagContrast(androidx.compose.ui.graphics.Color.White, tokens.violetAccent)
+            val cSuccessBadgeText = com.example.ui.theme.calculateEffectiveWcagContrast(androidx.compose.ui.graphics.Color.White, tokens.successBadgeBg)
+
+            assertTrue("$themeName: texto sobre botão turquesa ($cTurquoiseBtnText:1) deve ser >= 4.5:1", cTurquoiseBtnText >= 4.5f)
+            assertTrue("$themeName: texto branco sobre botão violeta ($cVioletBtnText:1) deve ser >= 4.5:1", cVioletBtnText >= 4.5f)
+            assertTrue("$themeName: texto branco sobre emblema verde ($cSuccessBadgeText:1) deve ser >= 4.5:1", cSuccessBadgeText >= 4.5f)
+
+            val cTurquoiseBtnVsBg = com.example.ui.theme.calculateEffectiveWcagContrast(tokens.turquoiseAccent, surface)
+            val cVioletBtnVsBg = com.example.ui.theme.calculateEffectiveWcagContrast(tokens.violetAccent, surface)
+            assertTrue("$themeName: botão turquesa vs surface ($cTurquoiseBtnVsBg:1) deve ser >= 3.0:1", cTurquoiseBtnVsBg >= 3.0f)
+            assertTrue("$themeName: botão violeta vs surface ($cVioletBtnVsBg:1) deve ser >= 3.0:1", cVioletBtnVsBg >= 3.0f)
+
+            // Miniaturas 3x3 (Etapas 1 e 2 com peças brancas StickerWhite sobre miniCubeSurface)
+            val cWhiteStickerVsMiniBase = com.example.ui.theme.calculateEffectiveWcagContrast(
+                com.example.ui.theme.StickerWhite,
+                tokens.miniCubeSurface
+            )
+            val cWhiteStickerVsDimmedCell = com.example.ui.theme.calculateEffectiveWcagContrast(
+                com.example.ui.theme.StickerWhite,
+                tokens.miniCubeDimmedCell
+            )
+            assertTrue(
+                "$themeName: peças brancas das miniaturas (Etapas 1 e 2) vs base da miniatura ($cWhiteStickerVsMiniBase:1) deve ser >= 3.0:1 (esperado > 10:1)",
+                cWhiteStickerVsMiniBase >= 10.0f
+            )
+            assertTrue(
+                "$themeName: peças brancas das miniaturas vs células neutras ($cWhiteStickerVsDimmedCell:1) deve ser >= 3.0:1",
+                cWhiteStickerVsDimmedCell >= 3.0f
+            )
+        }
+
+        // =========================================================================
+        // 2. VALIDAÇÃO VISUAL E DE TRANSIÇÃO CLARO <-> ESCURO EM TODAS AS TELAS
+        // =========================================================================
+        val testConfigs = listOf(
+            "w320dp-h720dp-xhdpi" to 1.0f,
+            "w360dp-h780dp-xhdpi" to 1.0f,
+            "w393dp-h852dp-xhdpi" to 1.0f,
+            "w360dp-h780dp-xhdpi" to 1.3f,
+            "w360dp-h780dp-xhdpi" to 1.5f
+        )
+
+        try {
+            for ((qualifiers, fontScale) in testConfigs) {
+                org.robolectric.RuntimeEnvironment.setQualifiers(qualifiers)
+                org.robolectric.RuntimeEnvironment.getApplication().resources.configuration.fontScale = fontScale
+                lateinit var vm: com.example.viewmodel.CuboMestreViewModel
+                composeTestRule.activityRule.scenario.onActivity { act ->
+                    act.resources.configuration.fontScale = fontScale
+                    act.recreate()
+                }
+                composeTestRule.waitForIdle()
+                composeTestRule.activityRule.scenario.onActivity { act ->
+                    vm = androidx.lifecycle.ViewModelProvider(act)[com.example.viewmodel.CuboMestreViewModel::class.java]
+                }
+
+                for (targetDark in listOf(false, true)) {
+                    val ctx = "$qualifiers | font=${fontScale}x | dark=$targetDark"
+
+                    composeTestRule.runOnUiThread {
+                        if (vm.progressState.value.isDarkTheme != targetDark) {
+                            vm.toggleDarkTheme()
+                        }
+                        vm.navigateTo(com.example.viewmodel.AppScreen.HOME)
+                    }
+                    composeTestRule.waitForIdle()
+                    assertEquals("Estado do tema deve ser $targetDark em $ctx", targetDark, vm.progressState.value.isDarkTheme)
+
+                    // A. Home Screen
+                    composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
+                    composeTestRule.onNodeWithTag("theme_toggle_button").assertIsDisplayed()
+                    val startBtn = composeTestRule.onNodeWithTag("start_learning_button").assertIsDisplayed()
+                    val exploreBtn = composeTestRule.onNodeWithTag("explore_cube_button").assertIsDisplayed()
+                    val notationBtn = composeTestRule.onNodeWithTag("notation_guide_button").assertIsDisplayed()
+
+                    val startText = startBtn.fetchSemanticsNode().config
+                        .getOrElse(androidx.compose.ui.semantics.SemanticsProperties.Text) { emptyList() }
+                        .joinToString(" ") { it.text }
+                    val exploreText = exploreBtn.fetchSemanticsNode().config
+                        .getOrElse(androidx.compose.ui.semantics.SemanticsProperties.Text) { emptyList() }
+                        .joinToString(" ") { it.text }
+                    val notationText = notationBtn.fetchSemanticsNode().config
+                        .getOrElse(androidx.compose.ui.semantics.SemanticsProperties.Text) { emptyList() }
+                        .joinToString(" ") { it.text }
+                    assertEquals("Home start button text in $ctx", "Começar a aprender", startText)
+                    assertEquals("Home explore button text in $ctx", "Explorar Cubo", exploreText)
+                    assertEquals("Home notation button text in $ctx", "Guia de Notação", notationText)
+
+                    // B. Course Screen (Trilha das 7 Etapas + Miniaturas Etapas 1 e 2 + Estados Concluída / Em andamento / Não iniciada)
+                    composeTestRule.runOnUiThread {
+                        vm.openLesson(1, 0, com.example.viewmodel.LearningMode.LEARN)
+                        vm.markCurrentStepCompletedManually()
+                        vm.openCourseScreen()
+                    }
+                    composeTestRule.waitForIdle()
+
+                    composeTestRule.onNodeWithTag("step_card_1").assertIsDisplayed()
+                    composeTestRule.onNodeWithTag("step_card_2").assertIsDisplayed()
+                    composeTestRule.onNodeWithTag("step_mini_cube_1", useUnmergedTree = true).assertIsDisplayed()
+                    composeTestRule.onNodeWithTag("step_mini_cube_2", useUnmergedTree = true).assertIsDisplayed()
+
+                    val mini1Bounds = composeTestRule.onNodeWithTag("step_mini_cube_1", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+                    val mini2Bounds = composeTestRule.onNodeWithTag("step_mini_cube_2", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+                    assertTrue("Miniatura da Etapa 1 deve ter dimensões válidas em $ctx", mini1Bounds.width > 20f && mini1Bounds.height > 20f)
+                    assertTrue("Miniatura da Etapa 2 deve ter dimensões válidas em $ctx", mini2Bounds.width > 20f && mini2Bounds.height > 20f)
+
+                    // C. Lesson Screen — Etapa 4 Caso 2 (com painel de 2 fases "▶ 2 Fases", barra de velocidade e seletor de modos)
+                    composeTestRule.runOnUiThread {
+                        vm.openLesson(4, 1, com.example.viewmodel.LearningMode.LEARN)
+                    }
+                    composeTestRule.waitForIdle()
+
+                    composeTestRule.onNodeWithTag("play_full_phases_button").assertIsDisplayed()
+                    composeTestRule.onNodeWithTag("play_pause_button").assertIsDisplayed()
+                    assertNoVisualTextOverflow("lesson_step_title", "Lesson StepTitle $ctx")
+                    assertNoVisualTextOverflow("case_selector_header", "Lesson CaseHeader $ctx")
+                    assertNoVisualTextOverflow("case_full_title_text", "Lesson CaseFullTitle $ctx")
+                    assertNoVisualTextOverflow("case_short_description", "Lesson CaseShortDesc $ctx")
+                    assertNoVisualTextOverflow("current_move_status_text", "Lesson MoveStatus $ctx")
+                    assertNoVisualTextOverflow("collapsed_goal_text", "Lesson CollapsedGoal $ctx")
+
+                    // Alterna entre Claro e Escuro ao vivo dentro da lição e verifica que progresso e estado do cubo são preservados
+                    val cubeBeforeToggle = vm.lessonState.value.cubeState
+                    val completedBeforeToggle = vm.progressState.value.completedSteps
+                    composeTestRule.runOnUiThread {
+                        vm.toggleDarkTheme()
+                    }
+                    composeTestRule.waitForIdle()
+                    assertEquals("Alternar tema não deve alterar o estado matemático do cubo", cubeBeforeToggle, vm.lessonState.value.cubeState)
+                    assertEquals("Alternar tema não deve alterar etapas concluídas", completedBeforeToggle, vm.progressState.value.completedSteps)
+                    composeTestRule.runOnUiThread {
+                        vm.toggleDarkTheme() // Restaura targetDark
+                    }
+                    composeTestRule.waitForIdle()
+
+                    // Modo Praticar
+                    composeTestRule.runOnUiThread {
+                        vm.selectLearningMode(com.example.viewmodel.LearningMode.PRACTICE)
+                    }
+                    composeTestRule.waitForIdle()
+                    composeTestRule.onNodeWithTag("practice_interactive_card").assertIsDisplayed()
+                    composeTestRule.onNodeWithTag("toggle_practice_moves_button").assertIsDisplayed()
+
+                    // D. Guia de Notação
+                    composeTestRule.runOnUiThread {
+                        vm.setNotationGuideVisible(true)
+                    }
+                    composeTestRule.waitForIdle()
+                    composeTestRule.onNodeWithTag("notation_guide_modal").assertIsDisplayed()
+                    composeTestRule.onNodeWithTag("notation_selected_move_card").assertIsDisplayed()
+                    composeTestRule.runOnUiThread {
+                        vm.setNotationGuideVisible(false)
+                    }
+                    composeTestRule.waitForIdle()
+                }
+                ShadowTrace.reset()
+            }
+        } finally {
+            org.robolectric.RuntimeEnvironment.setQualifiers("w360dp-h780dp-xhdpi")
+            org.robolectric.RuntimeEnvironment.getApplication().resources.configuration.fontScale = 1.0f
+            ShadowTrace.reset()
+        }
+    }
 }
+
 
 
 

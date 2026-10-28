@@ -55,10 +55,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.model.CubeMove
 import com.example.renderer.InteractiveCube3DView
+import com.example.ui.theme.CuboMestreTheme
 import com.example.ui.theme.JetBrainsMonoFontFamily
-import com.example.ui.theme.SuccessEmerald
-import com.example.ui.theme.TurquoisePrimary
-import com.example.ui.theme.VioletAccent
 import com.example.viewmodel.ExploreUiState
 
 /**
@@ -198,6 +196,7 @@ private fun ExploreStatusStrip(
     isCubeSolved: Boolean,
     moveCount: Int
 ) {
+    val themeColors = CuboMestreTheme.colors
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Start,
@@ -205,9 +204,9 @@ private fun ExploreStatusStrip(
     ) {
         Surface(
             color = if (isCubeSolved) {
-                SuccessEmerald.copy(alpha = 0.90f)
+                themeColors.successBadgeBg.copy(alpha = 0.96f)
             } else {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.90f)
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.94f)
             },
             shape = RoundedCornerShape(50),
             modifier = Modifier.testTag("explore_status_badge")
@@ -246,6 +245,7 @@ private fun ExploreCompactHeader(
     onBackToHome: () -> Unit,
     onOpenNotationGuide: () -> Unit
 ) {
+    val themeColors = CuboMestreTheme.colors
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -283,7 +283,7 @@ private fun ExploreCompactHeader(
                 Text(
                     text = feedbackMessage ?: "Arraste camadas ou gire a câmera livremente",
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (feedbackMessage != null) TurquoisePrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (feedbackMessage != null) themeColors.turquoiseAccent else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -301,7 +301,7 @@ private fun ExploreCompactHeader(
             Icon(
                 imageVector = Icons.AutoMirrored.Outlined.MenuBook,
                 contentDescription = "Guia de Notação",
-                tint = TurquoisePrimary
+                tint = themeColors.turquoiseAccent
             )
         }
     }
@@ -320,6 +320,7 @@ private fun ExploreControlsCard(
         ExploreRecompositionTracker.controlsRecompositions++
     }
 
+    val themeColors = CuboMestreTheme.colors
     var modifierMode by remember { mutableIntStateOf(0) } // 0 = Normal (90°), 1 = Inverso ('), 2 = Meia-volta (2)
 
     Card(
@@ -357,7 +358,7 @@ private fun ExploreControlsCard(
                     modes.forEach { (label, idx) ->
                         val selected = modifierMode == idx
                         Surface(
-                            color = if (selected) TurquoisePrimary else Color.Transparent,
+                            color = if (selected) themeColors.turquoiseAccent else Color.Transparent,
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier
                                 .clickable { modifierMode = idx }
@@ -366,7 +367,7 @@ private fun ExploreControlsCard(
                             Text(
                                 text = label,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (selected) Color(0xFF00201C) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = if (selected) themeColors.onTurquoiseAccent else MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
@@ -389,7 +390,7 @@ private fun ExploreControlsCard(
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .height(48.dp)
-                            .border(1.dp, TurquoisePrimary.copy(alpha = 0.55f), RoundedCornerShape(12.dp))
+                            .border(1.dp, themeColors.turquoiseAccent.copy(alpha = 0.55f), RoundedCornerShape(12.dp))
                             .clickable { onExecuteMove(move) }
                             .testTag("explore_move_btn_${move.notation}")
                     ) {
@@ -402,7 +403,7 @@ private fun ExploreControlsCard(
                                 text = move.notation,
                                 fontFamily = JetBrainsMonoFontFamily,
                                 fontWeight = FontWeight.Bold,
-                                color = TurquoisePrimary,
+                                color = themeColors.turquoiseAccent,
                                 style = MaterialTheme.typography.labelLarge
                             )
                             Text(
@@ -425,7 +426,7 @@ private fun ExploreControlsCard(
                     onClick = onScrambleCube,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = VioletAccent,
+                        containerColor = themeColors.violetAccent,
                         contentColor = Color.White
                     ),
                     modifier = Modifier
@@ -455,7 +456,7 @@ private fun ExploreControlsCard(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Undo,
                         contentDescription = null,
-                        tint = TurquoisePrimary,
+                        tint = if (canUndo) themeColors.turquoiseAccent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
@@ -482,7 +483,7 @@ private fun ExploreControlsCard(
                     Icon(
                         imageVector = Icons.Default.CenterFocusStrong,
                         contentDescription = null,
-                        tint = TurquoisePrimary,
+                        tint = themeColors.turquoiseAccent,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
@@ -504,7 +505,7 @@ private fun ExploreControlsCard(
                     Icon(
                         imageVector = Icons.Default.Refresh,
                         contentDescription = null,
-                        tint = SuccessEmerald,
+                        tint = themeColors.successText,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))

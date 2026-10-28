@@ -56,6 +56,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.curriculum.HighlightMode
 import com.example.model.CubeMove
 import com.example.model.CubeState
+import com.example.ui.theme.CuboMestreTheme
 import com.example.ui.theme.JetBrainsMonoFontFamily
 import com.example.ui.theme.TurquoisePrimary
 import com.example.ui.theme.VioletAccent
@@ -779,6 +780,8 @@ fun InteractiveCube3DView(
             }
         }
 
+        val themeColors = CuboMestreTheme.colors
+
         // Indicador superior compacto da direção/eixo do movimento em execução (sem encobrir o cubo)
         val bannerMove = activeAnimation?.move
         AnimatedVisibility(
@@ -791,11 +794,11 @@ fun InteractiveCube3DView(
         ) {
             bannerMove?.let { move ->
                 Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.94f),
                     shape = RoundedCornerShape(50),
                     tonalElevation = 4.dp,
                     modifier = Modifier
-                        .border(1.dp, TurquoisePrimary.copy(alpha = 0.65f), RoundedCornerShape(50))
+                        .border(1.dp, themeColors.turquoiseAccent.copy(alpha = 0.65f), RoundedCornerShape(50))
                         .testTag("active_move_banner")
                 ) {
                     Row(
@@ -807,7 +810,7 @@ fun InteractiveCube3DView(
                             text = "${move.notation} ${directionArrowForMove(move)}",
                             fontFamily = JetBrainsMonoFontFamily,
                             fontWeight = FontWeight.Bold,
-                            color = TurquoisePrimary,
+                            color = themeColors.turquoiseAccent,
                             style = MaterialTheme.typography.labelLarge
                         )
                         Text(
@@ -842,7 +845,7 @@ fun InteractiveCube3DView(
                     ) {
                         val isMoveLayers = touchInteractionMode == TouchInteractionMode.MOVE_LAYERS
                         Surface(
-                            color = if (isMoveLayers) TurquoisePrimary else Color.Transparent,
+                            color = if (isMoveLayers) themeColors.turquoiseAccent else Color.Transparent,
                             shape = RoundedCornerShape(50),
                             modifier = Modifier
                                 .height(32.dp)
@@ -857,20 +860,20 @@ fun InteractiveCube3DView(
                                 Icon(
                                     imageVector = Icons.Outlined.TouchApp,
                                     contentDescription = null,
-                                    tint = if (isMoveLayers) Color(0xFF00201C) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    tint = if (isMoveLayers) themeColors.onTurquoiseAccent else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Text(
                                     text = "Camadas",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isMoveLayers) Color(0xFF00201C) else MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = if (isMoveLayers) themeColors.onTurquoiseAccent else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
 
                         Surface(
-                            color = if (!isMoveLayers) VioletAccent else Color.Transparent,
+                            color = if (!isMoveLayers) themeColors.violetAccent else Color.Transparent,
                             shape = RoundedCornerShape(50),
                             modifier = Modifier
                                 .height(32.dp)
@@ -900,7 +903,7 @@ fun InteractiveCube3DView(
                 }
             } else {
                 Surface(
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.80f),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
                     shape = RoundedCornerShape(50),
                     modifier = Modifier
                         .align(Alignment.BottomStart)
@@ -919,7 +922,7 @@ fun InteractiveCube3DView(
                         Icon(
                             imageVector = Icons.Outlined.Explore,
                             contentDescription = null,
-                            tint = TurquoisePrimary,
+                            tint = themeColors.turquoiseAccent,
                             modifier = Modifier.size(14.dp)
                         )
                         Text(
@@ -949,7 +952,7 @@ fun InteractiveCube3DView(
                 Icon(
                     imageVector = Icons.Outlined.CenterFocusStrong,
                     contentDescription = "Recentralizar câmera",
-                    tint = TurquoisePrimary
+                    tint = themeColors.turquoiseAccent
                 )
             }
         }

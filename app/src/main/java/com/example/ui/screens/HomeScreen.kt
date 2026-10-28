@@ -64,6 +64,7 @@ import com.example.model.CubeMove
 import com.example.model.CubeState
 import com.example.renderer.ActiveLayerAnimation
 import com.example.renderer.InteractiveCube3DView
+import com.example.ui.theme.CuboMestreTheme
 import com.example.ui.theme.StickerBlue
 import com.example.ui.theme.StickerGreen
 import com.example.ui.theme.StickerOrange
@@ -204,6 +205,7 @@ private fun HomeHeaderBar(
     isDarkTheme: Boolean,
     onToggleTheme: () -> Unit
 ) {
+    val themeColors = CuboMestreTheme.colors
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -220,7 +222,7 @@ private fun HomeHeaderBar(
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .border(
                         width = 1.dp,
-                        color = TurquoisePrimary.copy(alpha = 0.5f),
+                        color = themeColors.turquoiseAccent.copy(alpha = 0.5f),
                         shape = RoundedCornerShape(12.dp)
                     ),
                 contentAlignment = Alignment.Center
@@ -256,7 +258,7 @@ private fun HomeHeaderBar(
             Icon(
                 imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
                 contentDescription = "Alternar tema claro/escuro",
-                tint = TurquoisePrimary
+                tint = themeColors.turquoiseAccent
             )
         }
     }
@@ -295,6 +297,7 @@ private fun HomeHeroCubeViewport(
     onRestoreCube: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val themeColors = CuboMestreTheme.colors
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(24.dp),
@@ -360,7 +363,7 @@ private fun HomeHeroCubeViewport(
                     .padding(10.dp)
                     .border(
                         width = 1.dp,
-                        color = TurquoisePrimary.copy(alpha = 0.55f),
+                        color = themeColors.turquoiseAccent.copy(alpha = 0.55f),
                         shape = RoundedCornerShape(50)
                     )
                     .clickable { onRestoreCube() }
@@ -374,13 +377,13 @@ private fun HomeHeroCubeViewport(
                     Icon(
                         imageVector = Icons.Default.Refresh,
                         contentDescription = "Restaurar cubo inicial",
-                        tint = TurquoisePrimary,
+                        tint = themeColors.turquoiseAccent,
                         modifier = Modifier.size(14.dp)
                     )
                     Text(
                         text = "Restaurar",
                         style = MaterialTheme.typography.labelSmall,
-                        color = TurquoisePrimary,
+                        color = themeColors.turquoiseAccent,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -394,10 +397,13 @@ private fun StudentProgressBannerCard(
     progressState: UserProgressState,
     onContinueLessonClick: () -> Unit
 ) {
+    val themeColors = CuboMestreTheme.colors
     val completedCount = progressState.completedSteps.size
     val progressFraction = progressState.completionFraction
     val overallPercentage = (progressFraction * 100).toInt()
     val lastStep = CurriculumRepository.getStep(progressState.lastVisitedStep)
+    val trackArcColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+    val activeArcColor = themeColors.turquoiseAccent
 
     Card(
         colors = CardDefaults.cardColors(
@@ -426,14 +432,14 @@ private fun StudentProgressBannerCard(
                     ) {
                         Canvas(modifier = Modifier.fillMaxSize()) {
                             drawArc(
-                                color = Color.Gray.copy(alpha = 0.25f),
+                                color = trackArcColor,
                                 startAngle = 0f,
                                 sweepAngle = 360f,
                                 useCenter = false,
                                 style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
                             )
                             drawArc(
-                                color = TurquoisePrimary,
+                                color = activeArcColor,
                                 startAngle = -90f,
                                 sweepAngle = 360f * progressFraction,
                                 useCenter = false,
@@ -443,7 +449,7 @@ private fun StudentProgressBannerCard(
                         Text(
                             text = "$overallPercentage%",
                             style = MaterialTheme.typography.labelSmall,
-                            color = TurquoisePrimary,
+                            color = themeColors.turquoiseAccent,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -468,7 +474,7 @@ private fun StudentProgressBannerCard(
                 }
 
                 Surface(
-                    color = TurquoisePrimary.copy(alpha = 0.16f),
+                    color = themeColors.turquoiseAccent.copy(alpha = 0.14f),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.testTag("continue_lesson_chip")
                 ) {
@@ -480,13 +486,13 @@ private fun StudentProgressBannerCard(
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
                             contentDescription = null,
-                            tint = TurquoisePrimary,
+                            tint = themeColors.turquoiseAccent,
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
                             text = "Continuar",
                             style = MaterialTheme.typography.labelMedium,
-                            color = TurquoisePrimary,
+                            color = themeColors.turquoiseAccent,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -501,8 +507,8 @@ private fun StudentProgressBannerCard(
                     .fillMaxWidth()
                     .height(5.dp)
                     .clip(RoundedCornerShape(50)),
-                color = TurquoisePrimary,
-                trackColor = MaterialTheme.colorScheme.surface
+                color = themeColors.turquoiseAccent,
+                trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
             )
         }
     }
@@ -514,6 +520,7 @@ private fun HomePrimaryActionsSection(
     onExploreCubeClick: () -> Unit,
     onOpenNotationGuide: () -> Unit
 ) {
+    val themeColors = CuboMestreTheme.colors
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val fontScale = configuration.fontScale
 
@@ -540,8 +547,8 @@ private fun HomePrimaryActionsSection(
                     vertical = 0.dp
                 ),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = TurquoisePrimary,
-                    contentColor = Color(0xFF00201C)
+                    containerColor = themeColors.turquoiseAccent,
+                    contentColor = themeColors.onTurquoiseAccent
                 )
             ) {
                 Icon(
@@ -552,7 +559,7 @@ private fun HomePrimaryActionsSection(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = stringResource(R.string.btn_start_learning),
-                    style = if (fontScale > 1.3f) {
+                    style = if (compactVertical || fontScale > 1.3f) {
                         MaterialTheme.typography.labelLarge
                     } else {
                         MaterialTheme.typography.titleSmall
@@ -587,7 +594,7 @@ private fun HomePrimaryActionsSection(
                     Icon(
                         imageVector = Icons.Default.Explore,
                         contentDescription = null,
-                        tint = TurquoisePrimary,
+                        tint = themeColors.turquoiseAccent,
                         modifier = Modifier.size(17.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -616,7 +623,7 @@ private fun HomePrimaryActionsSection(
                     Icon(
                         imageVector = Icons.AutoMirrored.Outlined.MenuBook,
                         contentDescription = null,
-                        tint = VioletAccent,
+                        tint = themeColors.violetAccent,
                         modifier = Modifier.size(17.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -651,7 +658,7 @@ private fun HomePrimaryActionsSection(
                         Icon(
                             imageVector = Icons.Default.Explore,
                             contentDescription = null,
-                            tint = TurquoisePrimary,
+                            tint = themeColors.turquoiseAccent,
                             modifier = Modifier.size(17.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
@@ -680,7 +687,7 @@ private fun HomePrimaryActionsSection(
                         Icon(
                             imageVector = Icons.AutoMirrored.Outlined.MenuBook,
                             contentDescription = null,
-                            tint = VioletAccent,
+                            tint = themeColors.violetAccent,
                             modifier = Modifier.size(17.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
