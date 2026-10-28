@@ -565,4 +565,264 @@ class Camera360RotationTest {
         assertEquals(CubeGLRenderer.DEFAULT_PITCH, lessonRenderer.cameraPitch, 0.01f)
         assertFalse(lessonRenderer.isCameraUpsideDown)
     }
+
+    /**
+     * TESTE COMPLEMENTAR DA HOME (10 Verificações da Rotação Automática com Câmera 360°):
+     * 1. A rotação automática modifica o quaternion e a orientação efetiva da câmera.
+     * 2. A matriz de visualização/projeção acompanha corretamente o quaternion (projectWorldToScreen e vetores da base).
+     * 3. A câmera para imediatamente quando o usuário toca.
+     * 4. A orientação permanece estável durante a interação.
+     * 5. A rotação retorna suavemente após o período de inatividade (1800ms).
+     * 6. A retomada funciona após uma inversão manual de 180° (de cabeça para baixo).
+     * 7. A Home é a única tela com rotação automática em repouso.
+     * 8. A recentralização restaura a orientação inicial.
+     * 9. O zoom e o raycasting permanecem corretos.
+     * 10. Não há alteração indevida no estado matemático do cubo.
+     */
+    @Test
+    fun testHomeIdleAutoRotationQuaternionViewMatrixTouchPause180InversionAndScreenIsolation() {
+        lateinit var vm: CuboMestreViewModel
+        composeTestRule.activityRule.scenario.onActivity { act ->
+            vm = ViewModelProvider(act)[CuboMestreViewModel::class.java]
+        }
+
+        // Garante que estamos na tela inicial (Home) com o cubo resolvido
+        composeTestRule.runOnUiThread {
+            vm.navigateTo(AppScreen.HOME)
+            vm.resetHomePreviewCube()
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
+
+        val homeRenderer = Cube3DViewAuditHolder.lastActiveRenderer
+        assertNotNull("O renderer da Home deve estar registrado no Cube3DViewAuditHolder", homeRenderer)
+        val renderer = homeRenderer!!
+        renderer.configureViewport(800, 800)
+        renderer.resetCamera()
+        renderer.clearAutoRotateCooldownForTest()
+
+        val initialCubeState = renderer.cubeState
+        val initialHomeVmCube = vm.homePreviewState.value.cubeState
+        assertTrue("Na Home, autoRotateIdle deve estar habilitado", renderer.autoRotateIdle)
+        assertTrue("Na Home em repouso, isCurrentlyAutoRotating() deve ser true", renderer.isCurrentlyAutoRotating())
+
+        val quat0 = renderer.cameraQuaternion
+        val eye0 = renderer.getCameraEyePosition()
+        val right0 = renderer.getCameraRightVector()
+        val frontPointWorld = floatArrayOf(0f, 0f, 1.45f)
+        val screen0 = renderer.projectWorldToScreen(frontPointWorld)!!
+
+        // 1 e 2. Avança 20 quadros de rotação automática em repouso (20 * 0.35° = 7.0°)
+        // e verifica que tanto cameraQuaternion quanto os vetores extraídos da base e a projeção 2D (vpMatrix = proj * view) mudam continuamente
+        var prevQuat = quat0
+        var prevEye = eye0
+        var prevScreenX = screen0[0]
+        repeat(20) { step ->
+            assertTrue("Passo $step: advanceIdleAutoRotationIfEligible deve retornar true na Home em repouso", renderer.advanceIdleAutoRotationIfEligible())
+            val currQuat = renderer.cameraQuaternion
+            val currEye = renderer.getCameraEyePosition()
+            val currScreen = renderer.projectWorldToScreen(frontPointWorld)!!
+
+            assertTrue("Passo $step: cameraQuaternion deve permanecer unitário", currQuat.isNormalized(1e-4f))
+            assertEquals(
+                "Passo $step: cada quadro de rotação automática deve girar o quaternion em 0.35°",
+                0.35f,
+                prevQuat.angularDistanceDegrees(currQuat),
+                0.02f
+            )
+            assertTrue(
+                "Passo $step: posição efetiva do olho da câmera (viewMatrix) deve atualizar a cada quadro",
+                vectorDistance(prevEye, currEye) > 0.01f
+            )
+            assertTrue(
+                "Passo $step: projeção em tela (vpMatrix) deve acompanhar a rotação do quaternion",
+                abs(currScreen[0] - prevScreenX) > 0.05f
+            )
+
+            prevQuat = currQuat
+            prevEye = currEye
+            prevScreenX = currScreen[0]
+        }
+
+        // Verifica também que onDrawFrame avança o quaternion e sincroniza a ViewMatrix
+        val quatBeforeDraw = renderer.cameraQuaternion
+        val eyeBeforeDraw = renderer.getCameraEyePosition()
+        renderer.onDrawFrame(null)
+        assertEquals(0.35f, quatBeforeDraw.angularDistanceDegrees(renderer.cameraQuaternion), 0.02f)
+        assertTrue(vectorDistance(eyeBeforeDraw, renderer.getCameraEyePosition()) > 0.01f)
+        assertTrue("Vetor Right da câmera deve ter mudado após a rotação automática", vectorDistance(right0, renderer.getCameraRightVector()) > 0.05f)
+
+        // 3 e 4. Pausa imediata ao tocar e estabilidade da orientação durante a interação
+        var currentTouchMode = TouchInteractionMode.MOVE_LAYERS
+        val arbiter = CubeGestureArbiter(
+            renderer = renderer,
+            allowFaceSwipeProvider = { true },
+            isAnimatingProvider = { false },
+            touchModeProvider = { currentTouchMode }
+        ).apply {
+            screenDensity = 1f
+        }
+
+        val centerFrontScreen = renderer.projectWorldToScreen(frontPointWorld)!!
+        arbiter.onDown(centerFrontScreen[0], centerFrontScreen[1], pointerId = 0)
+        assertTrue("isUserTouching deve ser true imediatamente após onDown", renderer.isUserTouching)
+        assertFalse("isCurrentlyAutoRotating() deve ser false durante o toque", renderer.isCurrentlyAutoRotating())
+
+        val quatDuringTouch = renderer.cameraQuaternion
+        val eyeDuringTouch = renderer.getCameraEyePosition()
+        val screenDuringTouch = renderer.projectWorldToScreen(frontPointWorld)!!
+
+        // Mesmo se múltiplos quadros de renderização ou verificações de ociosidade ocorrerem durante o toque, a câmera fica 100% imóvel
+        repeat(15) {
+            assertFalse("advanceIdleAutoRotationIfEligible deve retornar false enquanto o usuário toca", renderer.advanceIdleAutoRotationIfEligible())
+            renderer.onDrawFrame(null)
+        }
+        assertEquals("Quaternion não pode mudar durante o toque", 0f, quatDuringTouch.angularDistanceDegrees(renderer.cameraQuaternion), 1e-5f)
+        assertEquals("Posição da câmera não pode mudar durante o toque", 0f, vectorDistance(eyeDuringTouch, renderer.getCameraEyePosition()), 1e-5f)
+        val screenAfterHold = renderer.projectWorldToScreen(frontPointWorld)!!
+        assertEquals(screenDuringTouch[0], screenAfterHold[0], 1e-4f)
+        assertEquals(screenDuringTouch[1], screenAfterHold[1], 1e-4f)
+
+        // 5. Solta o dedo -> permanece pausado durante a janela de inatividade (< 1800ms) e retoma suavemente após 1800ms
+        arbiter.onUpOrCancel()
+        assertFalse("isUserTouching deve voltar a false ao soltar o dedo", renderer.isUserTouching)
+        org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofMillis(1000))
+        assertFalse("Antes de 1800ms de inatividade, a rotação automática deve continuar aguardando", renderer.advanceIdleAutoRotationIfEligible())
+        assertEquals(0f, quatDuringTouch.angularDistanceDegrees(renderer.cameraQuaternion), 1e-5f)
+
+        org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofMillis(900)) // Total = 1900ms >= 1800ms
+        assertTrue("Após 1800ms de inatividade, isCurrentlyAutoRotating() deve voltar a true", renderer.isCurrentlyAutoRotating())
+        assertTrue("Após 1800ms, advanceIdleAutoRotationIfEligible deve retomar a rotação", renderer.advanceIdleAutoRotationIfEligible())
+        assertEquals(
+            "A retomada após o toque deve partir suavemente da orientação atual (0.35° sem salto)",
+            0.35f,
+            quatDuringTouch.angularDistanceDegrees(renderer.cameraQuaternion),
+            0.02f
+        )
+
+        // 6. Retomada da rotação automática após uma inversão manual de 180° (cubo de cabeça para baixo)
+        currentTouchMode = TouchInteractionMode.ROTATE_CAMERA
+        renderer.resetCamera()
+        val dyFor180 = 180f / CubeGLRenderer.PITCH_SENSITIVITY
+        arbiter.onDown(400f, 100f, pointerId = 0)
+        arbiter.onMove(400f, 110f) // supera o slop entrando em CAMERA_ORBIT
+        assertEquals(GestureInteractionState.CAMERA_ORBIT, arbiter.state)
+        renderer.resetCamera()
+        var dragY = 110f
+        repeat(180) {
+            dragY += dyFor180 / 180f
+            arbiter.onMove(400f, dragY)
+        }
+        arbiter.onUpOrCancel()
+
+        assertTrue("Após girar 180° na vertical, a câmera deve estar de cabeça para baixo", renderer.isCameraUpsideDown)
+        val quatInvertedBeforeResume = renderer.cameraQuaternion
+        val upInvertedBeforeResume = renderer.getCameraUpVector()
+        assertTrue("Vetor Up Y deve ser negativo quando invertido em 180°", upInvertedBeforeResume[1] < -0.5f)
+
+        // Aguarda janela de 1800ms de inatividade após a virada de 180°
+        assertFalse("Logo após soltar o giro de 180°, a rotação automática aguarda o cooldown", renderer.advanceIdleAutoRotationIfEligible())
+        org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofMillis(1900))
+
+        var prevInvQuat = quatInvertedBeforeResume
+        repeat(30) { step ->
+            assertTrue("Passo invertido $step: auto-rotação deve funcionar com o cubo invertido em 180°", renderer.advanceIdleAutoRotationIfEligible())
+            val currInvQuat = renderer.cameraQuaternion
+            assertTrue("Quaternion deve permanecer normalizado durante auto-rotação invertida", currInvQuat.isNormalized(1e-4f))
+            assertEquals(
+                "Passo invertido $step: auto-rotação com cubo de cabeça para baixo deve avançar 0.35° sem salto ou flip",
+                0.35f,
+                prevInvQuat.angularDistanceDegrees(currInvQuat),
+                0.02f
+            )
+            assertTrue("Cubo deve permanecer de cabeça para baixo durante a auto-rotação após 180°", renderer.isCameraUpsideDown)
+            prevInvQuat = currInvQuat
+        }
+
+        // 9. Zoom e raycasting permanecem corretos na Home após rotação automática e inversão de 180°
+        val distBeforePinch = renderer.cameraDistance
+        arbiter.onDown(300f, 400f, pointerId = 0)
+        arbiter.onPointerDown(2, activeX = 300f, activeY = 400f, primaryPointerId = 0)
+        assertEquals(GestureInteractionState.PINCH_ZOOM, arbiter.state)
+        arbiter.onPinchScale(1.20f)
+        arbiter.onUpOrCancel()
+        assertTrue("Zoom in na Home deve reduzir cameraDistance", renderer.cameraDistance < distBeforePinch)
+
+        val hitCenterInverted = renderer.pickCubieAtScreen(400f, 400f)
+        assertNotNull("Raycasting no centro da tela deve continuar atingindo o cubo após auto-rotação e zoom", hitCenterInverted)
+        val swipeMove = renderer.resolveMoveFromSwipe(hitCenterInverted!!, dragDx = 65f, dragDy = 0f)
+        assertNotNull("resolveMoveFromSwipe deve resolver movimento válido após auto-rotação e inversão", swipeMove)
+
+        // 8. Recentralização (resetCamera e botão recenter_camera_button) restaura a orientação inicial
+        composeTestRule.onNodeWithTag("recenter_camera_button").assertIsDisplayed().performClick()
+        composeTestRule.waitForIdle()
+        assertEquals(CubeGLRenderer.DEFAULT_YAW, renderer.cameraYaw, 0.01f)
+        assertEquals(CubeGLRenderer.DEFAULT_PITCH, renderer.cameraPitch, 0.01f)
+        assertEquals(CubeGLRenderer.DEFAULT_DISTANCE, renderer.cameraDistance, 0.01f)
+        assertFalse("Após recentralizar na Home, a câmera não deve estar invertida", renderer.isCameraUpsideDown)
+        val expectedDefaultQuat = CameraQuaternion.fromYawPitch(CubeGLRenderer.DEFAULT_YAW, CubeGLRenderer.DEFAULT_PITCH)
+        assertTrue(
+            "Recentralizar deve restaurar o quaternion inicial padrão",
+            renderer.cameraQuaternion.angularDistanceDegrees(expectedDefaultQuat) < 0.01f
+        )
+
+        // 10. Nenhuma alteração indevida no estado matemático do cubo durante toda a rotação automática, órbita 180° e zoom
+        assertEquals("A rotação automática e a câmera 360° jamais podem alterar renderer.cubeState", initialCubeState, renderer.cubeState)
+        assertEquals("A rotação automática e a câmera 360° jamais podem alterar homePreviewState.cubeState", initialHomeVmCube, vm.homePreviewState.value.cubeState)
+        assertTrue("O cubo da Home deve permanecer resolvido", vm.homePreviewState.value.cubeState.isSolved())
+
+        // 7. A Home é a única tela com rotação automática em repouso (Isolamento de Aprender, Praticar, Explorar e Guia de Notação)
+        // 7a. Guia de Notação aberto -> autoRotateIdle no modal é false
+        composeTestRule.runOnUiThread {
+            vm.setNotationGuideVisible(true)
+        }
+        composeTestRule.waitForIdle()
+        val notationRenderer = Cube3DViewAuditHolder.lastActiveRenderer!!
+        notationRenderer.clearAutoRotateCooldownForTest()
+        assertFalse("No Guia de Notação, autoRotateIdle deve ser false", notationRenderer.autoRotateIdle)
+        assertFalse("No Guia de Notação, advanceIdleAutoRotationIfEligible deve retornar false", notationRenderer.advanceIdleAutoRotationIfEligible())
+        composeTestRule.runOnUiThread {
+            vm.setNotationGuideVisible(false)
+        }
+        composeTestRule.waitForIdle()
+
+        // 7b. Tela de Aula — Modo Aprender
+        composeTestRule.runOnUiThread {
+            vm.openLesson(stepNumber = 1, caseIndex = 0, mode = LearningMode.LEARN)
+        }
+        composeTestRule.waitForIdle()
+        val learnRenderer = Cube3DViewAuditHolder.lastActiveRenderer!!
+        learnRenderer.clearAutoRotateCooldownForTest()
+        val learnQuatBefore = learnRenderer.cameraQuaternion
+        assertFalse("No Modo Aprender, autoRotateIdle deve ser false", learnRenderer.autoRotateIdle)
+        assertFalse("No Modo Aprender, advanceIdleAutoRotationIfEligible deve retornar false", learnRenderer.advanceIdleAutoRotationIfEligible())
+        learnRenderer.onDrawFrame(null)
+        assertEquals(0f, learnQuatBefore.angularDistanceDegrees(learnRenderer.cameraQuaternion), 1e-5f)
+
+        // 7c. Tela de Aula — Modo Praticar
+        composeTestRule.runOnUiThread {
+            vm.selectLearningMode(LearningMode.PRACTICE)
+        }
+        composeTestRule.waitForIdle()
+        val practiceRenderer = Cube3DViewAuditHolder.lastActiveRenderer!!
+        practiceRenderer.clearAutoRotateCooldownForTest()
+        val practiceQuatBefore = practiceRenderer.cameraQuaternion
+        assertFalse("No Modo Praticar, autoRotateIdle deve ser false", practiceRenderer.autoRotateIdle)
+        assertFalse("No Modo Praticar, advanceIdleAutoRotationIfEligible deve retornar false", practiceRenderer.advanceIdleAutoRotationIfEligible())
+        practiceRenderer.onDrawFrame(null)
+        assertEquals(0f, practiceQuatBefore.angularDistanceDegrees(practiceRenderer.cameraQuaternion), 1e-5f)
+
+        // 7d. Modo Explorar
+        composeTestRule.runOnUiThread {
+            vm.openExploreScreen()
+        }
+        composeTestRule.waitForIdle()
+        val exploreRenderer = Cube3DViewAuditHolder.lastActiveRenderer!!
+        exploreRenderer.clearAutoRotateCooldownForTest()
+        val exploreQuatBefore = exploreRenderer.cameraQuaternion
+        assertFalse("No Modo Explorar, autoRotateIdle deve ser false", exploreRenderer.autoRotateIdle)
+        assertFalse("No Modo Explorar, advanceIdleAutoRotationIfEligible deve retornar false", exploreRenderer.advanceIdleAutoRotationIfEligible())
+        exploreRenderer.onDrawFrame(null)
+        assertEquals(0f, exploreQuatBefore.angularDistanceDegrees(exploreRenderer.cameraQuaternion), 1e-5f)
+    }
 }
