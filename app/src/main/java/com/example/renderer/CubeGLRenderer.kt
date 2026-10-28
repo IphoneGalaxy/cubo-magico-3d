@@ -51,6 +51,124 @@ data class CubeTouchHit(
 )
 
 /**
+ * Quaternion unitário de orientação 3D da câmera orbital (w + xi + yj + zk).
+ * Representa a rotação do referencial local da câmera (+X = direita na tela, +Y = cima na tela,
+ * +Z = direção do centro do cubo até o olho da câmera) para o espaço global do mundo 3D.
+ * Elimina singularidades nos polos (±90°), bloqueio de cardã (gimbal lock) e inversão de controles
+ * ao virar o cubo 180° ou 360° verticalmente.
+ */
+data class CameraQuaternion(
+    val w: Float,
+    val x: Float,
+    val y: Float,
+    val z: Float
+) {
+    fun norm(): Float = sqrt(w * w + x * x + y * y + z * z)
+
+    fun isNormalized(tolerance: Float = 1e-4f): Boolean {
+        val n = norm()
+        return n.isFinite() && abs(n - 1f) <= tolerance
+    }
+
+    fun normalized(): CameraQuaternion {
+        val n = norm()
+        if (!n.isFinite() || n < 1e-6f) {
+            return IDENTITY
+        }
+        return CameraQuaternion(w / n, x / n, y / n, z / n)
+    }
+
+    fun conjugate(): CameraQuaternion = CameraQuaternion(w, -x, -y, -z)
+
+    operator fun times(other: CameraQuaternion): CameraQuaternion = CameraQuaternion(
+        w = w * other.w - x * other.x - y * other.y - z * other.z,
+        x = w * other.x + x * other.w + y * other.z - z * other.y,
+        y = w * other.y - x * other.z + y * other.w + z * other.x,
+        z = w * other.z + x * other.y - y * other.x + z * other.w
+    )
+
+    fun dot(other: CameraQuaternion): Float =
+        w * other.w + x * other.x + y * other.y + z * other.z
+
+    /**
+     * Distância angular geodésica em graus (0°..180°) entre duas orientações 3D em SO(3).
+     * Considera a equivalência antipodal q == -q.
+     */
+    fun angularDistanceDegrees(other: CameraQuaternion): Float {
+        val a = normalized()
+        val b = other.normalized()
+        val d = abs(a.dot(b)).coerceIn(0f, 1f)
+        return Math.toDegrees(2.0 * kotlin.math.acos(d.toDouble())).toFloat()
+    }
+
+    fun rotateVector(vx: Float, vy: Float, vz: Float): FloatArray {
+        val q = normalized()
+        val tx = 2f * (q.y * vz - q.z * vy)
+        val ty = 2f * (q.z * vx - q.x * vz)
+        val tz = 2f * (q.x * vy - q.y * vx)
+        return floatArrayOf(
+            vx + q.w * tx + (q.y * tz - q.z * ty),
+            vy + q.w * ty + (q.z * tx - q.x * tz),
+            vz + q.w * tz + (q.x * ty - q.y * tx)
+        )
+    }
+
+    /**
+     * Extrai sem alocações os 3 vetores unitários ortonormais da base da câmera no espaço global:
+     * - [outRight] = q * (1, 0, 0)
+     * - [outUp]    = q * (0, 1, 0)
+     * - [outEyeDir]= q * (0, 0, 1) (direção do centro do cubo até a posição da câmera)
+     */
+    fun extractBasis(outRight: FloatArray, outUp: FloatArray, outEyeDir: FloatArray) {
+        val xx = x * x
+        val yy = y * y
+        val zz = z * z
+        val xy = x * y
+        val xz = x * z
+        val yz = y * z
+        val wx = w * x
+        val wy = w * y
+        val wz = w * z
+
+        outRight[0] = 1f - 2f * (yy + zz)
+        outRight[1] = 2f * (xy + wz)
+        outRight[2] = 2f * (xz - wy)
+
+        outUp[0] = 2f * (xy - wz)
+        outUp[1] = 1f - 2f * (xx + zz)
+        outUp[2] = 2f * (yz + wx)
+
+        outEyeDir[0] = 2f * (xz + wy)
+        outEyeDir[1] = 2f * (yz - wx)
+        outEyeDir[2] = 1f - 2f * (xx + yy)
+    }
+
+    companion object {
+        val IDENTITY = CameraQuaternion(1f, 0f, 0f, 0f)
+
+        fun fromAxisAngle(ax: Float, ay: Float, az: Float, angleDegrees: Float): CameraQuaternion {
+            val len = sqrt(ax * ax + ay * ay + az * az)
+            if (!len.isFinite() || len < 1e-6f || !angleDegrees.isFinite()) {
+                return IDENTITY
+            }
+            val nx = ax / len
+            val ny = ay / len
+            val nz = az / len
+            val halfRad = (angleDegrees * PI / 360.0).toFloat()
+            val s = sin(halfRad)
+            val c = cos(halfRad)
+            return CameraQuaternion(c, nx * s, ny * s, nz * s).normalized()
+        }
+
+        fun fromYawPitch(yawDegrees: Float, pitchDegrees: Float): CameraQuaternion {
+            val qYaw = fromAxisAngle(0f, 1f, 0f, yawDegrees)
+            val qPitch = fromAxisAngle(1f, 0f, 0f, -pitchDegrees)
+            return (qYaw * qPitch).normalized()
+        }
+    }
+}
+
+/**
  * Abstração fina sobre as chamadas de shader/programa do OpenGL ES 2.0.
  * Em produção delega 1:1 para [GLES20]; em testes unitários JVM permite validar
  * determinísticamente todos os caminhos de erro (glCreateShader=0, GL_COMPILE_STATUS=0
@@ -130,10 +248,53 @@ class CubeGLRenderer(
         private set
 
     @Volatile
-    var cameraYaw: Float = DEFAULT_YAW
+    private var _cameraYaw: Float = DEFAULT_YAW
 
     @Volatile
-    var cameraPitch: Float = DEFAULT_PITCH
+    private var _cameraPitch: Float = DEFAULT_PITCH
+
+    @Volatile
+    var cameraQuaternion: CameraQuaternion = CameraQuaternion.fromYawPitch(DEFAULT_YAW, DEFAULT_PITCH)
+        private set
+
+    var cameraYaw: Float
+        get() = _cameraYaw
+        set(value) {
+            if (!value.isFinite()) return
+            synchronized(vpLock) {
+                _cameraYaw = value
+                cameraQuaternion = CameraQuaternion.fromYawPitch(_cameraYaw, _cameraPitch)
+                updateViewProjectionLocked()
+            }
+        }
+
+    var cameraPitch: Float
+        get() = _cameraPitch
+        set(value) {
+            if (!value.isFinite()) return
+            synchronized(vpLock) {
+                _cameraPitch = value
+                cameraQuaternion = CameraQuaternion.fromYawPitch(_cameraYaw, _cameraPitch)
+                updateViewProjectionLocked()
+            }
+        }
+
+    /**
+     * Inclinação vertical normalizada no intervalo (-180°, +180°].
+     */
+    val normalizedCameraPitch: Float
+        get() {
+            var p = _cameraPitch % 360f
+            if (p > 180f) p -= 360f
+            if (p <= -180f) p += 360f
+            return p
+        }
+
+    /**
+     * Indica se a câmera está atualmente invertida verticalmente (vetor Up local apontando para -Y global).
+     */
+    val isCameraUpsideDown: Boolean
+        get() = getCameraUpVector()[1] < 0f
 
     @Volatile
     var cameraDistance: Float = DEFAULT_DISTANCE
@@ -174,6 +335,9 @@ class CubeGLRenderer(
     private val viewMatrix = FloatArray(16)
     private val vpMatrix = FloatArray(16)
     private val invVpMatrix = FloatArray(16)
+    private val rightDirBuffer = FloatArray(3)
+    private val upDirBuffer = FloatArray(3)
+    private val eyeDirBuffer = FloatArray(3)
     private val vpLock = Any()
 
     fun setAuditTelemetryEnabled(enabled: Boolean) {
@@ -374,21 +538,85 @@ class CubeGLRenderer(
         configureViewport(safeW, safeH)
     }
 
+    /**
+     * Orbita a câmera 3D continuamente em 360° (horizontal e vertical) a partir do arraste tátil
+     * (dx, dy) na tela, compondo rotações incrementais no referencial local da câmera via quaternion unitário.
+     * Permite viradas verticais completas de 180° e 360° sem limites de inclinação, sem saltos nos polos
+     * (±90°) e sem inversão de controles quando o cubo está de cabeça para baixo.
+     */
+    fun orbitCamera(dx: Float, dy: Float) {
+        if (!dx.isFinite() || !dy.isFinite()) return
+        val deltaYawDeg = -dx * YAW_SENSITIVITY
+        val deltaPitchDeg = dy * PITCH_SENSITIVITY
+        synchronized(vpLock) {
+            _cameraYaw = (_cameraYaw + deltaYawDeg) % 360f
+            _cameraPitch += deltaPitchDeg
+            val qYaw = CameraQuaternion.fromAxisAngle(0f, 1f, 0f, deltaYawDeg)
+            val qPitch = CameraQuaternion.fromAxisAngle(1f, 0f, 0f, -deltaPitchDeg)
+            cameraQuaternion = (cameraQuaternion * qYaw * qPitch).normalized()
+            updateViewProjectionLocked()
+        }
+    }
+
+    fun getCameraEyePosition(): FloatArray = synchronized(vpLock) {
+        updateViewProjectionLocked()
+        floatArrayOf(eyePosBuffer[0], eyePosBuffer[1], eyePosBuffer[2])
+    }
+
+    fun getCameraEyeDirection(): FloatArray = synchronized(vpLock) {
+        updateViewProjectionLocked()
+        floatArrayOf(eyeDirBuffer[0], eyeDirBuffer[1], eyeDirBuffer[2])
+    }
+
+    fun getCameraUpVector(): FloatArray = synchronized(vpLock) {
+        updateViewProjectionLocked()
+        floatArrayOf(upDirBuffer[0], upDirBuffer[1], upDirBuffer[2])
+    }
+
+    fun getCameraRightVector(): FloatArray = synchronized(vpLock) {
+        updateViewProjectionLocked()
+        floatArrayOf(rightDirBuffer[0], rightDirBuffer[1], rightDirBuffer[2])
+    }
+
     private fun updateViewProjectionLocked() {
-        val yawRad = (cameraYaw * PI / 180.0).toFloat()
-        val pitchRad = (cameraPitch.coerceIn(-78f, 78f) * PI / 180.0).toFloat()
+        val q = cameraQuaternion.normalized()
+        cameraQuaternion = q
+        q.extractBasis(
+            outRight = rightDirBuffer,
+            outUp = upDirBuffer,
+            outEyeDir = eyeDirBuffer
+        )
         val dist = cameraDistance.coerceIn(MIN_DISTANCE, MAX_DISTANCE)
 
-        val eyeX = dist * cos(pitchRad) * sin(yawRad)
-        val eyeY = dist * sin(pitchRad)
-        val eyeZ = dist * cos(pitchRad) * cos(yawRad)
+        val eyeX = dist * eyeDirBuffer[0]
+        val eyeY = dist * eyeDirBuffer[1]
+        val eyeZ = dist * eyeDirBuffer[2]
+        eyePosBuffer[0] = eyeX
+        eyePosBuffer[1] = eyeY
+        eyePosBuffer[2] = eyeZ
 
-        Matrix.setLookAtM(
-            viewMatrix, 0,
-            eyeX, eyeY, eyeZ,
-            0f, 0f, 0f,
-            0f, 1f, 0f
-        )
+        // Constrói a View Matrix 4x4 (column-major) diretamente a partir da base ortonormal (right, up, eyeDir)
+        // extraída do quaternion unitário da câmera, sem depender de Matrix.setLookAtM com vetor up fixo (0, 1, 0).
+        viewMatrix[0] = rightDirBuffer[0]
+        viewMatrix[1] = upDirBuffer[0]
+        viewMatrix[2] = eyeDirBuffer[0]
+        viewMatrix[3] = 0f
+
+        viewMatrix[4] = rightDirBuffer[1]
+        viewMatrix[5] = upDirBuffer[1]
+        viewMatrix[6] = eyeDirBuffer[1]
+        viewMatrix[7] = 0f
+
+        viewMatrix[8] = rightDirBuffer[2]
+        viewMatrix[9] = upDirBuffer[2]
+        viewMatrix[10] = eyeDirBuffer[2]
+        viewMatrix[11] = 0f
+
+        viewMatrix[12] = -(rightDirBuffer[0] * eyeX + rightDirBuffer[1] * eyeY + rightDirBuffer[2] * eyeZ)
+        viewMatrix[13] = -(upDirBuffer[0] * eyeX + upDirBuffer[1] * eyeY + upDirBuffer[2] * eyeZ)
+        viewMatrix[14] = -(eyeDirBuffer[0] * eyeX + eyeDirBuffer[1] * eyeY + eyeDirBuffer[2] * eyeZ)
+        viewMatrix[15] = 1f
+
         Matrix.multiplyMM(vpMatrix, 0, projMatrix, 0, viewMatrix, 0)
         Matrix.invertM(invVpMatrix, 0, vpMatrix, 0)
     }
@@ -479,7 +707,12 @@ class CubeGLRenderer(
                 nowUptime >= resumeAutoRotateAfterUptimeMs
         }
         if (canRotate) {
-            cameraYaw = (cameraYaw + 0.35f) % 360f
+            synchronized(vpLock) {
+                _cameraYaw = (_cameraYaw + 0.35f) % 360f
+                val qIdle = CameraQuaternion.fromAxisAngle(0f, 1f, 0f, 0.35f)
+                cameraQuaternion = (qIdle * cameraQuaternion).normalized()
+                updateViewProjectionLocked()
+            }
         }
         return canRotate
     }
@@ -512,7 +745,11 @@ class CubeGLRenderer(
         if (autoRotateSnapshot && animSnapshot == null && !isUserTouching &&
             android.os.SystemClock.uptimeMillis() >= resumeAutoRotateAfterUptimeMs
         ) {
-            cameraYaw = (cameraYaw + 0.35f) % 360f
+            synchronized(vpLock) {
+                _cameraYaw = (_cameraYaw + 0.35f) % 360f
+                val qIdle = CameraQuaternion.fromAxisAngle(0f, 1f, 0f, 0.35f)
+                cameraQuaternion = (qIdle * cameraQuaternion).normalized()
+            }
         }
 
         if (!::cubieBodyBuffer.isInitialized || stickerBuffers.size < CubeFace.entries.size) {
@@ -526,14 +763,21 @@ class CubeGLRenderer(
         }
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
 
+        val lightX: Float
+        val lightY: Float
+        val lightZ: Float
+        val viewX: Float
+        val viewY: Float
+        val viewZ: Float
         synchronized(vpLock) {
             updateViewProjectionLocked()
-            val yawRad = (cameraYaw * PI / 180.0).toFloat()
-            val pitchRad = (cameraPitch.coerceIn(-78f, 78f) * PI / 180.0).toFloat()
-            val dist = cameraDistance.coerceIn(MIN_DISTANCE, MAX_DISTANCE)
-            eyePosBuffer[0] = dist * cos(pitchRad) * sin(yawRad)
-            eyePosBuffer[1] = dist * sin(pitchRad)
-            eyePosBuffer[2] = dist * cos(pitchRad) * cos(yawRad)
+            viewX = eyePosBuffer[0]
+            viewY = eyePosBuffer[1]
+            viewZ = eyePosBuffer[2]
+            // Luz principal de estúdio solidária ao referencial da câmera (acima e à direita do observador)
+            lightX = viewX * 0.80f + rightDirBuffer[0] * 3.0f + upDirBuffer[0] * 5.5f + eyeDirBuffer[0] * 2.5f
+            lightY = viewY * 0.80f + rightDirBuffer[1] * 3.0f + upDirBuffer[1] * 5.5f + eyeDirBuffer[1] * 2.5f
+            lightZ = viewZ * 0.80f + rightDirBuffer[2] * 3.0f + upDirBuffer[2] * 5.5f + eyeDirBuffer[2] * 2.5f
         }
 
         if (shaderProgram <= 0) {
@@ -542,13 +786,9 @@ class CubeGLRenderer(
         }
         shaderBackend.glUseProgram(shaderProgram)
 
-        // Luz principal de estúdio posicionada acima e à frente da câmera
-        val lightX = eyePosBuffer[0] * 0.8f + 3.0f
-        val lightY = eyePosBuffer[1] * 0.9f + 5.5f
-        val lightZ = eyePosBuffer[2] * 0.8f + 4.0f
         val len = sqrt(lightX * lightX + lightY * lightY + lightZ * lightZ).coerceAtLeast(0.001f)
         GLES20.glUniform3f(uLightDirLoc, lightX / len, lightY / len, lightZ / len)
-        GLES20.glUniform3f(uViewPosLoc, eyePosBuffer[0], eyePosBuffer[1], eyePosBuffer[2])
+        GLES20.glUniform3f(uViewPosLoc, viewX, viewY, viewZ)
 
         val baseSpacing = 0.98f + pulse * 0.06f
         val touchedHit = previewTouchHit
@@ -975,11 +1215,9 @@ class CubeGLRenderer(
             updateViewProjectionLocked()
             Matrix.multiplyMV(nearPoint, 0, invVpMatrix, 0, floatArrayOf(ndcX, ndcY, -1f, 1f), 0)
             Matrix.multiplyMV(farPoint, 0, invVpMatrix, 0, floatArrayOf(ndcX, ndcY, 1f, 1f), 0)
-            val yawRad = (cameraYaw * PI / 180.0).toFloat()
-            val pitchRad = (cameraPitch.coerceIn(-78f, 78f) * PI / 180.0).toFloat()
-            eyeDir[0] = cos(pitchRad) * sin(yawRad)
-            eyeDir[1] = sin(pitchRad)
-            eyeDir[2] = cos(pitchRad) * cos(yawRad)
+            eyeDir[0] = eyeDirBuffer[0]
+            eyeDir[1] = eyeDirBuffer[1]
+            eyeDir[2] = eyeDirBuffer[2]
         }
         if (abs(nearPoint[3]) < 1e-6f || abs(farPoint[3]) < 1e-6f) return null
 
@@ -1250,10 +1488,11 @@ class CubeGLRenderer(
     }
 
     fun resetCamera() {
-        cameraYaw = DEFAULT_YAW
-        cameraPitch = DEFAULT_PITCH
-        cameraDistance = DEFAULT_DISTANCE
         synchronized(vpLock) {
+            _cameraYaw = DEFAULT_YAW
+            _cameraPitch = DEFAULT_PITCH
+            cameraDistance = DEFAULT_DISTANCE
+            cameraQuaternion = CameraQuaternion.fromYawPitch(DEFAULT_YAW, DEFAULT_PITCH)
             updateViewProjectionLocked()
         }
     }
@@ -1264,6 +1503,8 @@ class CubeGLRenderer(
         const val DEFAULT_DISTANCE = 7.6f
         const val MIN_DISTANCE = 5.4f
         const val MAX_DISTANCE = 10.5f
+        const val YAW_SENSITIVITY = 0.40f
+        const val PITCH_SENSITIVITY = 0.34f
         const val MAX_AUDIT_RECORDED_ANGLES = 1024
 
         private const val VERTEX_SHADER_CODE = """

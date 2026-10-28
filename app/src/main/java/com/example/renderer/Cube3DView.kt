@@ -428,8 +428,7 @@ class CubeGestureArbiter(
         }
 
         if (state == GestureInteractionState.CAMERA_ORBIT) {
-            renderer.cameraYaw = (renderer.cameraYaw - dx * 0.40f) % 360f
-            renderer.cameraPitch = (renderer.cameraPitch + dy * 0.34f).coerceIn(-72f, 72f)
+            renderer.orbitCamera(dx, dy)
             onCameraUpdated()
         }
     }
@@ -503,6 +502,7 @@ fun InteractiveCube3DView(
             newAutoRotateIdle = autoRotateIdle && isLifecycleResumed,
             newCelebrationPulse = celebrationPulse
         )
+        Cube3DViewAuditHolder.lastActiveRenderer = renderer
         glSurfaceViewRef?.let { glView ->
             val desiredMode = if (isLifecycleResumed && (autoRotateIdle || activeAnimation != null || celebrationPulse > 0f)) {
                 GLSurfaceView.RENDERMODE_CONTINUOUSLY
@@ -631,6 +631,9 @@ fun InteractiveCube3DView(
                 glSurfaceViewRef?.handleLifecycleResume()
             }
             onDispose {
+                if (Cube3DViewAuditHolder.lastActiveRenderer === renderer) {
+                    Cube3DViewAuditHolder.lastActiveRenderer = null
+                }
                 lifecycleOwner.lifecycle.removeObserver(observer)
                 glSurfaceViewRef?.handleLifecyclePause()
             }
@@ -789,7 +792,11 @@ fun InteractiveCube3DView(
             }
 
             IconButton(
-                onClick = { localResetCount++ },
+                onClick = {
+                    localResetCount++
+                    renderer.resetCamera()
+                    glSurfaceViewRef?.requestRender()
+                },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(8.dp)
@@ -807,6 +814,11 @@ fun InteractiveCube3DView(
             }
         }
     }
+}
+
+object Cube3DViewAuditHolder {
+    @Volatile
+    var lastActiveRenderer: CubeGLRenderer? = null
 }
 
 private fun directionArrowForMove(move: CubeMove): String = when (move) {
