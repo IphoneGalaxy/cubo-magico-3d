@@ -69,7 +69,7 @@ data class LessonCase(
         // Embaralha apenas as camadas posteriores que ainda não pertencem à etapa atual,
         // garantindo que concluir a etapa atual atinja seu objetivo sem resolver todo o cubo prematuramente.
         val stagePreScramble = when (stepNumber) {
-            1 -> "R D R' D R D2 R' D" // Embaralha apenas a camada inferior D (oposta à cruz branca no topo)
+            1 -> "R' D' R D R' D' R D R' D' R D R' D' R D U R' D' R D R' D' R D U R' D' R D R' D' R D R' D' R D R' D' R D U R' D' R D R' D' R D U R D R' D R D2 R' D" // Mantém as 4 arestas da Cruz Branca prontas para o setup do caso, mas desorienta os 4 cantos brancos e embaralha a base D para não formar uma face branca inteira na Etapa 1
             2 -> "F R U R' U' F' U" // Mantém 1ª camada intacta e desorienta o topo U
             3 -> "F R U R' U' F' U" // Mantém 1ª e 2ª camadas intactas e desorienta o topo U
             4 -> "R U R' U R U2 R'" // Mantém 1ª, 2ª camadas e cruz amarela intactas, desorientando os cantos (Etapa 5)
@@ -147,7 +147,7 @@ object CurriculumRepository {
         NotationGuideGroup(
             family = "M",
             namePt = "Camada do Meio Vertical (Middle)",
-            descriptionPt = "Gira a fatia vertical central entre L e R. No PDF: M desce pela frente e M' sobe pela frente (usado no Minerva, Etapa 7).",
+            descriptionPt = "Gira a fatia vertical central entre L e R: M desce pela frente e M' sobe pela frente (usado no algoritmo Minerva, na Etapa 7).",
             moves = listOf(CubeMove.M, CubeMove.M_PRIME, CubeMove.M2)
         ),
         NotationGuideGroup(
@@ -253,7 +253,7 @@ object CurriculumRepository {
                     fullResolutionAlgorithm = "R' U F' U'",
                     setupMovesFromSolved = "U F U' R",
                     whiteOnTop = true,
-                    pedagogicalNote = "Este é o clássico desvirador de aresta do Passo 1 do PDF."
+                    pedagogicalNote = "Este é o movimento clássico para desvirar um meio branco que subiu com as cores invertidas na Etapa 1."
                 )
             )
         ),
@@ -336,15 +336,15 @@ object CurriculumRepository {
                 LessonCase(
                     id = "s3_c2_pdf_fig",
                     stepNumber = 3,
-                    caseTitle = "Caso 2 (Figuras do PDF): Meio na Direita para a Frente",
+                    caseTitle = "Caso 2: Meio na Direita para a Frente",
                     shortBadge = "U' F' U' F U + R U R'",
                     compactSummary = "Meio na direita indo para a frente: execute U' F' U' F U e finalize com R U R'.",
-                    description = "O meio laranja-azul está na direita e deve entrar na mesma fresta frontal-direita. Seguindo as setas ilustradas no PDF: U' F' U' F U e encaixe o canto com o Caso 1 do 2º passo (R U R').",
+                    description = "O meio laranja-azul está na direita e deve entrar na mesma fresta frontal-direita. Afaste com U', prepare a fresta frontal com F' U' F U e finalize encaixando o canto branco com R U R'.",
                     primaryAlgorithm = "U' F' U' F U R U R'",
                     fullResolutionAlgorithm = "U' F' U' F U R U R'",
                     setupMovesFromSolved = "R U' R' U' F' U F U",
-                    pedagogicalNote = "Esta sequência corresponde exatamente aos desenhos do Caso 2 no PDF, finalizando com o Caso 1 do Passo 2 (R U R').",
-                    pdfValidationNote = "Nota de Validação do PDF (camadas.pdf): No texto impresso do Caso 2 consta 'U' L' U' L U + Caso 1 do 2º passo', porém as setas desenhadas nos cubos giram a face frontal-esquerda da ilustração (F' e F). Matematicamente, para encaixar na fresta entre F e R terminando com R U R', a sequência exata das figuras é U' F' U' F U R U R'. Já usando L' e L (fresta esquerda), a finalização correta é F U F' (veja o Caso 2B ao lado)."
+                    pedagogicalNote = "Esta sequência insere o meio na fresta frontal-direita e finaliza devolvendo o canto branco com o mesmo movimento básico da Etapa 2 (R U R').",
+                    pdfValidationNote = "Dica de Orientação das Faces: Para encaixar o meio na fresta da direita (entre a frente e a direita) finalizando com R U R', a sequência exata é U' F' U' F U R U R'. Se o meio precisar entrar na fresta da esquerda (entre a frente e a esquerda), utiliza-se a versão espelhada U' L' U' L U F U F' (veja o Caso 2B ao lado)."
                 ),
                 LessonCase(
                     id = "s3_c2_left",
@@ -382,13 +382,13 @@ object CurriculumRepository {
             subtitle = "Oriente os 4 meios amarelos na face de cima",
             shortGoal = "Objetivo: formar a cruz amarela no topo.",
             goalSimple = "Fazer os 4 meios da camada superior ficarem com o adesivo amarelo apontando para cima, formando uma cruz amarela.",
-            detailedTheory = "Não se preocupe ainda com as cores laterais dos meios do topo. Observe apenas o desenho amarelo formado pelos meios no topo: Curva em L (Caso 1 do PDF), Linha horizontal (Caso 2 do PDF) ou Ponto (Caso 3 do PDF). Todos usam o mesmo algoritmo F U R U' R' F'.",
+            detailedTheory = "Não se preocupe ainda com as cores laterais dos meios do topo. Observe apenas o desenho amarelo formado pelos meios na face superior: formato de L, linha horizontal ou apenas o ponto central. Todos os casos usam o mesmo algoritmo: F U R U' R' F'.",
             highlightMode = HighlightMode.YELLOW_CROSS,
             cases = listOf(
                 LessonCase(
                     id = "s4_c1",
                     stepNumber = 4,
-                    caseTitle = "Caso 1 (PDF): Formato de L (Trás e Esquerda)",
+                    caseTitle = "Caso 1: Formato de L (Trás e Esquerda)",
                     shortBadge = "F U R U' R' F'",
                     compactSummary = "Curva em L apontando para trás e esquerda: faça F U R U' R' F' uma vez.",
                     description = "Dois meios amarelos formam um 'L' apontando para trás (UB) e para a esquerda (UL). Execute F U R U' R' F' uma vez para formar a cruz.",
@@ -400,7 +400,7 @@ object CurriculumRepository {
                 LessonCase(
                     id = "s4_c2",
                     stepNumber = 4,
-                    caseTitle = "Caso 2 (PDF): Linha Horizontal",
+                    caseTitle = "Caso 2: Linha Horizontal",
                     shortBadge = "F U R U' R' F' (2x)",
                     compactSummary = "Linha amarela deitada (horizontal): aplique F U R U' R' F' duas vezes seguidas.",
                     description = "Dois meios amarelos formam uma linha horizontal (esquerda-direita). Na Fase 1 (F U R U' R' F'), a linha vira o formato de L (trás e esquerda). Na Fase 2, repetimos F U R U' R' F' sem reiniciar o cubo para completar a cruz amarela.",
@@ -432,14 +432,14 @@ object CurriculumRepository {
                 LessonCase(
                     id = "s4_c3",
                     stepNumber = 4,
-                    caseTitle = "Caso 3 (PDF): Apenas o Ponto Central",
+                    caseTitle = "Caso 3: Apenas o Ponto Central",
                     shortBadge = "Caso 1 -> U' -> Caso 2",
                     compactSummary = "Apenas o ponto central amarelo: aplique a fórmula para criar a linha, gire U' e repita.",
-                    description = "Nenhum meio amarelo aponta para cima. Faça F U R U' R' F' (forma a linha), alinhe a linha na horizontal com U' e aplique o Caso 2.",
+                    description = "Nenhum meio amarelo aponta para cima. A 1ª execução de F U R U' R' F' cria uma linha vertical; gire U' para deixá-la na horizontal (Caso 2), repita F U R U' R' F' para formar o L (Caso 1) e aplique mais uma vez para completar a cruz amarela.",
                     primaryAlgorithm = "F U R U' R' F'",
                     fullResolutionAlgorithm = "F U R U' R' F' U' F U R U' R' F' F U R U' R' F'",
                     setupMovesFromSolved = "F R U R' U' F' F R U R' U' F' U F R U R' U' F'",
-                    pedagogicalNote = "O mesmo algoritmo de 6 movimentos resolve todos os 3 casos em sequência: Ponto -> Linha -> L -> Cruz!"
+                    pedagogicalNote = "O mesmo algoritmo de 6 movimentos resolve todos os 3 casos em sequência: Ponto -> Linha (alinhada com U') -> L -> Cruz!"
                 )
             )
         ),
@@ -478,7 +478,7 @@ object CurriculumRepository {
                     primaryAlgorithm = "R U R' U R U2 R'",
                     fullResolutionAlgorithm = "R U R' U R U2 R' U2 R U R' U R U2 R'",
                     setupMovesFromSolved = "R U2 R' U' R U' R' U2 R U2 R' U' R U' R'",
-                    pedagogicalNote = "Exatamente como orienta o PDF: 'Ficando só um canto certo de novo, coloque-o à esquerda e faça a mesma coisa.'"
+                    pedagogicalNote = "Regra prática: quando restar novamente apenas um canto amarelo orientado para cima, posicione-o na frente-esquerda (UFL) e aplique a mesma sequência mais uma vez."
                 ),
                 LessonCase(
                     id = "s5_c2",
@@ -541,7 +541,7 @@ object CurriculumRepository {
                     primaryAlgorithm = "R' F R' B2 R F' R' B2 R2",
                     fullResolutionAlgorithm = "R' F R' B2 R F' R' B2 R2 U R' F R' B2 R F' R' B2 R2 U'",
                     setupMovesFromSolved = "U R2 B2 R F R' B2 R F' R U' R2 B2 R F R' B2 R F' R",
-                    pedagogicalNote = "Ao final, lembre-se da dica do PDF: pode ser necessário girar U, U' ou U2 para alinhar os cantos com os centros."
+                    pedagogicalNote = "Ao final, pode ser necessário girar o topo (U, U' ou U2) para alinhar as cores dos cantos com os centros laterais."
                 )
             )
         ),

@@ -2718,7 +2718,7 @@ private fun CaseDetailedExplanationModal(
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    text = "Validação Pedagógica do Material",
+                                    text = "Dica de orientação",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = themeColors.warningText,
                                     fontWeight = FontWeight.Bold

@@ -559,4 +559,256 @@ class FinalAuditParserMathCurriculumTest {
             }
         }
     }
+
+    /**
+     * SEÇÃO 7 — AUDITORIA PEDAGÓGICA E MATEMÁTICA DAS CRUZES BRANCA (ETAPA 1) E AMARELA (ETAPA 4)
+     * E VERIFICAÇÃO DE AUSÊNCIA DE REFERÊNCIAS AO PDF NOS TEXTOS VISÍVEIS AO ALUNO:
+     * 1. Audita todos os 6 casos da Etapa 1 (s1_c1..s1_c6): peça-alvo, orientação dos adesivos,
+     *    formação da Cruz Branca alinhada aos 4 centros laterais e ausência de face branca
+     *    completa (os 4 cantos do topo possuem 0 adesivos brancos voltados para UP ao final,
+     *    exibindo exclusivamente os 5 adesivos brancos da Cruz Branca).
+     * 2. Audita todos os 3 casos da Etapa 4 (s4_c1, s4_c2, s4_c3), incluindo todos os marcos
+     *    intermediários dos 19 movimentos do Caso 3 (Ponto -> Linha Vertical após 6º mov ->
+     *    Linha Horizontal após 7º mov U' -> Formato de L após 13º mov -> Cruz Amarela após 19º mov).
+     * 3. Verifica que nenhum texto pedagógico exibido ao aluno menciona "PDF" ou "camadas.pdf".
+     */
+    @Test
+    fun testPedagogicalAuditWhiteAndYellowCrossesAndZeroPdfReferences() {
+        // =========================================================================
+        // 1. AUDITORIA DE AUSÊNCIA DE REFERÊNCIAS AO PDF EM TEXTOS VISÍVEIS AO ALUNO
+        // =========================================================================
+        val prohibitedTerms = listOf("pdf", "camadas.pdf")
+        for (group in CurriculumRepository.notationGroups) {
+            val fields = listOf(
+                "notationGroup(${group.family}).namePt" to group.namePt,
+                "notationGroup(${group.family}).descriptionPt" to group.descriptionPt
+            )
+            for ((label, text) in fields) {
+                for (term in prohibitedTerms) {
+                    assertFalse(
+                        "O campo visível ao aluno '$label' não deve conter '$term': \"$text\"",
+                        text.lowercase().contains(term)
+                    )
+                }
+            }
+        }
+
+        for (step in CurriculumRepository.steps) {
+            val stepFields = listOf(
+                "step(${step.number}).title" to step.title,
+                "step(${step.number}).subtitle" to step.subtitle,
+                "step(${step.number}).shortGoal" to step.shortGoal,
+                "step(${step.number}).goalSimple" to step.goalSimple,
+                "step(${step.number}).detailedTheory" to step.detailedTheory
+            )
+            for ((label, text) in stepFields) {
+                for (term in prohibitedTerms) {
+                    assertFalse(
+                        "O campo visível ao aluno '$label' não deve conter '$term': \"$text\"",
+                        text.lowercase().contains(term)
+                    )
+                }
+            }
+
+            for (lessonCase in step.cases) {
+                val caseFields = mutableListOf(
+                    "case(${lessonCase.id}).caseTitle" to lessonCase.caseTitle,
+                    "case(${lessonCase.id}).shortBadge" to lessonCase.shortBadge,
+                    "case(${lessonCase.id}).compactSummary" to lessonCase.compactSummary,
+                    "case(${lessonCase.id}).description" to lessonCase.description,
+                    "case(${lessonCase.id}).pedagogicalNote" to lessonCase.pedagogicalNote
+                )
+                lessonCase.pdfValidationNote?.let { note ->
+                    caseFields.add("case(${lessonCase.id}).pdfValidationNote" to note)
+                }
+                for (phase in lessonCase.pedagogicalPhases) {
+                    caseFields.add("case(${lessonCase.id}).phase(${phase.phaseNumber}).title" to phase.title)
+                    caseFields.add("case(${lessonCase.id}).phase(${phase.phaseNumber}).executionBannerText" to phase.executionBannerText)
+                    caseFields.add("case(${lessonCase.id}).phase(${phase.phaseNumber}).completionSummaryText" to phase.completionSummaryText)
+                }
+
+                for ((label, text) in caseFields) {
+                    for (term in prohibitedTerms) {
+                        assertFalse(
+                            "O campo visível ao aluno '$label' não deve conter '$term': \"$text\"",
+                            text.lowercase().contains(term)
+                        )
+                    }
+                }
+            }
+        }
+
+        // =========================================================================
+        // 2. AUDITORIA MATEMÁTICA E VISUAL DOS 6 CASOS DA ETAPA 1 (CRUZ BRANCA)
+        // =========================================================================
+        val step1 = CurriculumRepository.getStep(1)
+        assertEquals(6, step1.cases.size)
+
+        fun countWhiteCornersOnUp(state: CubeState): Int = listOf(
+            state.cubieAt(1, 1, 1),
+            state.cubieAt(-1, 1, 1),
+            state.cubieAt(1, 1, -1),
+            state.cubieAt(-1, 1, -1)
+        ).count { it.colorOn(CubeFace.UP) == CubeColor.WHITE }
+
+        fun countTotalWhiteStickersOnUp(state: CubeState): Int =
+            state.cubies.filter { it.y == 1 }.count { it.colorOn(CubeFace.UP) == CubeColor.WHITE }
+
+        // Verificação individual da peça-alvo no estado inicial de cada um dos 6 casos da Etapa 1
+        val s1c1Init = step1.cases[0].createInitialState()
+        assertEquals(CubeColor.WHITE, s1c1Init.cubieAt(1, 0, 1).colorOn(CubeFace.FRONT))
+        assertEquals(CubeColor.RED, s1c1Init.cubieAt(1, 0, 1).colorOn(CubeFace.RIGHT))
+
+        val s1c2Init = step1.cases[1].createInitialState()
+        assertEquals(CubeColor.WHITE, s1c2Init.cubieAt(1, 0, 1).colorOn(CubeFace.RIGHT))
+        assertEquals(CubeColor.BLUE, s1c2Init.cubieAt(1, 0, 1).colorOn(CubeFace.FRONT))
+
+        val s1c3Init = step1.cases[2].createInitialState()
+        assertEquals(CubeColor.WHITE, s1c3Init.cubieAt(1, -1, 0).colorOn(CubeFace.DOWN))
+        assertEquals(CubeColor.RED, s1c3Init.cubieAt(1, -1, 0).colorOn(CubeFace.RIGHT))
+
+        val s1c4Init = step1.cases[3].createInitialState()
+        assertEquals(CubeColor.WHITE, s1c4Init.cubieAt(-1, 0, 1).colorOn(CubeFace.FRONT))
+        assertEquals(CubeColor.RED, s1c4Init.cubieAt(-1, 0, 1).colorOn(CubeFace.LEFT))
+
+        val s1c5Init = step1.cases[4].createInitialState()
+        assertEquals(CubeColor.WHITE, s1c5Init.cubieAt(1, -1, 0).colorOn(CubeFace.RIGHT))
+        assertEquals(CubeColor.RED, s1c5Init.cubieAt(1, -1, 0).colorOn(CubeFace.DOWN))
+
+        val s1c6Init = step1.cases[5].createInitialState()
+        assertEquals(CubeColor.RED, s1c6Init.cubieAt(1, 1, 0).colorOn(CubeFace.UP))
+        assertEquals(CubeColor.WHITE, s1c6Init.cubieAt(1, 1, 0).colorOn(CubeFace.RIGHT))
+
+        for (lessonCase in step1.cases) {
+            assertTrue("Etapa 1 (${lessonCase.id}) deve usar whiteOnTop = true", lessonCase.whiteOnTop)
+            val baseline = CubeState.createSolved(whiteOnTop = true)
+            val initial = lessonCase.createInitialState()
+            assertValidPhysicalCubeInvariants(initial, baseline)
+
+            // Centros fixos: UP = Branco, DOWN = Amarelo, FRONT = Azul, RIGHT = Vermelho, BACK = Verde, LEFT = Laranja
+            assertEquals(CubeColor.WHITE, initial.cubieAt(0, 1, 0).colorOn(CubeFace.UP))
+            assertEquals(CubeColor.YELLOW, initial.cubieAt(0, -1, 0).colorOn(CubeFace.DOWN))
+            assertEquals(CubeColor.BLUE, initial.cubieAt(0, 0, 1).colorOn(CubeFace.FRONT))
+            assertEquals(CubeColor.RED, initial.cubieAt(1, 0, 0).colorOn(CubeFace.RIGHT))
+            assertEquals(CubeColor.GREEN, initial.cubieAt(0, 0, -1).colorOn(CubeFace.BACK))
+            assertEquals(CubeColor.ORANGE, initial.cubieAt(-1, 0, 0).colorOn(CubeFace.LEFT))
+
+            assertFalse("Estado inicial de ${lessonCase.id} não pode já ter a Cruz Branca pronta", initial.isWhiteCrossSolved())
+            assertTrue(
+                "Estado inicial de ${lessonCase.id} não pode ter os 4 cantos brancos resolvidos no topo",
+                countWhiteCornersOnUp(initial) < 4
+            )
+
+            // Executa passo a passo garantindo que em nenhum movimento intermediário ou final os 4 cantos formam face branca inteira
+            var running = initial
+            for ((idx, move) in lessonCase.fullMoveList.withIndex()) {
+                running = running.applyMove(move)
+                assertTrue(
+                    "Em ${lessonCase.id} após movimento #${idx + 1} (${move.notation}), os 4 cantos do topo não podem formar face branca inteira",
+                    countWhiteCornersOnUp(running) < 4
+                )
+            }
+
+            // Estado final após o algoritmo completo da Etapa 1
+            assertValidPhysicalCubeInvariants(running, baseline)
+            assertTrue("Estado final de ${lessonCase.id} deve formar a Cruz Branca alinhada", running.isWhiteCrossSolved())
+
+            // As 4 arestas do topo devem ter BRANCO em UP e cor lateral alinhada ao centro de cada face
+            assertEquals(CubeColor.WHITE, running.cubieAt(0, 1, 1).colorOn(CubeFace.UP))
+            assertEquals(CubeColor.BLUE, running.cubieAt(0, 1, 1).colorOn(CubeFace.FRONT))
+            assertEquals(CubeColor.WHITE, running.cubieAt(0, 1, -1).colorOn(CubeFace.UP))
+            assertEquals(CubeColor.GREEN, running.cubieAt(0, 1, -1).colorOn(CubeFace.BACK))
+            assertEquals(CubeColor.WHITE, running.cubieAt(1, 1, 0).colorOn(CubeFace.UP))
+            assertEquals(CubeColor.RED, running.cubieAt(1, 1, 0).colorOn(CubeFace.RIGHT))
+            assertEquals(CubeColor.WHITE, running.cubieAt(-1, 1, 0).colorOn(CubeFace.UP))
+            assertEquals(CubeColor.ORANGE, running.cubieAt(-1, 1, 0).colorOn(CubeFace.LEFT))
+
+            // Nenhum dos 4 cantos do topo deve ter branco voltado para UP ao concluir a demonstração da Etapa 1:
+            // assim a face superior exibe exatamente os 5 adesivos brancos da Cruz Branca (1 centro + 4 meios)
+            assertEquals(
+                "Ao concluir ${lessonCase.id}, nenhum canto do topo deve ter adesivo branco em UP (evitando aparência de face branca completa)",
+                0,
+                countWhiteCornersOnUp(running)
+            )
+            assertEquals(
+                "Ao concluir ${lessonCase.id}, a face superior (UP) deve exibir exatamente os 5 adesivos brancos da Cruz Branca",
+                5,
+                countTotalWhiteStickersOnUp(running)
+            )
+        }
+
+        // =========================================================================
+        // 3. AUDITORIA MATEMÁTICA COMPLETA DOS 3 CASOS DA ETAPA 4 (CRUZ AMARELA)
+        // =========================================================================
+        val step4 = CurriculumRepository.getStep(4)
+        assertEquals(3, step4.cases.size)
+
+        for (lessonCase in step4.cases) {
+            assertFalse("Etapa 4 (${lessonCase.id}) deve ter base branca embaixo (whiteOnTop = false)", lessonCase.whiteOnTop)
+            val init = lessonCase.createInitialState()
+            assertEquals(CubeColor.WHITE, init.cubieAt(0, -1, 0).colorOn(CubeFace.DOWN))
+            assertEquals(CubeColor.YELLOW, init.cubieAt(0, 1, 0).colorOn(CubeFace.UP))
+            assertTrue("Estado inicial de ${lessonCase.id} deve ter as 2 primeiras camadas resolvidas", init.isSecondLayerSolved())
+        }
+
+        // Caso 1 (s4_c1): Formato de L (UB e UL amarelos) -> Cruz Amarela após 6 movimentos (F U R U' R' F')
+        val s4c1 = step4.cases[0]
+        val s4c1Init = s4c1.createInitialState()
+        assertTrue(s4c1Init.isYellowLShapeOnTop())
+        assertFalse(s4c1Init.isYellowHorizontalLineOnTop())
+        assertFalse(s4c1Init.isYellowCrossOriented())
+        val s4c1Final = s4c1Init.applyMoves(s4c1.fullMoveList)
+        assertTrue(s4c1Final.isSecondLayerSolved())
+        assertTrue(s4c1Final.isYellowCrossOriented())
+        assertFalse("Concluir a Etapa 4 (s4_c1) não deve orientar toda a face amarela (Etapa 5)", s4c1Final.isYellowFaceOriented())
+
+        // Caso 2 (s4_c2): Linha Horizontal (UL e UR amarelos) -> Formato de L após 6º mov -> Cruz Amarela após 12º mov
+        val s4c2 = step4.cases[1]
+        val s4c2Init = s4c2.createInitialState()
+        assertTrue(s4c2Init.isYellowHorizontalLineOnTop())
+        val s4c2After6 = s4c2Init.applyMoves(s4c2.fullMoveList.subList(0, 6))
+        assertTrue(s4c2After6.isSecondLayerSolved())
+        assertTrue(s4c2After6.isYellowLShapeOnTop())
+        assertFalse(s4c2After6.isYellowCrossOriented())
+        val s4c2After12 = s4c2Init.applyMoves(s4c2.fullMoveList)
+        assertTrue(s4c2After12.isSecondLayerSolved())
+        assertTrue(s4c2After12.isYellowCrossOriented())
+        assertFalse("Concluir a Etapa 4 (s4_c2) não deve orientar toda a face amarela (Etapa 5)", s4c2After12.isYellowFaceOriented())
+
+        // Caso 3 (s4_c3): Apenas o Ponto Central (19 movimentos: F U R U' R' F' U' F U R U' R' F' F U R U' R' F')
+        val s4c3 = step4.cases[2]
+        assertEquals(19, s4c3.fullMoveList.size)
+        val s4c3Init = s4c3.createInitialState()
+        // Marco 0 (inicial): 0 arestas amarelas no topo (Apenas o Ponto Central)
+        assertFalse(s4c3Init.cubieAt(0, 1, 1).colorOn(CubeFace.UP) == CubeColor.YELLOW)   // UF
+        assertFalse(s4c3Init.cubieAt(0, 1, -1).colorOn(CubeFace.UP) == CubeColor.YELLOW)  // UB
+        assertFalse(s4c3Init.cubieAt(-1, 1, 0).colorOn(CubeFace.UP) == CubeColor.YELLOW)  // UL
+        assertFalse(s4c3Init.cubieAt(1, 1, 0).colorOn(CubeFace.UP) == CubeColor.YELLOW)   // UR
+        assertTrue(s4c3Init.isSecondLayerSolved())
+
+        // Marco 1 (após 6º movimento: 1ª aplicação de F U R U' R' F'): Linha Vertical (UF e UB amarelos)
+        val s4c3After6 = s4c3Init.applyMoves(s4c3.fullMoveList.subList(0, 6))
+        assertEquals(CubeColor.YELLOW, s4c3After6.cubieAt(0, 1, 1).colorOn(CubeFace.UP))  // UF
+        assertEquals(CubeColor.YELLOW, s4c3After6.cubieAt(0, 1, -1).colorOn(CubeFace.UP)) // UB
+        assertFalse(s4c3After6.cubieAt(-1, 1, 0).colorOn(CubeFace.UP) == CubeColor.YELLOW)
+        assertFalse(s4c3After6.cubieAt(1, 1, 0).colorOn(CubeFace.UP) == CubeColor.YELLOW)
+        assertTrue(s4c3After6.isSecondLayerSolved())
+
+        // Marco 2 (após 7º movimento: U'): Linha Horizontal (UL e UR amarelos — estado do Caso 2)
+        val s4c3After7 = s4c3Init.applyMoves(s4c3.fullMoveList.subList(0, 7))
+        assertTrue("Após o 7º movimento (U'), o topo deve exibir a Linha Horizontal (UL e UR)", s4c3After7.isYellowHorizontalLineOnTop())
+        assertTrue(s4c3After7.isSecondLayerSolved())
+
+        // Marco 3 (após 13º movimento: 2ª aplicação de F U R U' R' F'): Formato de L (UB e UL amarelos — estado do Caso 1)
+        val s4c3After13 = s4c3Init.applyMoves(s4c3.fullMoveList.subList(0, 13))
+        assertTrue("Após o 13º movimento, o topo deve exibir o Formato de L (UB e UL)", s4c3After13.isYellowLShapeOnTop())
+        assertFalse(s4c3After13.isYellowCrossOriented())
+        assertTrue(s4c3After13.isSecondLayerSolved())
+
+        // Marco 4 (após 19º movimento: 3ª aplicação de F U R U' R' F'): Cruz Amarela completa
+        val s4c3After19 = s4c3Init.applyMoves(s4c3.fullMoveList)
+        assertTrue("Após o 19º movimento, a Cruz Amarela deve estar completa no topo", s4c3After19.isYellowCrossOriented())
+        assertTrue(s4c3After19.isSecondLayerSolved())
+        assertFalse("Concluir a Etapa 4 (s4_c3) não deve orientar toda a face amarela (Etapa 5)", s4c3After19.isYellowFaceOriented())
+    }
 }
