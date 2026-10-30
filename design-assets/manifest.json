@@ -1,0 +1,410 @@
+{
+  "date": "2026-10-30",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 3252,
+      "sha256": "20583cae6bb17e17bf730b4ef02648762315f6c6ef4dd355b938bf9f60118ff6"
+    },
+    {
+      "path": "catalogo.html",
+      "bytes": 7074,
+      "sha256": "93f10e86f46fecd5eec2c42b6339b40f28f42c3f56288477d9137510d9d57a7c"
+    },
+    {
+      "path": "components/README.md",
+      "bytes": 788,
+      "sha256": "3370627b07a740201cad426a2234c8673df4b1958e9f87b50739a93b8e87f7ee"
+    },
+    {
+      "path": "fonts/jetbrainsmono/OFL.txt",
+      "bytes": 4400,
+      "sha256": "25a5447330f5ce68637e21e6d200f4564ae92a7614accb4b8a79bc51a98720ad"
+    },
+    {
+      "path": "fonts/jetbrainsmono/jetbrains_mono.ttf",
+      "bytes": 57404,
+      "sha256": "a187c78346862e42584d87a3b9d681b4f76860e8ccf0227ac970b1ccdc9df25c"
+    },
+    {
+      "path": "fonts/plusjakartasans/OFL.txt",
+      "bytes": 4403,
+      "sha256": "0fb5498897690f6498e53452b10787f16ec44a3360b5588715cea2ef7c1e6745"
+    },
+    {
+      "path": "fonts/plusjakartasans/plus_jakarta_sans.ttf",
+      "bytes": 29468,
+      "sha256": "3632e5fe3fbece3917f7347ba91fbb6fa06d120af55b387f1e2067c170f92faf"
+    },
+    {
+      "path": "fonts/spacegrotesk/OFL.txt",
+      "bytes": 4403,
+      "sha256": "810e645d024b73f9e992de0dc064e14cdf4d97aca0324e4f4dfce87ed6e4a5e1"
+    },
+    {
+      "path": "fonts/spacegrotesk/space_grotesk.ttf",
+      "bytes": 31964,
+      "sha256": "fb761573c86732cc6a62fbdb7ac2134d532e683df3c9f969c50dee586aea834d"
+    },
+    {
+      "path": "icons/lucide/LICENSE",
+      "bytes": 3208,
+      "sha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57"
+    },
+    {
+      "path": "icons/lucide/lucide-svg-completo.zip",
+      "bytes": 682150,
+      "sha256": "dfc34834e58d8a9c3796f47c8fb61588e76f901de75ed94f693333dba78d0653"
+    },
+    {
+      "path": "icons/material-symbols-rounded/LICENSE",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_3d_rotation.xml",
+      "bytes": 1105,
+      "sha256": "939e5651990ef7993c82a8e8f8a1d5c7abc642737b663de910864b2174d5f551"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_arrow_back.xml",
+      "bytes": 572,
+      "sha256": "f448a96be387263144b778d34327b5cfc40e05f997112f9f98c67f84f3a5d37e"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_arrow_forward.xml",
+      "bytes": 574,
+      "sha256": "7a77336358361219858890e7f8ceb6153645834754fa53656301ff2f97711e6c"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_auto_awesome.xml",
+      "bytes": 1371,
+      "sha256": "b8888df0f6f1f0351e5d02703b6f3eb00eb48d1ed5c60ac4696f3716711fda18"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_check_circle.xml",
+      "bytes": 770,
+      "sha256": "54eae050a12b6bb1fac1491f7999cde18d5cd4ef7a902cf49d015a38f3f4e6fb"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_close.xml",
+      "bytes": 575,
+      "sha256": "62758b3ae4452345076f13cc76baef7abfde4bd4ddf3a8225358a6ed81ee2710"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_dark_mode.xml",
+      "bytes": 718,
+      "sha256": "01584c911583bbb4585dec3cecb03b6c94385c396b365dbafe2ad238507387f4"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_download.xml",
+      "bytes": 745,
+      "sha256": "6dc66232319d6df464e764bbc444c6b6be385cb220d18dbe8c84a7dfe86b406f"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_emoji_events.xml",
+      "bytes": 831,
+      "sha256": "ddf0cea0ff6260868592e94a19c8cff7e69077d17980c86d6778dea9c0119341"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_explore.xml",
+      "bytes": 852,
+      "sha256": "b28486e4f24cc7824296f30aaa5756f26b73bcfe0024f18f1e9e94374904cecb"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_help.xml",
+      "bytes": 1000,
+      "sha256": "54a3c0ae37d30392992e17f66e06cc0d1ddf9b96a92f5721bafd5c4028f6ee58"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_home.xml",
+      "bytes": 666,
+      "sha256": "1667f2af29f121a453da0493c2f8580901731d6c74ed462861a559df2bc1eba6"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_info.xml",
+      "bytes": 845,
+      "sha256": "df6747a06e7c8c79e7ec253bfc957725080ce26edd32e3a519342737f50ebe12"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_language.xml",
+      "bytes": 1201,
+      "sha256": "8bf4708a642128a87b0a545789f0d82703272e93a804e9327e44344a300d96dd"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_layers.xml",
+      "bytes": 651,
+      "sha256": "033612a00c1b70ee26660e0da9e6087acbb287b1898c91b022efe34187fe837d"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_light_mode.xml",
+      "bytes": 1403,
+      "sha256": "918c1fd1edd8851387f6a1e47ea560982943472f511202ab391a4e3c7be52b31"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_lock.xml",
+      "bytes": 724,
+      "sha256": "028631943bed7f766ade77b61a57729185b338b1d12d9807f43b9f7d0bea936c"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_menu_book.xml",
+      "bytes": 1382,
+      "sha256": "6d49d636be28b35895bccfc117824c986c3b49993097ff0c65ceb9f0736dc5f5"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_pause.xml",
+      "bytes": 663,
+      "sha256": "d71911f0f471bcfbec5a0587351ebf327353da2dfd07685a66f9fd585a80b1fa"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_play_arrow.xml",
+      "bytes": 540,
+      "sha256": "07d8c754ba0bd82c16848a62423a8c9b3f75bf9327a57688b36a8b58bc046d77"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_refresh.xml",
+      "bytes": 707,
+      "sha256": "4a024244206d6fa72c94ca2409a4513f8e4f32ee84d5932ed8faf99c0326bafc"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_school.xml",
+      "bytes": 808,
+      "sha256": "0169e6a28a3a632a9d100194df5ce70f01b966445cdad4a7c2b0db8e510fe4fe"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_settings.xml",
+      "bytes": 1207,
+      "sha256": "3649f2bbadfb298fbd5dc97e525d5160bd63bdb01ca6877d6feb10ee91fe54c6"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_star.xml",
+      "bytes": 710,
+      "sha256": "7b28ca50516c57a4de73908c6dbde25b12c495ce64d4254992484ccac9adddd1"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_swipe.xml",
+      "bytes": 1226,
+      "sha256": "f88cf11c76d7c01c5a76ff13aba98534e9485269c67b1f94fa8b7c9232ddaab2"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_timer.xml",
+      "bytes": 911,
+      "sha256": "2ceafb45aeb811a638c28234b5dd1a9c632c327dc597aad755a451c4af6f7d63"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_touch_app.xml",
+      "bytes": 975,
+      "sha256": "eb53721216576acfbb7d54db58963f2bbd5ad7a93e29d1b34efa5a8ed68eccab"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_undo.xml",
+      "bytes": 653,
+      "sha256": "6044b73deb0013f88c7bd735ff43e9df27959068c90ccae051a9c2fc1c7ec00a"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_volume_off.xml",
+      "bytes": 1053,
+      "sha256": "45cb1411270446ec4ee6c1445b69c5ecb23e897f8d9283106130e0521477c4dd"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_volume_up.xml",
+      "bytes": 814,
+      "sha256": "c055861777d4e8fdb24e0468e1cef139d23e3ff4667f375ffdfb1253c87b25a9"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_zoom_in.xml",
+      "bytes": 853,
+      "sha256": "5529a12abf80c9dbb77fe6769588d5f8980b8b978d4e707d46c025e8731196a3"
+    },
+    {
+      "path": "icons/material-symbols-rounded/android/ic_zoom_out.xml",
+      "bytes": 740,
+      "sha256": "706b84d8f05fb11992db16038047cb09baea72ead4e8922f9e6e88c73f954460"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/3d_rotation.svg",
+      "bytes": 862,
+      "sha256": "9fc53daeae1eb47f3d162b465d8324730f4a2d7ea4d49501e9c0233bfad7b6b5"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/arrow_back.svg",
+      "bytes": 329,
+      "sha256": "c12a2fdde6b0caa6c9d01e5acfb130b969e65c445b0c804fc1353c92512befbd"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/arrow_forward.svg",
+      "bytes": 331,
+      "sha256": "bd1eb3c625a13a23c3089b2c8456d84132e32ff63d436ebeca1c263badd90a4c"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/auto_awesome.svg",
+      "bytes": 1106,
+      "sha256": "50873a908d10e9198415692199b1b3789a4c5121f43a68022e7241e5a31851ed"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/check_circle.svg",
+      "bytes": 527,
+      "sha256": "9d67ffc0601691e0de469afb4ee7fca8f4af68f717866af00e88c2b99f765b96"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/close.svg",
+      "bytes": 332,
+      "sha256": "517a84ecf701a1cfb5c5887fb909fde2187d358717bdb8cf0094385a8a7c952c"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/dark_mode.svg",
+      "bytes": 475,
+      "sha256": "a733396f592837993a80bc12a070a7f68c84bc96cb13d0e1c53446df3fdecd1b"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/download.svg",
+      "bytes": 502,
+      "sha256": "d706d2309ee0cf6a2f101e0bd8050fb93534b00faab161517e7e8b99f4241149"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/emoji_events.svg",
+      "bytes": 588,
+      "sha256": "da84d4b2112b55793fa111f7c91ede123ed1b54298ffc3920e3f02b6bdff2cc3"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/explore.svg",
+      "bytes": 609,
+      "sha256": "e355107d9e90b803feb5307b7dbd40804ba3dd79a43ad853fbb213c02bec1e9f"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/help.svg",
+      "bytes": 757,
+      "sha256": "e04da15870376031c5b1e985684e917b90d1709e48b66e7f9716a3bfd92f6cfc"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/home.svg",
+      "bytes": 423,
+      "sha256": "d8c8a2fbe29a4185eef35d60d9f9b3404dd00ada8be3d14fe7e6889cfac36a1d"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/info.svg",
+      "bytes": 602,
+      "sha256": "587fd1c2ba0bd2f602115923cfd6e54fe818477656da9face1ce6dd0d2c145a5"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/language.svg",
+      "bytes": 958,
+      "sha256": "44cda8a8f89f930746a772e4088167e6bc9ea25967df988f0f95db4a48d12a49"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/layers.svg",
+      "bytes": 408,
+      "sha256": "c4cb375263addd99d8026062468e845019792b25f5d7d095b7a38335d733f0dc"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/light_mode.svg",
+      "bytes": 1160,
+      "sha256": "e1dcb9bcb5ac49cdc4efc133212d88eec519b4dbc3c51e5f466be84f68a99a8d"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/lock.svg",
+      "bytes": 481,
+      "sha256": "66763a8279ffabc268d43590641ce6d21f2b816e6da2da4f0cacde5c8044e3c4"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/menu_book.svg",
+      "bytes": 1139,
+      "sha256": "1ef620b9c39286dfbc06a12b66c6821f8758951b10882bc032d50cc689cbdd67"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/pause.svg",
+      "bytes": 420,
+      "sha256": "cf934737ee208bb81e4db796d4804e418be7a10f37801b27e12e3d12e3565b7f"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/play_arrow.svg",
+      "bytes": 297,
+      "sha256": "c238293bd8624ce29ad570e7a979a8fcd5237d3e2216fb36108932ad54e0748a"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/refresh.svg",
+      "bytes": 464,
+      "sha256": "2c7a46e3176718cdbf370883ed7d7ea732d82e77fb2d6450a7173f8524cc6249"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/school.svg",
+      "bytes": 565,
+      "sha256": "2a24375d7c9eb00f92b5e24115b8af43d568175448a7aa540c604bafc2eb0668"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/settings.svg",
+      "bytes": 964,
+      "sha256": "bb41344b8fbfab730b8b628d0a20ef6add718745da450580e55f11b86aeb569d"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/star.svg",
+      "bytes": 467,
+      "sha256": "6a8503f7c197bc622389c9e5c9bbd4d953a23e5a08ff62c8b52d5b9bebd3282e"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/swipe.svg",
+      "bytes": 983,
+      "sha256": "8b2b7ca0f01f04638051dd2391031dbc9dc6c52c529f7efc5efc86ffb895a017"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/timer.svg",
+      "bytes": 668,
+      "sha256": "12fd84954449e6689cf5a65545e872b0e63cce44796a36a9fa5fed3831b211e3"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/touch_app.svg",
+      "bytes": 732,
+      "sha256": "85766b305058a6192bb9858141614755718b36058160fc91274bd2da7fe506ab"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/undo.svg",
+      "bytes": 410,
+      "sha256": "ca082be5dfcadeba3955647d45104685d6aa123c5081347a4c63ed2c712011db"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/volume_off.svg",
+      "bytes": 810,
+      "sha256": "2d98e0d4980602ef20d42c1aa2fce85b61f3b0bd6ad20f547aca5066325567fe"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/volume_up.svg",
+      "bytes": 571,
+      "sha256": "6ff82e39866e8a62d6b1181f272085aabc14e8667c5239afde5b609e0175290f"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/zoom_in.svg",
+      "bytes": 610,
+      "sha256": "595b4a79c8bdce2548e88200218114dd919b0d9cd7c7c96805f38bdaf9d77779"
+    },
+    {
+      "path": "icons/material-symbols-rounded/svg/zoom_out.svg",
+      "bytes": 497,
+      "sha256": "4b7d0f5d4f19db44a5eb2a630065bbb9a4bf71dddc965ee66099616531e6e5d8"
+    },
+    {
+      "path": "identity/palette.json",
+      "bytes": 317,
+      "sha256": "489bb155cd4971e4c2d8ef454791393351e44bede0b51b87f811e461078bd0b4"
+    },
+    {
+      "path": "ui-packs/kenney/License.txt",
+      "bytes": 565,
+      "sha256": "69f7eaa5e05913b4d09cf5848f75390b5c3c9a409ef8555777803d9ca0c171fb"
+    },
+    {
+      "path": "ui-packs/kenney/Preview.png",
+      "bytes": 28908,
+      "sha256": "41bcfd350a94201ab741d219ae794fd3cfc917f4f4decbea1fbf188b6367f561"
+    },
+    {
+      "path": "ui-packs/kenney/Sample.png",
+      "bytes": 30629,
+      "sha256": "653c84028dd03c368ec35451689585756b6a1f2d9a5e37b4986eeca2637d4fb0"
+    },
+    {
+      "path": "ui-packs/kenney/kenney_ui-pack.zip",
+      "bytes": 1229750,
+      "sha256": "a8a14a234911eb648c062622915c93e79e94e97cb7f9f375a70f6617f1174318"
+    }
+  ]
+}
