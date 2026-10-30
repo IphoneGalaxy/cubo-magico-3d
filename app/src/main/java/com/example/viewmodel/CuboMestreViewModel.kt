@@ -439,6 +439,8 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         celebrationJob = null
     }
 
+    fun resetLessonCase() = resetLessonCube()
+
     fun resetLessonCube() {
         cancelLessonJobsForReset()
         val current = _lessonState.value

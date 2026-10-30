@@ -553,10 +553,7 @@ data class CubeState(val cubies: List<Cubie>) {
         if (!isYellowFaceOriented()) return false
         val sides = listOf(CubeFace.FRONT, CubeFace.RIGHT, CubeFace.BACK, CubeFace.LEFT)
         for (side in sides) {
-            val cornersOnSide = cubies.filter {
-                it.y == 1 && abs(it.x) == 1 && abs(it.z) == 1 &&
-                    (it.x * side.nx + it.z * side.nz == 1)
-            }
+            val cornersOnSide = topCornersOnSide(side)
             if (cornersOnSide.size != 2) return false
             val c1 = cornersOnSide[0].colorOn(side) ?: return false
             val c2 = cornersOnSide[1].colorOn(side) ?: return false
@@ -565,6 +562,82 @@ data class CubeState(val cubies: List<Cubie>) {
         }
         return true
     }
+
+    /**
+     * Retorna os 2 cantos da camada superior (y = 1) pertencentes à face lateral [side] (FRONT, RIGHT, BACK ou LEFT).
+     */
+    fun topCornersOnSide(side: CubeFace): List<Cubie> {
+        require(side.ny == 0) { "A face deve ser lateral (FRONT, RIGHT, BACK ou LEFT), mas foi $side" }
+        return cubies.filter {
+            it.y == 1 && abs(it.x) == 1 && abs(it.z) == 1 &&
+                (it.x * side.nx + it.z * side.nz == 1)
+        }
+    }
+
+    /**
+     * Retorna a cor comum dos 2 cantos superiores na face lateral [side] caso formem um par ("faróis"),
+     * ou `null` se os dois cantos tiverem cores diferentes nessa face lateral.
+     */
+    fun cornerPairColorOnSide(side: CubeFace): CubeColor? {
+        if (side.ny != 0) return null
+        val corners = topCornersOnSide(side)
+        if (corners.size != 2) return null
+        val c1 = corners[0].colorOn(side) ?: return null
+        val c2 = corners[1].colorOn(side) ?: return null
+        return if (c1 == c2) c1 else null
+    }
+
+    /**
+     * Verifica se a face lateral [side] possui um par de cantos superiores com a mesma cor ("faróis").
+     */
+    fun hasCornerPairOnSide(side: CubeFace): Boolean =
+        cornerPairColorOnSide(side) != null
+
+    /**
+     * Lista todas as faces laterais (na ordem FRONT, RIGHT, BACK, LEFT) que possuem um par de cantos superiores
+     * com adesivos da mesma cor ("faróis").
+     */
+    fun findSidesWithCornerPairs(): List<CubeFace> =
+        listOf(CubeFace.FRONT, CubeFace.RIGHT, CubeFace.BACK, CubeFace.LEFT)
+            .filter { hasCornerPairOnSide(it) }
+
+    /**
+     * Quando existe exatamente 1 par de cantos iguais ("faróis") nas faces laterais (situação do Caso 1 da Etapa 6
+     * ou após a Fase 1 do Caso 2), determina qual giro da camada superior (U, U' ou U2) posiciona esse par
+     * na face traseira (BACK). Retorna `null` se o par já estiver em BACK ou se não houver exatamente 1 par.
+     */
+    fun findTopMoveToPlaceCornerPairOnBack(): CubeMove? {
+        val pairSides = findSidesWithCornerPairs()
+        if (pairSides.size != 1) return null
+        if (pairSides.first() == CubeFace.BACK) return null
+        return listOf(CubeMove.U, CubeMove.U_PRIME, CubeMove.U2).firstOrNull { candidate ->
+            applyMove(candidate).hasCornerPairOnSide(CubeFace.BACK)
+        }
+    }
+
+    /**
+     * Quando todas as 4 faces laterais já possuem pares de cantos iguais (`isYellowCornersPermuted(false) == true`),
+     * determina qual giro da camada superior (U, U' ou U2) alinha os 4 pares aos seus respectivos centros laterais.
+     * Retorna `null` se já estiverem alinhados aos centros ou se os 4 pares ainda não estiverem formados.
+     */
+    fun findTopMoveToAlignPermutedCorners(): CubeMove? {
+        if (!isYellowCornersPermuted(requireAlignedWithCenters = false)) return null
+        if (isYellowCornersPermuted(requireAlignedWithCenters = true)) return null
+        return listOf(CubeMove.U, CubeMove.U_PRIME, CubeMove.U2).firstOrNull { candidate ->
+            applyMove(candidate).isYellowCornersPermuted(requireAlignedWithCenters = true)
+        }
+    }
+
+    /**
+     * Atalho semântico para verificar se os 4 cantos superiores já estão permutados e alinhados aos centros laterais (Etapa 6).
+     */
+    fun areTopCornersPermuted(requireAlignedWithCenters: Boolean = true): Boolean =
+        isYellowCornersPermuted(requireAlignedWithCenters = requireAlignedWithCenters)
+
+    /**
+     * Atalho semântico para verificar se o cubo 3x3 está 100% resolvido (Etapa 7).
+     */
+    fun isFullySolved(): Boolean = isSolved()
 
     /**
      * Verifica se o objetivo pedagógico da etapa [stepNumber] (1..7) foi atingido.

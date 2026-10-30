@@ -20,6 +20,10 @@ enum class HighlightMode(val labelPt: String) {
     YELLOW_L_SHAPE("Formato de L (Arestas Trás e Esquerda)"),
     YELLOW_CORNERS_ORIENT("Orientação dos Cantos Amarelos"),
     YELLOW_CORNERS_PERMUTE("Permutação dos Cantos do Topo"),
+    YELLOW_CORNERS_PAIR_BACK("Par de Cantos Traseiro (Faróis em B)"),
+    YELLOW_CORNERS_PAIR_LEFT("Par de Cantos Esquerdo (Faróis em L)"),
+    YELLOW_CORNERS_PAIR_RIGHT("Par de Cantos Direito (Faróis em R)"),
+    YELLOW_CORNERS_PAIR_FRONT("Par de Cantos Frontal (Faróis em F)"),
     FINAL_EDGES_MINERVA("Meios Finais (Minerva)")
 }
 
@@ -515,8 +519,8 @@ object CurriculumRepository {
             title = "Posicionar os Cantos Finais",
             subtitle = "Permute os cantos do topo formando pares ('faróis')",
             shortGoal = "Objetivo: alinhar os cantos finais.",
-            goalSimple = "Fazer com que os dois cantos superiores de cada face lateral tenham a mesma cor e fiquem alinhados aos centros.",
-            detailedTheory = "Procure nas laterais do topo se existem 2 cantos na mesma face com a mesma cor ('faróis'). Se houver (Caso 1), coloque esse par para TRÁS (B) e aplique o algoritmo. Se não houver (Caso 2), aplique de qualquer lado para criar o par.",
+            goalSimple = "Fazer com que os dois cantos superiores de cada face lateral tenham a mesma cor ('faróis') e fiquem alinhados aos centros.",
+            detailedTheory = "Mantenha o amarelo em cima (U) e o branco embaixo (D). Observe os dois cantos superiores de cada face lateral (ignore os meios do topo, que só serão resolvidos na Etapa 7). Se uma lateral já tiver dois cantos da mesma cor ('faróis'), deixe esse par na face de TRÁS (B) e execute R' F R' B2 R F' R' B2 R2 (Caso 1). Se nenhuma lateral tiver um par igual (Caso 2), execute o algoritmo uma vez de qualquer lado para criar um par na esquerda (L), leve esse par para trás (B) com U e repita o algoritmo. Ao final, gire U, U' ou U2 se necessário para alinhar os cantos aos centros laterais.",
             highlightMode = HighlightMode.YELLOW_CORNERS_PERMUTE,
             cases = listOf(
                 LessonCase(
@@ -524,24 +528,64 @@ object CurriculumRepository {
                     stepNumber = 6,
                     caseTitle = "Caso 1: Dois cantos com cor igual (Colocar para Trás)",
                     shortBadge = "R' F R' B2 R F' R' B2 R2",
-                    compactSummary = "Par de cantos iguais voltado para trás: execute R' F R' B2 R F' R' B2 R2.",
-                    description = "Os dois cantos de trás já possuem a mesma cor (verde). Com eles voltados para trás, execute R' F R' B2 R F' R' B2 R2.",
+                    compactSummary = "Par de cantos iguais ('faróis') atrás (B): execute R' F R' B2 R F' R' B2 R2.",
+                    description = "Com amarelo em cima e branco embaixo, procure dois cantos superiores da mesma cor em uma mesma lateral ('faróis'). Nesta demonstração, o par laranja já está posicionado na face de TRÁS (B). Mantenha a referência de frente, direita e trás fixa, execute os 9 movimentos (R' F R' B2 R F' R' B2 R2) e confira os 4 pares formados. No cubo físico, gire U, U' ou U2 ao final se precisar alinhar os cantos aos centros laterais (as arestas do topo ficam para a Etapa 7).",
                     primaryAlgorithm = "R' F R' B2 R F' R' B2 R2",
                     fullResolutionAlgorithm = "R' F R' B2 R F' R' B2 R2",
                     setupMovesFromSolved = "R2 B2 R F R' B2 R F' R",
-                    pedagogicalNote = "Os dois movimentos B2 no meio e no fim preservam os cantos de trás e trocam os cantos da frente."
+                    pedagogicalNote = "A sequência mantém o canto frontal-esquerdo (UFL) fixo, cicla os outros 3 cantos (UFR → UBL → UBR) e leva o par que estava atrás (B) para a direita (R), formando 'faróis' nas 4 laterais. No cubo físico, se você alinhou o par ao centro antes de deixá-lo atrás, finalize com U' para alinhar os 4 lados.",
+                    pdfValidationNote = "Procedimento no cubo físico (Caso 1): 1) Mantenha amarelo em cima (U) e branco embaixo (D). 2) Procure dois cantos superiores da mesma cor na mesma face lateral ('faróis', independentemente da cor). 3) Posicione esse par na face de TRÁS (B) — girando a camada superior (U, U' ou U2) ou virando o cubo antes de começar. 4) Sem girar o cubo inteiro nas mãos durante a execução, faça os 9 movimentos: R' F R' B2 R F' R' B2 R2. 5) O par que estava atrás vai para a direita (R) e todas as 4 laterais passam a ter pares iguais. 6) Se necessário, gire o topo (U, U' ou U2) para alinhar os cantos aos centros laterais. As arestas superiores ainda podem estar trocadas — isso é normal e será resolvido na Etapa 7."
                 ),
                 LessonCase(
                     id = "s6_c2",
                     stepNumber = 6,
                     caseTitle = "Caso 2: Nenhum par de cantos iguais (Permutação Diagonal)",
                     shortBadge = "Caso 1 -> U -> Caso 1 -> U'",
-                    compactSummary = "Sem par de cantos iguais: aplique a fórmula para criar um par, leve-o para trás e repita.",
-                    description = "Quando nenhuma lateral tem 2 cantos da mesma cor, aplique o algoritmo uma vez de qualquer posição para cair no Caso 1, coloque o par formado para trás (U) e aplique novamente.",
+                    compactSummary = "Sem par igual: aplique a fórmula p/ criar par na esquerda, gire U e repita.",
+                    description = "Quando nenhuma lateral possui dois cantos superiores da mesma cor (troca diagonal), dividimos em 4 fases: Fase 1 — execute R' F R' B2 R F' R' B2 R2 de qualquer lado para criar um par ('faróis') na face da ESQUERDA (L); Fase 2 — gire U para levar esse par da esquerda (L) para TRÁS (B); Fase 3 — repita R' F R' B2 R F' R' B2 R2 para formar pares nas 4 faces; Fase 4 — ajuste o topo (U' neste exemplo; U, U', U2 ou nenhum no cubo físico) para alinhar os cantos aos centros.",
                     primaryAlgorithm = "R' F R' B2 R F' R' B2 R2",
                     fullResolutionAlgorithm = "R' F R' B2 R F' R' B2 R2 U R' F R' B2 R F' R' B2 R2 U'",
                     setupMovesFromSolved = "U R2 B2 R F R' B2 R F' R U' R2 B2 R F R' B2 R F' R",
-                    pedagogicalNote = "Ao final, pode ser necessário girar o topo (U, U' ou U2) para alinhar as cores dos cantos com os centros laterais."
+                    pedagogicalNote = "Em qualquer orientação inicial sem pares (troca diagonal), a 1ª execução de R' F R' B2 R F' R' B2 R2 SEMPRE forma o par ('faróis') na face da ESQUERDA (L), e o giro U SEMPRE leva esse par para TRÁS (B). Após a 2ª execução, basta girar o topo (U, U' ou U2) até alinhar os cantos com os centros.",
+                    pdfValidationNote = "Diferença entre a demonstração e o cubo físico (Caso 2): Na Fase 1, aplicando R' F R' B2 R F' R' B2 R2 a partir de qualquer lado sem pares, o par formado ('faróis') aparece sempre na face da ESQUERDA (L) — neste exemplo, o par verde. Na Fase 2, o giro U da camada superior leva esse par da esquerda (L) para TRÁS (B) mantendo a mesma face na frente (no cubo físico, você também pode girar U para colocá-lo atrás). Na Fase 3, a 2ª execução forma pares nas 4 laterais. Na Fase 4, esta demonstração usa U' para alinhar aos centros; no seu cubo físico, observe a cor dos pares formados e gire U, U', U2 (ou nenhum giro) até alinhar os 4 pares aos centros laterais.",
+                    pedagogicalPhases = listOf(
+                        LessonPedagogicalPhase(
+                            phaseNumber = 1,
+                            title = "Fase 1 — Criar um par ('faróis')",
+                            executionBannerText = "Sem par inicial: 1ª execução cria um par igual na esquerda (L).",
+                            algorithmText = "R' F R' B2 R F' R' B2 R2",
+                            startMoveIndex = 0,
+                            endMoveIndex = 8,
+                            completionSummaryText = "Par verde formado na esquerda (L)! Agora leve esse par para trás (B) com U."
+                        ),
+                        LessonPedagogicalPhase(
+                            phaseNumber = 2,
+                            title = "Fase 2 — Posicionar o par atrás",
+                            executionBannerText = "Gire o topo com U para levar o par da esquerda (L) para trás (B).",
+                            algorithmText = "U",
+                            startMoveIndex = 9,
+                            endMoveIndex = 9,
+                            completionSummaryText = "Par posicionado atrás (B) — igual ao Caso 1! Repita o algoritmo."
+                        ),
+                        LessonPedagogicalPhase(
+                            phaseNumber = 3,
+                            title = "Fase 3 — Posicionar os cantos",
+                            executionBannerText = "Com o par atrás (B), 2ª execução forma pares nas 4 laterais.",
+                            algorithmText = "R' F R' B2 R F' R' B2 R2",
+                            startMoveIndex = 10,
+                            endMoveIndex = 18,
+                            completionSummaryText = "Pares formados nas 4 faces! Falta alinhar o topo aos centros."
+                        ),
+                        LessonPedagogicalPhase(
+                            phaseNumber = 4,
+                            title = "Fase 4 — Conferir e alinhar",
+                            executionBannerText = "Ajuste o topo (U' neste exemplo; U, U', U2 ou nenhum no cubo físico).",
+                            algorithmText = "U'",
+                            startMoveIndex = 19,
+                            endMoveIndex = 19,
+                            completionSummaryText = "Cantos finais posicionados e alinhados aos 4 centros laterais!"
+                        )
+                    )
                 )
             )
         ),
@@ -640,6 +684,69 @@ object CurriculumRepository {
             cubie.y == 1 || cubie.type == CubieType.CENTER
         HighlightMode.YELLOW_CORNERS_PERMUTE ->
             (cubie.y == 1 && cubie.type == CubieType.CORNER) || cubie.type == CubieType.CENTER
+        HighlightMode.YELLOW_CORNERS_PAIR_BACK ->
+            (cubie.y == 1 && cubie.type == CubieType.CORNER && cubie.z == -1) || cubie.type == CubieType.CENTER
+        HighlightMode.YELLOW_CORNERS_PAIR_LEFT ->
+            (cubie.y == 1 && cubie.type == CubieType.CORNER && cubie.x == -1) || cubie.type == CubieType.CENTER
+        HighlightMode.YELLOW_CORNERS_PAIR_RIGHT ->
+            (cubie.y == 1 && cubie.type == CubieType.CORNER && cubie.x == 1) || cubie.type == CubieType.CENTER
+        HighlightMode.YELLOW_CORNERS_PAIR_FRONT ->
+            (cubie.y == 1 && cubie.type == CubieType.CORNER && cubie.z == 1) || cubie.type == CubieType.CENTER
         HighlightMode.FINAL_EDGES_MINERVA -> true
+    }
+
+    /**
+     * Determina dinamicamente o modo de destaque visual para a Etapa 6 de acordo com o estado matemático real do cubo:
+     * - Quando há exatamente 1 par de cantos iguais ("faróis") em uma lateral (ex.: Trás no início do Caso 1 ou após a Fase 2 do Caso 2,
+     *   ou Esquerda após a Fase 1 do Caso 2), destaca especificamente os 2 cantos desse par e os 6 centros.
+     * - Quando não há pares (início do Caso 2) ou quando os 4 lados já têm pares formados, destaca os 4 cantos superiores e os 6 centros
+     *   (mantendo as 4 arestas superiores esmaecidas, pois pertencem à Etapa 7).
+     */
+    fun resolveStage6DynamicHighlightMode(cubeState: CubeState): HighlightMode {
+        if (!cubeState.isYellowFaceOriented()) return HighlightMode.YELLOW_CORNERS_PERMUTE
+        val pairSides = cubeState.findSidesWithCornerPairs()
+        return if (pairSides.size == 1) {
+            when (pairSides.first()) {
+                CubeFace.BACK -> HighlightMode.YELLOW_CORNERS_PAIR_BACK
+                CubeFace.LEFT -> HighlightMode.YELLOW_CORNERS_PAIR_LEFT
+                CubeFace.RIGHT -> HighlightMode.YELLOW_CORNERS_PAIR_RIGHT
+                CubeFace.FRONT -> HighlightMode.YELLOW_CORNERS_PAIR_FRONT
+                else -> HighlightMode.YELLOW_CORNERS_PERMUTE
+            }
+        } else {
+            HighlightMode.YELLOW_CORNERS_PERMUTE
+        }
+    }
+
+    /**
+     * Gera o diagnóstico pedagógico em tempo real dos cantos superiores na Etapa 6 a partir do [cubeState] atual,
+     * permitindo que o estudante identifique onde está o par ("faróis"), qual cor ele possui e qual ajuste realizar,
+     * sem precisar girar a câmera para adivinhar o que está na face traseira ou esquerda.
+     */
+    fun describeStage6CornerState(cubeState: CubeState): String {
+        if (cubeState.isYellowCornersPermuted(requireAlignedWithCenters = true)) {
+            return "4 pares alinhados aos centros! (Meios: Etapa 7)"
+        }
+        if (cubeState.isYellowCornersPermuted(requireAlignedWithCenters = false)) {
+            val alignMove = cubeState.findTopMoveToAlignPermutedCorners()
+            return "4 pares formados: gire ${alignMove?.notation ?: "U"} p/ alinhar aos centros"
+        }
+        if (cubeState.isYellowFaceOriented()) {
+            val pairSides = cubeState.findSidesWithCornerPairs()
+            if (pairSides.size == 1) {
+                val side = pairSides.first()
+                val colorLabel = cubeState.cornerPairColorOnSide(side)?.labelPt ?: ""
+                val toBackMove = cubeState.findTopMoveToPlaceCornerPairOnBack()
+                return when (side) {
+                    CubeFace.BACK -> "Par $colorLabel em Trás (B) • Pronto p/ os 9 mov."
+                    CubeFace.LEFT -> "Par $colorLabel na Esquerda (L) • Gire ${toBackMove?.notation ?: "U"} p/ Trás"
+                    CubeFace.RIGHT -> "Par $colorLabel na Direita (R) • Gire ${toBackMove?.notation ?: "U'"} p/ Trás"
+                    CubeFace.FRONT -> "Par $colorLabel na Frente (F) • Gire ${toBackMove?.notation ?: "U2"} p/ Trás"
+                    else -> "Par $colorLabel identificado"
+                }
+            }
+            return "Nenhum par nas laterais • 9 mov. criam par na Esquerda (L)"
+        }
+        return "Permutando cantos (mantenha a mesma face na frente)"
     }
 }

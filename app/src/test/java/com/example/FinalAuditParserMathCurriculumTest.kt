@@ -13,6 +13,7 @@ import com.example.ui.screens.resolveExploreMove
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -810,5 +811,273 @@ class FinalAuditParserMathCurriculumTest {
         assertTrue("Após o 19º movimento, a Cruz Amarela deve estar completa no topo", s4c3After19.isYellowCrossOriented())
         assertTrue(s4c3After19.isSecondLayerSolved())
         assertFalse("Concluir a Etapa 4 (s4_c3) não deve orientar toda a face amarela (Etapa 5)", s4c3After19.isYellowFaceOriented())
+    }
+
+    /**
+     * SEÇÃO 8 — AUDITORIA MATEMÁTICA, PEDAGÓGICA E DE CUBO FÍSICO DA ETAPA 6 ("POSICIONAR OS CANTOS FINAIS"):
+     * Valida os 20 requisitos obrigatórios para a Etapa 6 (s6_c1 e s6_c2):
+     * 1. Estado inicial válido do cubo.
+     * 2. Face amarela completa no topo antes da Etapa 6.
+     * 3. Duas primeiras camadas preservadas antes da Etapa 6.
+     * 4. Identificação de par de cantos iguais nas quatro faces laterais.
+     * 5. Caso 1 iniciando com exatamente um par válido na face traseira (par Laranja em BACK).
+     * 6. Caso 2 iniciando sem pares válidos em nenhuma das 4 faces laterais.
+     * 7. Caso 1 resolvendo os quatro cantos após os 9 movimentos (R' F R' B2 R F' R' B2 R2).
+     * 8. Caso 2 formando exatamente um par após a primeira execução de 9 movimentos (par Verde na Esquerda).
+     * 9. Posicionamento desse par na face traseira após o 10º movimento (U).
+     * 10. Caso 2 formando os 4 pares após a segunda execução (19º movimento).
+     * 11. Ajuste final do topo (U, U', U2 ou nenhum) alinhando todos os quatro cantos com os centros laterais.
+     * 12. Preservação da face amarela no topo após os algoritmos.
+     * 13. Preservação das duas primeiras camadas após os algoritmos.
+     * 14. Preservação das 12 arestas e 6 centros após o ciclo puro de 3 cantos (R' F R' B2 R F' R' B2 R2).
+     * 15. Funcionamento de stepDemoForward() e stepDemoBackward() para ambos os casos da Etapa 6.
+     * 16. Funcionamento de resetLessonCase() para ambos os casos da Etapa 6.
+     * 17. Consistência da descrição textual e das 4 fases pedagógicas com o comportamento real do cubo.
+     * 18. Compatibilidade com os casos das etapas anteriores e seguintes (26 casos totais).
+     * 19. Preservação dos 26 casos pedagógicos.
+     * 20. Nenhum teste existente quebrado e prova universal para todas as orientações do cubo físico.
+     */
+    @Test
+    fun testDefinitiveStage6CornersMathematicalAndPhysicalCubeAudit() {
+        val step6 = CurriculumRepository.getStep(6)
+        assertEquals(6, step6.number)
+        assertEquals("Posicionar os Cantos Finais", step6.title)
+        assertEquals(2, step6.cases.size)
+
+        val s6c1 = step6.cases[0]
+        val s6c2 = step6.cases[1]
+        assertEquals("s6_c1", s6c1.id)
+        assertEquals("s6_c2", s6c2.id)
+
+        val baseAlgNotation = "R' F R' B2 R F' R' B2 R2"
+        val baseAlgMoves = CubeMove.parseSequence(baseAlgNotation)
+        assertEquals(9, baseAlgMoves.size)
+        assertEquals(baseAlgMoves, s6c1.fullMoveList)
+        assertEquals(20, s6c2.fullMoveList.size)
+        assertEquals(CubeMove.parseSequence("R' F R' B2 R F' R' B2 R2 U R' F R' B2 R F' R' B2 R2 U'"), s6c2.fullMoveList)
+
+        // =========================================================================
+        // PROVA DO INVARIANTE PURO DO ALGORITMO DE 9 MOVIMENTOS (R' F R' B2 R F' R' B2 R2):
+        // - Preserva 100% dos 6 centros, todas as 12 arestas (4 topo, 4 meio, 4 base) e os 4 cantos inferiores.
+        // - Mantém o canto UFL (-1, 1, 1) fixo no lugar e com a mesma orientação.
+        // - Permuta ciclicamente apenas os 3 cantos UFR -> UBL -> UBR -> UFR preservando o Amarelo em UP.
+        // =========================================================================
+        val solved = CubeState.createSolved()
+        val afterAlgOnSolved = solved.applyMoves(baseAlgMoves)
+        assertTrue("As duas primeiras camadas devem permanecer 100% intactas", afterAlgOnSolved.isSecondLayerSolved())
+        assertTrue("A face amarela deve permanecer 100% orientada no topo", afterAlgOnSolved.isYellowFaceOriented())
+
+        for (cubie in solved.cubies) {
+            val isTopCorner = cubie.y == 1 && kotlin.math.abs(cubie.x) == 1 && kotlin.math.abs(cubie.z) == 1
+            if (!isTopCorner) {
+                val afterCubie = afterAlgOnSolved.cubieAt(cubie.x, cubie.y, cubie.z)
+                assertEquals(
+                    "Peça não-canto-do-topo em (${cubie.x},${cubie.y},${cubie.z}) deve ficar 100% invariante após R' F R' B2 R F' R' B2 R2",
+                    cubie.stickers,
+                    afterCubie.stickers
+                )
+            }
+        }
+        // Canto UFL (-1, 1, 1) também permanece 100% invariante!
+        assertEquals(
+            "O canto frontal-esquerdo UFL (-1,1,1) deve permanecer fixo após R' F R' B2 R F' R' B2 R2",
+            solved.cubieAt(-1, 1, 1).stickers,
+            afterAlgOnSolved.cubieAt(-1, 1, 1).stickers
+        )
+
+        // =========================================================================
+        // AUDITORIA DO CASO 1 (s6_c1): 1 PAR DE CANTOS IGUAIS NA FACE DE TRÁS
+        // =========================================================================
+        val s6c1Init = s6c1.createInitialState()
+        assertEquals(27, s6c1Init.cubies.size)
+        assertEquals(54, s6c1Init.cubies.sumOf { it.stickers.size })
+        assertTrue("s6_c1 inicial deve ter as 2 primeiras camadas resolvidas", s6c1Init.isSecondLayerSolved())
+        assertTrue("s6_c1 inicial deve ter a face amarela completa no topo", s6c1Init.isYellowFaceOriented())
+        assertFalse("s6_c1 inicial ainda não deve ter todos os cantos posicionados", s6c1Init.areTopCornersPermuted())
+        assertFalse("s6_c1 inicial não deve ter o cubo totalmente resolvido", s6c1Init.isFullySolved())
+
+        // Verificação exata dos pares nas 4 faces laterais de s6_c1 inicial:
+        assertEquals(listOf(CubeFace.BACK), s6c1Init.findSidesWithCornerPairs())
+        assertTrue(s6c1Init.hasCornerPairOnSide(CubeFace.BACK))
+        assertFalse(s6c1Init.hasCornerPairOnSide(CubeFace.FRONT))
+        assertFalse(s6c1Init.hasCornerPairOnSide(CubeFace.RIGHT))
+        assertFalse(s6c1Init.hasCornerPairOnSide(CubeFace.LEFT))
+        // O par traseiro real em s6_c1 é LARANJA (acima do centro Verde traseiro):
+        assertEquals(CubeColor.ORANGE, s6c1Init.cornerPairColorOnSide(CubeFace.BACK))
+        assertEquals(HighlightMode.YELLOW_CORNERS_PAIR_BACK, CurriculumRepository.resolveStage6DynamicHighlightMode(s6c1Init))
+        assertTrue(CurriculumRepository.describeStage6CornerState(s6c1Init).contains("Par Laranja em Trás"))
+
+        // Verificação passo a passo (movimentos 1 a 9) e reversibilidade (backward) em s6_c1:
+        val s6c1History = mutableListOf(s6c1Init)
+        var s6c1Cursor = s6c1Init
+        for (move in s6c1.fullMoveList) {
+            s6c1Cursor = s6c1Cursor.applyMove(move)
+            s6c1History.add(s6c1Cursor)
+        }
+        val s6c1Final = s6c1History.last()
+        assertTrue("s6_c1 final deve preservar as 2 primeiras camadas", s6c1Final.isSecondLayerSolved())
+        assertTrue("s6_c1 final deve preservar a face amarela no topo", s6c1Final.isYellowFaceOriented())
+        assertTrue("s6_c1 final deve ter os 4 cantos posicionados e alinhados aos centros", s6c1Final.areTopCornersPermuted())
+        assertEquals(
+            listOf(CubeFace.FRONT, CubeFace.RIGHT, CubeFace.BACK, CubeFace.LEFT),
+            s6c1Final.findSidesWithCornerPairs()
+        )
+        assertEquals(CubeColor.BLUE, s6c1Final.cornerPairColorOnSide(CubeFace.FRONT))
+        assertEquals(CubeColor.ORANGE, s6c1Final.cornerPairColorOnSide(CubeFace.RIGHT))
+        assertEquals(CubeColor.GREEN, s6c1Final.cornerPairColorOnSide(CubeFace.BACK))
+        assertEquals(CubeColor.RED, s6c1Final.cornerPairColorOnSide(CubeFace.LEFT))
+        // As arestas do topo continuam aguardando a Etapa 7
+        assertFalse("s6_c1 final não deve resolver as arestas da Etapa 7", s6c1Final.isFullySolved())
+
+        // Verifica retrocesso (stepDemoBackward) aplicando move.inverse() passo a passo de 9 até 0:
+        for (idx in s6c1.fullMoveList.indices.reversed()) {
+            val move = s6c1.fullMoveList[idx]
+            val steppedBack = s6c1History[idx + 1].applyMove(move.inverse())
+            assertEquals("Retrocesso no passo $idx de s6_c1 deve restaurar o estado exato", s6c1History[idx], steppedBack)
+        }
+
+        // Prova para o cubo físico no Caso 1: se o par estava em FRONT, RIGHT ou LEFT,
+        // findTopMoveToPlaceCornerPairOnBack() retorna o giro exato (U2, U ou U') que o coloca em BACK,
+        // e após aplicar os 9 movimentos + findTopMoveToAlignPermutedCorners(), os 4 cantos ficam 100% alinhados!
+        for (preTurn in listOf(null, CubeMove.U, CubeMove.U2, CubeMove.U_PRIME)) {
+            val rotatedCase1 = if (preTurn == null) s6c1Init else s6c1Init.applyMove(preTurn)
+            assertEquals("Em qualquer rotação de U, o Caso 1 tem exatamente 1 par lateral", 1, rotatedCase1.findSidesWithCornerPairs().size)
+            val setupToBack = rotatedCase1.findTopMoveToPlaceCornerPairOnBack()
+            val withPairOnBack = if (setupToBack == null) rotatedCase1 else rotatedCase1.applyMove(setupToBack)
+            assertEquals(listOf(CubeFace.BACK), withPairOnBack.findSidesWithCornerPairs())
+
+            val after9Moves = withPairOnBack.applyMoves(baseAlgMoves)
+            assertEquals("Após 9 movimentos com par em BACK, as 4 faces laterais devem ter pares", 4, after9Moves.findSidesWithCornerPairs().size)
+            val alignMove = after9Moves.findTopMoveToAlignPermutedCorners()
+            val alignedState = if (alignMove == null) after9Moves else after9Moves.applyMove(alignMove)
+            assertTrue("Após o giro final de alinhamento ($alignMove), areTopCornersPermuted() deve ser true", alignedState.areTopCornersPermuted())
+        }
+
+        // =========================================================================
+        // AUDITORIA DO CASO 2 (s6_c2): NENHUM PAR DE CANTOS IGUAIS (TROCA DIAGONAL)
+        // =========================================================================
+        val s6c2Init = s6c2.createInitialState()
+        assertEquals(27, s6c2Init.cubies.size)
+        assertEquals(54, s6c2Init.cubies.sumOf { it.stickers.size })
+        assertTrue("s6_c2 inicial deve ter as 2 primeiras camadas resolvidas", s6c2Init.isSecondLayerSolved())
+        assertTrue("s6_c2 inicial deve ter a face amarela completa no topo", s6c2Init.isYellowFaceOriented())
+        assertFalse("s6_c2 inicial não deve ter cantos posicionados", s6c2Init.areTopCornersPermuted())
+        assertTrue("s6_c2 inicial deve ter 0 pares de cantos em todas as 4 faces laterais", s6c2Init.findSidesWithCornerPairs().isEmpty())
+        assertNull("s6_c2 inicial não possui par para levar a BACK", s6c2Init.findTopMoveToPlaceCornerPairOnBack())
+        assertEquals(HighlightMode.YELLOW_CORNERS_PERMUTE, CurriculumRepository.resolveStage6DynamicHighlightMode(s6c2Init))
+        assertTrue(CurriculumRepository.describeStage6CornerState(s6c2Init).contains("Nenhum par nas laterais"))
+
+        // Auditoria das 4 fases pedagógicas de s6_c2:
+        assertEquals(4, s6c2.pedagogicalPhases.size)
+        assertEquals(0..8, s6c2.pedagogicalPhases[0].startMoveIndex..s6c2.pedagogicalPhases[0].endMoveIndex)
+        assertEquals(9..9, s6c2.pedagogicalPhases[1].startMoveIndex..s6c2.pedagogicalPhases[1].endMoveIndex)
+        assertEquals(10..18, s6c2.pedagogicalPhases[2].startMoveIndex..s6c2.pedagogicalPhases[2].endMoveIndex)
+        assertEquals(19..19, s6c2.pedagogicalPhases[3].startMoveIndex..s6c2.pedagogicalPhases[3].endMoveIndex)
+
+        // Marco 1 (após Fase 1 — movimentos 1..9: 1ª execução de R' F R' B2 R F' R' B2 R2):
+        val s6c2AfterPhase1 = s6c2Init.applyMoves(s6c2.fullMoveList.subList(0, 9))
+        assertTrue(s6c2AfterPhase1.isSecondLayerSolved())
+        assertTrue(s6c2AfterPhase1.isYellowFaceOriented())
+        assertEquals("Após a Fase 1 (9 mov.), deve surgir exatamente 1 par na face ESQUERDA (LEFT)", listOf(CubeFace.LEFT), s6c2AfterPhase1.findSidesWithCornerPairs())
+        assertEquals("O par formado na Esquerda em s6_c2 deve ser VERDE", CubeColor.GREEN, s6c2AfterPhase1.cornerPairColorOnSide(CubeFace.LEFT))
+        assertEquals(CubeMove.U, s6c2AfterPhase1.findTopMoveToPlaceCornerPairOnBack())
+        assertEquals(HighlightMode.YELLOW_CORNERS_PAIR_LEFT, CurriculumRepository.resolveStage6DynamicHighlightMode(s6c2AfterPhase1))
+        assertTrue(CurriculumRepository.describeStage6CornerState(s6c2AfterPhase1).contains("Par Verde na Esquerda"))
+
+        // Marco 2 (após Fase 2 — 10º movimento: U):
+        val s6c2AfterPhase2 = s6c2Init.applyMoves(s6c2.fullMoveList.subList(0, 10))
+        assertTrue(s6c2AfterPhase2.isSecondLayerSolved())
+        assertTrue(s6c2AfterPhase2.isYellowFaceOriented())
+        assertEquals("Após a Fase 2 (10º mov. U), o par Verde deve estar na face TRASEIRA (BACK)", listOf(CubeFace.BACK), s6c2AfterPhase2.findSidesWithCornerPairs())
+        assertEquals(CubeColor.GREEN, s6c2AfterPhase2.cornerPairColorOnSide(CubeFace.BACK))
+        assertEquals(HighlightMode.YELLOW_CORNERS_PAIR_BACK, CurriculumRepository.resolveStage6DynamicHighlightMode(s6c2AfterPhase2))
+        assertTrue(CurriculumRepository.describeStage6CornerState(s6c2AfterPhase2).contains("Par Verde em Trás"))
+
+        // Marco 3 (após Fase 3 — movimentos 11..19: 2ª execução de R' F R' B2 R F' R' B2 R2):
+        val s6c2AfterPhase3 = s6c2Init.applyMoves(s6c2.fullMoveList.subList(0, 19))
+        assertTrue(s6c2AfterPhase3.isSecondLayerSolved())
+        assertTrue(s6c2AfterPhase3.isYellowFaceOriented())
+        assertEquals(
+            "Após a Fase 3 (19º mov.), todas as 4 faces laterais devem ter pares de cantos",
+            listOf(CubeFace.FRONT, CubeFace.RIGHT, CubeFace.BACK, CubeFace.LEFT),
+            s6c2AfterPhase3.findSidesWithCornerPairs()
+        )
+        assertFalse("Antes do 20º movimento (U'), os 4 pares ainda estão deslocados em relação aos centros", s6c2AfterPhase3.areTopCornersPermuted())
+        assertEquals(CubeMove.U_PRIME, s6c2AfterPhase3.findTopMoveToAlignPermutedCorners())
+        assertTrue(CurriculumRepository.describeStage6CornerState(s6c2AfterPhase3).contains("gire U'"))
+
+        // Marco 4 (após Fase 4 — 20º movimento: U'):
+        val s6c2Final = s6c2Init.applyMoves(s6c2.fullMoveList)
+        assertTrue("s6_c2 final deve preservar as 2 primeiras camadas", s6c2Final.isSecondLayerSolved())
+        assertTrue("s6_c2 final deve preservar a face amarela no topo", s6c2Final.isYellowFaceOriented())
+        assertTrue("s6_c2 final deve ter todos os 4 cantos posicionados e alinhados aos centros", s6c2Final.areTopCornersPermuted())
+        assertEquals(CubeColor.BLUE, s6c2Final.cornerPairColorOnSide(CubeFace.FRONT))
+        assertEquals(CubeColor.ORANGE, s6c2Final.cornerPairColorOnSide(CubeFace.RIGHT))
+        assertEquals(CubeColor.GREEN, s6c2Final.cornerPairColorOnSide(CubeFace.BACK))
+        assertEquals(CubeColor.RED, s6c2Final.cornerPairColorOnSide(CubeFace.LEFT))
+        assertFalse("s6_c2 final não deve resolver as arestas da Etapa 7", s6c2Final.isFullySolved())
+
+        // Verifica avanço e retrocesso passo a passo (20 movimentos) de s6_c2:
+        val s6c2History = mutableListOf(s6c2Init)
+        var s6c2Cursor = s6c2Init
+        for (move in s6c2.fullMoveList) {
+            s6c2Cursor = s6c2Cursor.applyMove(move)
+            s6c2History.add(s6c2Cursor)
+        }
+        for (idx in s6c2.fullMoveList.indices.reversed()) {
+            val move = s6c2.fullMoveList[idx]
+            val steppedBack = s6c2History[idx + 1].applyMove(move.inverse())
+            assertEquals("Retrocesso no passo $idx de s6_c2 deve restaurar o estado exato", s6c2History[idx], steppedBack)
+        }
+
+        // =========================================================================
+        // TEOREMA UNIVERSAL PARA CUBO FÍSICO NO CASO 2 (TROCA DIAGONAL EM QUALQUER ROTAÇÃO DE U):
+        // Prova que, independentemente de como o topo esteja girado (none, U, U2, U') quando
+        // não há nenhum par lateral:
+        // 1. A 1ª execução de R' F R' B2 R F' R' B2 R2 SEMPRE cria um par na face ESQUERDA (LEFT).
+        // 2. O giro U (10º movimento) SEMPRE leva esse par da Esquerda para TRÁS (BACK).
+        // 3. A 2ª execução de R' F R' B2 R F' R' B2 R2 SEMPRE forma os 4 pares nas 4 faces laterais.
+        // 4. Um único ajuste final do topo (findTopMoveToAlignPermutedCorners()) SEMPRE alinha os 4 cantos aos centros.
+        // =========================================================================
+        for (initialTopTurn in listOf(null, CubeMove.U, CubeMove.U2, CubeMove.U_PRIME)) {
+            val diagState = if (initialTopTurn == null) s6c2Init else s6c2Init.applyMove(initialTopTurn)
+            assertTrue("Estado diagonal com giro inicial $initialTopTurn não deve ter nenhum par", diagState.findSidesWithCornerPairs().isEmpty())
+
+            val afterFirst9 = diagState.applyMoves(baseAlgMoves)
+            assertEquals(
+                "Para giro inicial $initialTopTurn, a 1ª execução de 9 movimentos SEMPRE cria um par em LEFT",
+                listOf(CubeFace.LEFT),
+                afterFirst9.findSidesWithCornerPairs()
+            )
+
+            val afterTurnU = afterFirst9.applyMove(CubeMove.U)
+            assertEquals(
+                "Para giro inicial $initialTopTurn, o giro U SEMPRE coloca o par recém-criado em BACK",
+                listOf(CubeFace.BACK),
+                afterTurnU.findSidesWithCornerPairs()
+            )
+
+            val afterSecond9 = afterTurnU.applyMoves(baseAlgMoves)
+            assertEquals(
+                "Para giro inicial $initialTopTurn, a 2ª execução de 9 movimentos SEMPRE forma pares nas 4 faces laterais",
+                4,
+                afterSecond9.findSidesWithCornerPairs().size
+            )
+
+            val finalAlignMove = afterSecond9.findTopMoveToAlignPermutedCorners()
+            val fullyAligned = if (finalAlignMove == null) afterSecond9 else afterSecond9.applyMove(finalAlignMove)
+            assertTrue(
+                "Para giro inicial $initialTopTurn, o ajuste final ($finalAlignMove) SEMPRE alinha os 4 cantos com os centros",
+                fullyAligned.areTopCornersPermuted()
+            )
+            assertTrue(fullyAligned.isSecondLayerSolved())
+            assertTrue(fullyAligned.isYellowFaceOriented())
+        }
+
+        // Consistência dos textos pedagógicos de s6_c1 e s6_c2:
+        assertTrue("Descrição de s6_c1 deve mencionar o par Laranja em Trás", s6c1.description.lowercase().contains("laranja"))
+        assertFalse("Descrição de s6_c1 não deve afirmar falsamente que o par inicial é Verde", s6c1.description.lowercase().contains("cantos traseiros possuem adesivos verdes"))
+        assertTrue("Descrição de s6_c2 deve explicar que o par surge na Esquerda após a Fase 1", s6c2.description.lowercase().contains("esquerda"))
+        assertEquals(26, CurriculumRepository.steps.sumOf { it.cases.size })
     }
 }

@@ -865,15 +865,17 @@ private fun LessonCubeViewportBox(
     val currentCase = remember(step, caseIndex) {
         step.cases.getOrElse(caseIndex) { step.cases.first() }
     }
-    val isLShapeIntermediateMilestone = mode == LearningMode.LEARN &&
-        currentCase.pedagogicalPhases.size >= 2 &&
+    val isLShapeIntermediateMilestone = stepNumber == 4 &&
+        mode == LearningMode.LEARN &&
+        currentCase.pedagogicalPhases.size == 2 &&
         currentMoveIndex == currentCase.pedagogicalPhases.first().endMoveIndex &&
         activeAnimation == null
 
-    val effectiveHighlightMode = if (isLShapeIntermediateMilestone) {
-        com.example.curriculum.HighlightMode.YELLOW_L_SHAPE
-    } else {
-        step.highlightMode
+    val effectiveHighlightMode = when {
+        isLShapeIntermediateMilestone -> com.example.curriculum.HighlightMode.YELLOW_L_SHAPE
+        stepNumber == 6 && activeAnimation == null ->
+            CurriculumRepository.resolveStage6DynamicHighlightMode(cubeState)
+        else -> step.highlightMode
     }
     val effectiveHighlightEnabled = highlightTargetPieces || isLShapeIntermediateMilestone
 
@@ -1043,6 +1045,55 @@ private fun LessonCubeViewportBox(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                 )
+            }
+        }
+
+        // 4. Na Etapa 6 ("Posicionar os Cantos Finais"): indicador em tempo real do par de cantos ("faróis")
+        if (stepNumber == 6) {
+            val stage6StatusText = remember(cubeState) {
+                CurriculumRepository.describeStage6CornerState(cubeState)
+            }
+            val isBackReady = remember(cubeState) {
+                cubeState.hasCornerPairOnSide(com.example.model.CubeFace.BACK) &&
+                    !cubeState.areTopCornersPermuted()
+            }
+            val isAllPairsReady = remember(cubeState) {
+                cubeState.areTopCornersPermuted()
+            }
+            val badgeBorderColor = when {
+                isAllPairsReady -> themeColors.successBadgeBg
+                isBackReady -> themeColors.turquoiseAccent
+                else -> themeColors.warningText
+            }
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.94f),
+                shape = RoundedCornerShape(50),
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(8.dp)
+                    .border(1.dp, badgeBorderColor.copy(alpha = 0.85f), RoundedCornerShape(50))
+                    .testTag("stage6_corner_pair_badge")
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isAllPairsReady || isBackReady) Icons.Default.CheckCircle else Icons.Default.Visibility,
+                        contentDescription = null,
+                        tint = badgeBorderColor,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Text(
+                        text = stage6StatusText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        modifier = Modifier.testTag("stage6_corner_pair_text")
+                    )
+                }
             }
         }
     }
@@ -1391,13 +1442,13 @@ private fun LessonCaseAndAlgorithmCard(
                             val phases = currentCase.pedagogicalPhases
                             val activePhase = if (phases.isNotEmpty()) {
                                 phases.firstOrNull { visualMoveIndex in it.startMoveIndex..it.endMoveIndex }
-                                    ?: if (visualMoveIndex >= 6) phases.last() else phases.first()
+                                    ?: if (visualMoveIndex < 0) phases.first() else phases.last()
                             } else {
                                 null
                             }
 
                             if (activePhase != null) {
-                                // Painel de Fases Pedagógicas (Caso 2 da Cruz Amarela: Linha Horizontal -> L -> Cruz)
+                                // Painel de Fases Pedagógicas (Etapa 4 Caso 2: 2 fases; Etapa 6 Caso 2: 4 fases)
                                 Surface(
                                     color = themeColors.turquoiseAccent.copy(alpha = 0.12f),
                                     shape = RoundedCornerShape(8.dp),
@@ -1490,75 +1541,123 @@ private fun LessonCaseAndAlgorithmCard(
                                             }
                                         }
 
-                                        // Botões para executar Fase 1, Fase 2 (sem reinicializar o cubo) ou Demonstração Completa
+                                        // Botões para executar fases individuais (sem reinicializar o cubo) ou Demonstração Completa
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            val isPhase1Active = activePhase.phaseNumber == 1
-                                            val isPhase2Active = activePhase.phaseNumber == 2
+                                            if (phases.size == 2) {
+                                                val isPhase1Active = activePhase.phaseNumber == 1
+                                                val isPhase2Active = activePhase.phaseNumber == 2
 
-                                            Surface(
-                                                color = if (isPhase1Active) themeColors.turquoiseAccent else MaterialTheme.colorScheme.surface,
-                                                shape = RoundedCornerShape(6.dp),
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .height(22.dp)
-                                                    .clickable { onPlayDemoPhase(1) }
-                                                    .testTag("play_phase_1_button")
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                                    Text(
-                                                        text = "▶ Fase 1 (Linha→L)",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = if (isPhase1Active) themeColors.onTurquoiseAccent else MaterialTheme.colorScheme.onSurface,
-                                                        fontWeight = FontWeight.Bold,
-                                                        maxLines = 1
-                                                    )
-                                                }
-                                            }
-
-                                            Surface(
-                                                color = if (isPhase2Active) themeColors.turquoiseAccent else MaterialTheme.colorScheme.surface,
-                                                shape = RoundedCornerShape(6.dp),
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .height(22.dp)
-                                                    .clickable { onPlayDemoPhase(2) }
-                                                    .testTag("play_phase_2_button")
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                                    Text(
-                                                        text = "▶ Fase 2 (L→Cruz)",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = if (isPhase2Active) themeColors.onTurquoiseAccent else MaterialTheme.colorScheme.onSurface,
-                                                        fontWeight = FontWeight.Bold,
-                                                        maxLines = 1
-                                                    )
-                                                }
-                                            }
-
-                                            Surface(
-                                                color = themeColors.violetAccent.copy(alpha = 0.16f),
-                                                shape = RoundedCornerShape(6.dp),
-                                                modifier = Modifier
-                                                    .height(22.dp)
-                                                    .border(1.dp, themeColors.violetAccent.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
-                                                    .clickable { onPlayDemoPhase(0) }
-                                                    .testTag("play_full_phases_button")
-                                            ) {
-                                                Box(
-                                                    contentAlignment = Alignment.Center,
-                                                    modifier = Modifier.padding(horizontal = 6.dp)
+                                                Surface(
+                                                    color = if (isPhase1Active) themeColors.turquoiseAccent else MaterialTheme.colorScheme.surface,
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .height(22.dp)
+                                                        .clickable { onPlayDemoPhase(1) }
+                                                        .testTag("play_phase_1_button")
                                                 ) {
-                                                    Text(
-                                                        text = "▶ 2 Fases",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = themeColors.violetText,
-                                                        fontWeight = FontWeight.Bold,
-                                                        maxLines = 1
-                                                    )
+                                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                                        Text(
+                                                            text = "▶ Fase 1 (Linha→L)",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = if (isPhase1Active) themeColors.onTurquoiseAccent else MaterialTheme.colorScheme.onSurface,
+                                                            fontWeight = FontWeight.Bold,
+                                                            maxLines = 1
+                                                        )
+                                                    }
+                                                }
+
+                                                Surface(
+                                                    color = if (isPhase2Active) themeColors.turquoiseAccent else MaterialTheme.colorScheme.surface,
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .height(22.dp)
+                                                        .clickable { onPlayDemoPhase(2) }
+                                                        .testTag("play_phase_2_button")
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                                        Text(
+                                                            text = "▶ Fase 2 (L→Cruz)",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = if (isPhase2Active) themeColors.onTurquoiseAccent else MaterialTheme.colorScheme.onSurface,
+                                                            fontWeight = FontWeight.Bold,
+                                                            maxLines = 1
+                                                        )
+                                                    }
+                                                }
+
+                                                Surface(
+                                                    color = themeColors.violetAccent.copy(alpha = 0.16f),
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    modifier = Modifier
+                                                        .height(22.dp)
+                                                        .border(1.dp, themeColors.violetAccent.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                                                        .clickable { onPlayDemoPhase(0) }
+                                                        .testTag("play_full_phases_button")
+                                                ) {
+                                                    Box(
+                                                        contentAlignment = Alignment.Center,
+                                                        modifier = Modifier.padding(horizontal = 6.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "▶ 2 Fases",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = themeColors.violetText,
+                                                            fontWeight = FontWeight.Bold,
+                                                            maxLines = 1
+                                                        )
+                                                    }
+                                                }
+                                            } else {
+                                                phases.forEach { phase ->
+                                                    val isPhaseActive = activePhase.phaseNumber == phase.phaseNumber
+                                                    Surface(
+                                                        color = if (isPhaseActive) themeColors.turquoiseAccent else MaterialTheme.colorScheme.surface,
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        modifier = Modifier
+                                                            .weight(1f)
+                                                            .height(22.dp)
+                                                            .clickable { onPlayDemoPhase(phase.phaseNumber) }
+                                                            .testTag("play_phase_${phase.phaseNumber}_button")
+                                                    ) {
+                                                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                                            Text(
+                                                                text = "▶ F${phase.phaseNumber}",
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = if (isPhaseActive) themeColors.onTurquoiseAccent else MaterialTheme.colorScheme.onSurface,
+                                                                fontWeight = FontWeight.Bold,
+                                                                maxLines = 1
+                                                            )
+                                                        }
+                                                    }
+                                                }
+
+                                                Surface(
+                                                    color = themeColors.violetAccent.copy(alpha = 0.16f),
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    modifier = Modifier
+                                                        .height(22.dp)
+                                                        .border(1.dp, themeColors.violetAccent.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                                                        .clickable { onPlayDemoPhase(0) }
+                                                        .testTag("play_full_phases_button")
+                                                ) {
+                                                    Box(
+                                                        contentAlignment = Alignment.Center,
+                                                        modifier = Modifier.padding(horizontal = 6.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "▶ ${phases.size} Fases",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = themeColors.violetText,
+                                                            fontWeight = FontWeight.Bold,
+                                                            maxLines = 1
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
@@ -1581,10 +1680,10 @@ private fun LessonCaseAndAlgorithmCard(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = if (phases.isNotEmpty()) {
-                                        "Algoritmo completo (${demoMoves.size} mov. = 2×6)"
-                                    } else {
-                                        "Algoritmo (${demoMoves.size} mov.)"
+                                    text = when {
+                                        phases.size == 2 -> "Algoritmo completo (${demoMoves.size} mov. = 2×6)"
+                                        phases.size == 4 -> "Algoritmo completo (${demoMoves.size} mov. = 9 + U + 9 + U')"
+                                        else -> "Algoritmo (${demoMoves.size} mov.)"
                                     },
                                     style = MaterialTheme.typography.labelSmall,
                                     color = themeColors.violetText,
@@ -1636,7 +1735,7 @@ private fun LessonCaseAndAlgorithmCard(
                                     .testTag("algorithm_sequence_row")
                             ) {
                                 demoMoves.forEachIndexed { index, move ->
-                                    if (phases.isNotEmpty() && index == 6) {
+                                    if (phases.size == 2 && index == 6) {
                                         Surface(
                                             color = themeColors.warningText.copy(alpha = 0.16f),
                                             shape = RoundedCornerShape(6.dp),
@@ -1646,6 +1745,28 @@ private fun LessonCaseAndAlgorithmCard(
                                         ) {
                                             Text(
                                                 text = "→ L →",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = themeColors.warningText,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                maxLines = 1,
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    } else if (phases.size == 4 && (index == 9 || index == 10 || index == 19)) {
+                                        val badgeLabel = when (index) {
+                                            9 -> "→ Par Esq. →"
+                                            10 -> "→ Par Trás →"
+                                            else -> "→ 4 Pares →"
+                                        }
+                                        Surface(
+                                            color = themeColors.warningText.copy(alpha = 0.16f),
+                                            shape = RoundedCornerShape(6.dp),
+                                            modifier = Modifier
+                                                .border(1.dp, themeColors.warningText, RoundedCornerShape(6.dp))
+                                                .testTag("phase_transition_badge_$index")
+                                        ) {
+                                            Text(
+                                                text = badgeLabel,
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = themeColors.warningText,
                                                 fontWeight = FontWeight.ExtraBold,

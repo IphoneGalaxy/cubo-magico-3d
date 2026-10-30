@@ -570,6 +570,21 @@ private fun StepMiniCubeDiagram(stepNumber: Int) {
             val gap = 4.dp.toPx()
             val corner = CornerRadius(3.dp.toPx(), 3.dp.toPx())
             val strokeWidthPx = 1.dp.toPx()
+
+            // Na Etapa 6 ("Posicionar os Cantos Finais"), desenha um filete amarelo de orientação
+            // no topo para indicar que a face Amarela está em CIMA e a face lateral mostra o par
+            // de cantos superiores ("faróis") da mesma cor alinhado ao centro.
+            if (stepNumber == 6) {
+                val barHeight = 2.dp.toPx()
+                val totalWidth = 3 * cellSize + 2 * gap
+                drawRoundRect(
+                    color = y,
+                    topLeft = Offset(0f, -3.dp.toPx()),
+                    size = Size(totalWidth, barHeight),
+                    cornerRadius = CornerRadius(barHeight / 2f, barHeight / 2f)
+                )
+            }
+
             for (row in 0..2) {
                 for (col in 0..2) {
                     val color = gridColors[row * 3 + col]
@@ -581,12 +596,14 @@ private fun StepMiniCubeDiagram(stepNumber: Int) {
                         size = cellDim,
                         cornerRadius = corner
                     )
+                    val isStage6HighlightTarget = stepNumber == 6 &&
+                        ((row == 0 && (col == 0 || col == 2)) || (row == 1 && col == 1))
                     drawRoundRect(
-                        color = strokeColor,
+                        color = if (isStage6HighlightTarget) y else strokeColor,
                         topLeft = topLeft,
                         size = cellDim,
                         cornerRadius = corner,
-                        style = Stroke(width = strokeWidthPx)
+                        style = Stroke(width = if (isStage6HighlightTarget) 1.8.dp.toPx() else strokeWidthPx)
                     )
                 }
             }

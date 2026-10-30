@@ -2,6 +2,7 @@ package com.example
 
 import android.content.Context
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -11,6 +12,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.ProgressRepository
 import com.example.data.StepStatus
+import com.example.model.CubeColor
 import com.example.model.CubeFace
 import com.example.model.CubeMove
 import com.example.model.CubeState
@@ -2914,6 +2916,164 @@ class ExampleRobolectricTest {
             org.robolectric.RuntimeEnvironment.getApplication().resources.configuration.fontScale = 1.0f
             ShadowTrace.reset()
         }
+    }
+
+    /**
+     * TESTE 22 — AUDITORIA ROBOLECTRIC DA ETAPA 6 ("POSICIONAR OS CANTOS FINAIS"):
+     * Valida na interface real e no CuboMestreViewModel:
+     * 1. Miniatura da Etapa 6 (step_mini_cube_6) visível na tela de Curso.
+     * 2. Caso 1 (s6_c1): badge ao vivo "stage6_corner_pair_badge" exibindo "Par Laranja em Trás",
+     *    avanço/retrocesso passo a passo (stepDemoForward / stepDemoBackward) pelos 9 movimentos,
+     *    alcance do estado final com os 4 cantos posicionados e resetLessonCase().
+     * 3. Caso 2 (s6_c2): painel de 4 fases pedagógicas (play_phase_1_button..play_phase_4_button e
+     *    play_full_phases_button), transição entre os marcos (Nenhum par -> Par Verde na Esquerda após
+     *    movimento 9 -> Par Verde em Trás após movimento 10 U -> 4 pares após movimento 19 ->
+     *    4 cantos alinhados aos centros após movimento 20 U') e zero overflow textual.
+     */
+    @Test
+    @Config(qualifiers = "w360dp-h780dp-xhdpi")
+    fun testStage6CornersUiPhasesStepForwardBackwardAndReset() {
+        lateinit var vm: com.example.viewmodel.CuboMestreViewModel
+        composeTestRule.waitForIdle()
+        composeTestRule.activityRule.scenario.onActivity { act ->
+            vm = androidx.lifecycle.ViewModelProvider(act)[com.example.viewmodel.CuboMestreViewModel::class.java]
+        }
+
+        // 1. Verifica miniatura da Etapa 6 na tela de Curso
+        composeTestRule.runOnUiThread {
+            vm.openCourseScreen()
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("course_steps_list").performScrollToNode(hasTestTag("step_card_6"))
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("step_mini_cube_6", useUnmergedTree = true).assertIsDisplayed()
+
+        // 2. Abre Etapa 6 — Caso 1 (s6_c1) no Modo Aprender
+        composeTestRule.runOnUiThread {
+            vm.openLesson(6, 0, com.example.viewmodel.LearningMode.LEARN)
+        }
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag("stage6_corner_pair_badge").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("stage6_corner_pair_text", useUnmergedTree = true)
+            .assertTextContains("Par Laranja em Trás", substring = true)
+
+        // Avança os 9 movimentos de s6_c1 via stepDemoForward()
+        val s6c1InitialCube = vm.lessonState.value.cubeState
+        assertEquals(listOf(CubeFace.BACK), s6c1InitialCube.findSidesWithCornerPairs())
+        assertEquals(CubeColor.ORANGE, s6c1InitialCube.cornerPairColorOnSide(CubeFace.BACK))
+
+        repeat(9) {
+            composeTestRule.runOnUiThread {
+                vm.stepDemoForward()
+            }
+            composeTestRule.waitForIdle()
+        }
+        assertEquals(8, vm.lessonState.value.currentMoveIndex)
+        assertTrue(vm.lessonState.value.isDemoCompleted)
+        assertTrue(vm.lessonState.value.cubeState.areTopCornersPermuted())
+        composeTestRule.onNodeWithTag("stage6_corner_pair_text", useUnmergedTree = true)
+            .assertTextContains("4 pares alinhados aos centros", substring = true)
+
+        // Retrocede todos os 9 movimentos via stepDemoBackward() e verifica restauração exata
+        repeat(9) {
+            composeTestRule.runOnUiThread {
+                vm.stepDemoBackward()
+            }
+            composeTestRule.waitForIdle()
+        }
+        assertEquals(-1, vm.lessonState.value.currentMoveIndex)
+        assertEquals(s6c1InitialCube, vm.lessonState.value.cubeState)
+
+        // Avança 4 movimentos e executa resetLessonCase()
+        repeat(4) {
+            composeTestRule.runOnUiThread {
+                vm.stepDemoForward()
+            }
+            composeTestRule.waitForIdle()
+        }
+        composeTestRule.runOnUiThread {
+            vm.resetLessonCase()
+        }
+        composeTestRule.waitForIdle()
+        assertEquals(-1, vm.lessonState.value.currentMoveIndex)
+        assertEquals(s6c1InitialCube, vm.lessonState.value.cubeState)
+
+        // 3. Seleciona Caso 2 (s6_c2) e verifica painel de 4 fases e marcos matemáticos
+        composeTestRule.runOnUiThread {
+            vm.selectCase(1)
+        }
+        composeTestRule.waitForIdle()
+
+        val s6c2InitialCube = vm.lessonState.value.cubeState
+        assertTrue(s6c2InitialCube.findSidesWithCornerPairs().isEmpty())
+        composeTestRule.onNodeWithTag("pedagogical_phases_panel").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("play_phase_1_button").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("play_phase_2_button").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("play_phase_3_button").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("play_phase_4_button").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("play_full_phases_button").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("stage6_corner_pair_text", useUnmergedTree = true)
+            .assertTextContains("Nenhum par nas laterais", substring = true)
+
+        // Fase 1: 9 movimentos -> forma Par Verde na Esquerda (LEFT)
+        repeat(9) {
+            composeTestRule.runOnUiThread {
+                vm.stepDemoForward()
+            }
+            composeTestRule.waitForIdle()
+        }
+        assertEquals(8, vm.lessonState.value.currentMoveIndex)
+        assertEquals(listOf(CubeFace.LEFT), vm.lessonState.value.cubeState.findSidesWithCornerPairs())
+        assertEquals(CubeColor.GREEN, vm.lessonState.value.cubeState.cornerPairColorOnSide(CubeFace.LEFT))
+        composeTestRule.onNodeWithTag("stage6_corner_pair_text", useUnmergedTree = true)
+            .assertTextContains("Par Verde na Esquerda", substring = true)
+        composeTestRule.onNodeWithTag("phase_transition_message_banner").assertIsDisplayed()
+
+        // Fase 2: 10º movimento (U) -> leva Par Verde para Trás (BACK)
+        composeTestRule.runOnUiThread {
+            vm.stepDemoForward()
+        }
+        composeTestRule.waitForIdle()
+        assertEquals(9, vm.lessonState.value.currentMoveIndex)
+        assertEquals(listOf(CubeFace.BACK), vm.lessonState.value.cubeState.findSidesWithCornerPairs())
+        assertEquals(CubeColor.GREEN, vm.lessonState.value.cubeState.cornerPairColorOnSide(CubeFace.BACK))
+        composeTestRule.onNodeWithTag("stage6_corner_pair_text", useUnmergedTree = true)
+            .assertTextContains("Par Verde em Trás", substring = true)
+
+        // Fase 3: movimentos 11..19 -> forma pares nas 4 faces laterais (aguardando U')
+        repeat(9) {
+            composeTestRule.runOnUiThread {
+                vm.stepDemoForward()
+            }
+            composeTestRule.waitForIdle()
+        }
+        assertEquals(18, vm.lessonState.value.currentMoveIndex)
+        assertEquals(4, vm.lessonState.value.cubeState.findSidesWithCornerPairs().size)
+        assertFalse(vm.lessonState.value.cubeState.areTopCornersPermuted())
+        composeTestRule.onNodeWithTag("stage6_corner_pair_text", useUnmergedTree = true)
+            .assertTextContains("gire U'", substring = true)
+
+        // Fase 4: 20º movimento (U') -> 4 pares alinhados aos centros laterais
+        composeTestRule.runOnUiThread {
+            vm.stepDemoForward()
+        }
+        composeTestRule.waitForIdle()
+        assertEquals(19, vm.lessonState.value.currentMoveIndex)
+        assertTrue(vm.lessonState.value.isDemoCompleted)
+        assertTrue(vm.lessonState.value.cubeState.areTopCornersPermuted())
+        composeTestRule.onNodeWithTag("stage6_corner_pair_text", useUnmergedTree = true)
+            .assertTextContains("4 pares alinhados aos centros", substring = true)
+
+        // Verifica retrocesso completo dos 20 movimentos de s6_c2 e resetLessonCase()
+        repeat(20) {
+            composeTestRule.runOnUiThread {
+                vm.stepDemoBackward()
+            }
+            composeTestRule.waitForIdle()
+        }
+        assertEquals(-1, vm.lessonState.value.currentMoveIndex)
+        assertEquals(s6c2InitialCube, vm.lessonState.value.cubeState)
     }
 }
 
