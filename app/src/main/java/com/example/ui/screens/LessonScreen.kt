@@ -91,6 +91,9 @@ import com.example.renderer.ActiveLayerAnimation
 import com.example.renderer.InteractiveCube3DView
 import com.example.ui.theme.CuboMestreTheme
 import com.example.ui.theme.JetBrainsMonoFontFamily
+import com.example.ui.theme.StickerGreen
+import com.example.ui.theme.StickerOrange
+import com.example.ui.theme.StickerYellow
 import com.example.viewmodel.ExplanationPanelState
 import com.example.viewmodel.LearningMode
 import com.example.viewmodel.LessonUiState
@@ -2684,6 +2687,11 @@ private fun CaseDetailedExplanationModal(
                         }
                     }
 
+                    // 2B. Guia Visual Exclusivo da Etapa 6 ("Como identificar um par / 'faróis'")
+                    if (stepNumber == 6) {
+                        Stage6HeadlightsVisualGuideCard(caseIndex = caseIndex)
+                    }
+
                     // 3. Algoritmo Completo e Explicação Movimento a Movimento
                     Card(
                         colors = CardDefaults.cardColors(
@@ -2872,6 +2880,274 @@ private fun CaseDetailedExplanationModal(
                         text = "Voltar para o cubo 3D",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Ilustração visual e guia passo a passo exibido dentro de "Entender o caso" na Etapa 6 (Casos 1 e 2),
+ * esclarecendo de forma simples e visual quais dois adesivos laterais da fileira superior devem ser
+ * comparados para encontrar um par ("faróis") e por que não procuramos dois cantos com as mesmas 3 cores.
+ */
+@Composable
+private fun Stage6HeadlightsVisualGuideCard(
+    caseIndex: Int
+) {
+    val themeColors = CuboMestreTheme.colors
+    val isCase1 = caseIndex == 0
+    val pairStickerColor = if (isCase1) StickerOrange else StickerGreen
+    val pairColorLabel = if (isCase1) "Laranja" else "Verde"
+    val centerStickerColor = if (isCase1) StickerGreen else StickerOrange
+    val centerColorLabel = if (isCase1) "Verde" else "Laranja"
+    val faceTitle = if (isCase1) {
+        "Face de Trás (B) no início do Caso 1"
+    } else {
+        "Face da Esquerda (L) após a Fase 1 do Caso 2"
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, themeColors.turquoiseAccent.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+            .testTag("stage6_headlights_visual_guide_card")
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Como identificar um par ('faróis') na Etapa 6",
+                style = MaterialTheme.typography.labelMedium,
+                color = themeColors.turquoiseAccent,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.testTag("stage6_headlights_guide_title")
+            )
+
+            // Ilustração visual de uma face lateral mostrando exatamente os 2 adesivos comparados
+            Surface(
+                color = themeColors.miniCubeSurface,
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, themeColors.miniCubeStickerStroke, RoundedCornerShape(10.dp))
+                    .testTag("stage6_headlights_face_diagram")
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = faceTitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Text(
+                        text = "Topo (U): os 4 adesivos amarelos já apontam para cima (Etapa 5)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = StickerYellow,
+                        textAlign = TextAlign.Center
+                    )
+
+                    // Faixa superior representando os 3 adesivos amarelos no topo (U)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        repeat(3) {
+                            Box(
+                                modifier = Modifier
+                                    .width(34.dp)
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(StickerYellow)
+                                    .border(1.dp, themeColors.miniCubeStickerStroke, RoundedCornerShape(3.dp))
+                            )
+                        }
+                    }
+
+                    // Grade 3×3 da face lateral com destaque nos 2 cantos da fileira superior
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        // Fileira superior destacada (onde comparamos os 2 cantos)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .border(2.dp, themeColors.turquoiseAccent, RoundedCornerShape(8.dp))
+                                .padding(4.dp)
+                        ) {
+                            // 1º Canto superior da lateral
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(pairStickerColor)
+                                    .border(2.dp, Color.White, RoundedCornerShape(6.dp))
+                                    .testTag("stage6_diagram_left_corner_sticker")
+                            ) {
+                                Text(
+                                    text = "1º",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.Black,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            }
+
+                            // Meio superior (ignorado na Etapa 6)
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(themeColors.miniCubeDimmedCell)
+                                    .border(1.dp, themeColors.miniCubeStickerStroke, RoundedCornerShape(6.dp))
+                                    .testTag("stage6_diagram_top_edge_sticker")
+                            ) {
+                                Text(
+                                    text = "×",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = Color.White.copy(alpha = 0.75f),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            // 2º Canto superior da lateral
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(pairStickerColor)
+                                    .border(2.dp, Color.White, RoundedCornerShape(6.dp))
+                                    .testTag("stage6_diagram_right_corner_sticker")
+                            ) {
+                                Text(
+                                    text = "2º",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.Black,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            }
+                        }
+
+                        // 2ª fileira (com o centro da face)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(centerStickerColor.copy(alpha = 0.7f))
+                                    .border(1.dp, themeColors.miniCubeStickerStroke, RoundedCornerShape(6.dp))
+                            )
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(centerStickerColor)
+                                    .border(1.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(6.dp))
+                                    .testTag("stage6_diagram_center_sticker")
+                            ) {
+                                Text(
+                                    text = "C",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.Black,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(centerStickerColor.copy(alpha = 0.7f))
+                                    .border(1.dp, themeColors.miniCubeStickerStroke, RoundedCornerShape(6.dp))
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "Compare SOMENTE os adesivos 1º e 2º (cantos da fileira superior): $pairColorLabel = $pairColorLabel → Par ('faróis')! O meio (×) fica para a Etapa 7 e o centro (C = $centerColorLabel) ainda não precisa ter a mesma cor.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.testTag("stage6_headlights_diagram_caption")
+                    )
+                }
+            }
+
+            // Os 6 pontos pedagógicos fundamentais explicados de maneira simples
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("stage6_headlights_six_rules_list"),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                val rules = listOf(
+                    "1. Cada peça de canto possui três cores, e cada combinação é única no cubo 3×3.",
+                    "2. Não estamos procurando dois cantos com as mesmas três cores.",
+                    "3. Na Etapa 6, os quatro adesivos amarelos dos cantos já devem estar voltados para cima, pois isso foi resolvido na Etapa 5.",
+                    "4. Para encontrar um par ('faróis'), devemos olhar uma face lateral e comparar somente os dois adesivos dos cantos da fileira superior.",
+                    "5. Se esses dois adesivos laterais possuem a mesma cor, encontramos um par.",
+                    "6. Não importa se essa cor corresponde inicialmente ao centro daquela face; o alinhamento com os centros será concluído durante a resolução."
+                )
+                rules.forEachIndexed { idx, ruleText ->
+                    Text(
+                        text = ruleText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.testTag("stage6_headlights_rule_${idx + 1}")
+                    )
+                }
+            }
+
+            // Exemplo pedagógico explícito (Caso 1 e Caso 2)
+            Surface(
+                color = themeColors.turquoiseAccent.copy(alpha = 0.12f),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, themeColors.turquoiseAccent.copy(alpha = 0.38f), RoundedCornerShape(8.dp))
+                    .testTag("stage6_headlights_example_box")
+            ) {
+                Column(
+                    modifier = Modifier.padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Exemplo prático nos Casos 1 e 2:",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = themeColors.turquoiseAccent,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "• No Caso 1, os dois cantos superiores da face de trás possuem adesivos laranja. Eles formam um par, mesmo que o centro traseiro seja verde, as outras cores das duas peças sejam diferentes e as arestas superiores ainda não estejam resolvidas.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "• No Caso 2, nenhuma das quatro faces laterais possui um par assim inicialmente; por isso a primeira execução do algoritmo serve para criar o primeiro par.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }

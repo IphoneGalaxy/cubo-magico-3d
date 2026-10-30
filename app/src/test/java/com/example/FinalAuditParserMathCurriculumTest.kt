@@ -1074,10 +1074,17 @@ class FinalAuditParserMathCurriculumTest {
             assertTrue(fullyAligned.isYellowFaceOriented())
         }
 
-        // Consistência dos textos pedagógicos de s6_c1 e s6_c2:
+        // Consistência dos textos pedagógicos de s6_c1 e s6_c2 (incluindo esclarecimento de "dois cantos iguais" / "faróis"):
         assertTrue("Descrição de s6_c1 deve mencionar o par Laranja em Trás", s6c1.description.lowercase().contains("laranja"))
         assertFalse("Descrição de s6_c1 não deve afirmar falsamente que o par inicial é Verde", s6c1.description.lowercase().contains("cantos traseiros possuem adesivos verdes"))
+        assertTrue("Descrição de s6_c1 deve esclarecer que cada canto possui 3 cores em combinação única", s6c1.description.lowercase().contains("3 cores") && s6c1.description.lowercase().contains("única"))
+        assertTrue("Descrição de s6_c1 deve esclarecer que não procuramos duas peças com as mesmas três cores", s6c1.description.lowercase().contains("mesmas três cores"))
+        assertTrue("Descrição de s6_c1 deve mencionar que os 4 amarelos já estão para cima (Etapa 5)", s6c1.description.lowercase().contains("etapa 5"))
+        assertTrue("Descrição de s6_c1 deve orientar a comparar somente os dois adesivos dos cantos da fileira superior", s6c1.description.lowercase().contains("dois adesivos dos cantos da fileira superior"))
+        assertTrue("Descrição de s6_c1 deve citar o centro traseiro verde e as outras cores diferentes no exemplo", s6c1.description.lowercase().contains("centro traseiro seja verde") && s6c1.description.lowercase().contains("outras cores das duas peças sejam diferentes"))
+        assertTrue("Descrição de s6_c2 deve explicar que nenhuma das quatro faces laterais possui um par inicialmente", s6c2.description.lowercase().contains("nenhuma das quatro faces laterais possui um par"))
         assertTrue("Descrição de s6_c2 deve explicar que o par surge na Esquerda após a Fase 1", s6c2.description.lowercase().contains("esquerda"))
         assertEquals(26, CurriculumRepository.steps.sumOf { it.cases.size })
     }
 }
+

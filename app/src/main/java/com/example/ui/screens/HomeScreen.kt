@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -52,6 +55,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -63,6 +67,7 @@ import com.example.data.UserProgressState
 import com.example.model.CubeMove
 import com.example.model.CubeState
 import com.example.renderer.ActiveLayerAnimation
+import com.example.renderer.ActiveMoveIndicatorBanner
 import com.example.renderer.InteractiveCube3DView
 import com.example.ui.theme.CuboMestreTheme
 import com.example.ui.theme.StickerBlue
@@ -306,7 +311,7 @@ private fun HomeHeroCubeViewport(
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .border(
@@ -315,6 +320,17 @@ private fun HomeHeroCubeViewport(
                     shape = RoundedCornerShape(24.dp)
                 )
         ) {
+            val density = LocalDensity.current
+            val fontScale = density.fontScale
+            val isCompactViewport = maxWidth < 340.dp || fontScale > 1.2f
+            val topOverlayScale = when {
+                maxWidth < 310.dp -> fontScale.coerceAtMost(1.08f)
+                maxWidth < 350.dp -> fontScale.coerceAtMost(1.16f)
+                else -> fontScale.coerceAtMost(1.25f)
+            }
+            val topBadgeFontSize = with(density) { (11.dp.toPx() * topOverlayScale).toSp() }
+            val pillHorizontalPad = if (isCompactViewport) 8.dp else 10.dp
+
             InteractiveCube3DView(
                 cubeState = cubeState,
                 activeAnimation = activeAnimation,
@@ -323,69 +339,108 @@ private fun HomeHeroCubeViewport(
                 allowFaceSwipeMoves = true,
                 cameraResetTrigger = cameraResetCounter,
                 showCameraControlsOverlay = true,
+                showActiveMoveBanner = false,
                 onMoveSwiped = onMoveSwiped,
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Selo compacto no canto superior esquerdo
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.88f),
-                shape = RoundedCornerShape(50),
+            // Cabeçalho superior estruturado em duas faixas sem sobreposição:
+            // 1ª faixa fixa: selo "Cubo 3×3 Interativo" à esquerda e ação "Restaurar" à direita.
+            // 2ª faixa dedicada (abaixo da 1ª faixa): indicador temporário do movimento em execução.
+            Column(
                 modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(10.dp)
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = if (isCompactViewport) 8.dp else 10.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
+                    // Selo compacto no canto superior esquerdo
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.88f),
+                        shape = RoundedCornerShape(50),
                         modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(SuccessEmerald)
-                    )
-                    Text(
-                        text = "Cubo 3×3 Interativo",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
+                            .weight(1f, fill = false)
+                            .padding(end = 8.dp)
+                            .testTag("home_interactive_cube_badge")
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(if (isCompactViewport) 5.dp else 6.dp),
+                            modifier = Modifier.padding(horizontal = pillHorizontalPad, vertical = 4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(SuccessEmerald)
+                            )
+                            Text(
+                                text = "Cubo 3×3 Interativo",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = topBadgeFontSize,
+                                    lineHeight = topBadgeFontSize * 1.2f
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
 
-            // Botão discreto para restaurar o cubo da Home ao estado resolvido
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.88f),
-                shape = RoundedCornerShape(50),
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(10.dp)
-                    .border(
-                        width = 1.dp,
-                        color = themeColors.turquoiseAccent.copy(alpha = 0.55f),
-                        shape = RoundedCornerShape(50)
-                    )
-                    .clickable { onRestoreCube() }
-                    .testTag("home_restore_cube_button")
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                    // Botão discreto para restaurar o cubo da Home ao estado resolvido
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.88f),
+                        shape = RoundedCornerShape(50),
+                        modifier = Modifier
+                            .border(
+                                width = 1.dp,
+                                color = themeColors.turquoiseAccent.copy(alpha = 0.55f),
+                                shape = RoundedCornerShape(50)
+                            )
+                            .clickable { onRestoreCube() }
+                            .testTag("home_restore_cube_button")
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(horizontal = pillHorizontalPad, vertical = 5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Restaurar cubo inicial",
+                                tint = themeColors.turquoiseAccent,
+                                modifier = Modifier.size(if (isCompactViewport) 13.dp else 14.dp)
+                            )
+                            Text(
+                                text = "Restaurar",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = topBadgeFontSize,
+                                    lineHeight = topBadgeFontSize * 1.2f
+                                ),
+                                color = themeColors.turquoiseAccent,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                }
+
+                val bannerMove = activeAnimation?.move
+                AnimatedVisibility(
+                    visible = bannerMove != null,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier.padding(top = 6.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "Restaurar cubo inicial",
-                        tint = themeColors.turquoiseAccent,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Text(
-                        text = "Restaurar",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = themeColors.turquoiseAccent,
-                        fontWeight = FontWeight.Bold
-                    )
+                    bannerMove?.let { move ->
+                        ActiveMoveIndicatorBanner(move = move)
+                    }
                 }
             }
         }

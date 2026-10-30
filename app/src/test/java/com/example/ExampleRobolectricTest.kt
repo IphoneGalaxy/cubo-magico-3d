@@ -3074,8 +3074,290 @@ class ExampleRobolectricTest {
         }
         assertEquals(-1, vm.lessonState.value.currentMoveIndex)
         assertEquals(s6c2InitialCube, vm.lessonState.value.cubeState)
+
+        // 4. Verifica o botão "Entender o caso" (open_case_detail_button) nos Casos 1 e 2 da Etapa 6:
+        //    - Explicação dos 6 pontos pedagógicos (stage6_headlights_rule_1..6)
+        //    - Ilustração visual da comparação dos 2 adesivos laterais superiores (stage6_headlights_face_diagram)
+        //    - Exemplo prático do Caso 1 (par laranja em trás com centro verde) e do Caso 2 (sem par inicial)
+        for (targetCaseIdx in listOf(0, 1)) {
+            composeTestRule.runOnUiThread {
+                vm.selectCase(targetCaseIdx)
+            }
+            composeTestRule.waitForIdle()
+
+            composeTestRule.onNodeWithTag("open_case_detail_button").assertIsDisplayed().performClick()
+            composeTestRule.waitForIdle()
+
+            composeTestRule.onNodeWithTag("case_detail_modal").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("case_detail_full_description").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("stage6_headlights_visual_guide_card").performScrollTo().assertIsDisplayed()
+            composeTestRule.onNodeWithTag("stage6_headlights_face_diagram").performScrollTo().assertIsDisplayed()
+            composeTestRule.onNodeWithTag("stage6_diagram_left_corner_sticker", useUnmergedTree = true).assertIsDisplayed()
+            composeTestRule.onNodeWithTag("stage6_diagram_right_corner_sticker", useUnmergedTree = true).assertIsDisplayed()
+            composeTestRule.onNodeWithTag("stage6_diagram_top_edge_sticker", useUnmergedTree = true).assertIsDisplayed()
+            composeTestRule.onNodeWithTag("stage6_diagram_center_sticker", useUnmergedTree = true).assertIsDisplayed()
+
+            for (ruleNum in 1..6) {
+                composeTestRule.onNodeWithTag("stage6_headlights_rule_$ruleNum").performScrollTo().assertIsDisplayed()
+            }
+            composeTestRule.onNodeWithTag("stage6_headlights_example_box").performScrollTo().assertIsDisplayed()
+
+            composeTestRule.onNodeWithTag("return_to_cube_from_detail_button").performClick()
+            composeTestRule.waitForIdle()
+            assertEquals(0, composeTestRule.onAllNodes(hasTestTag("case_detail_modal")).fetchSemanticsNodes().size)
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h780dp-xhdpi")
+    fun testHomeHeroViewportTopIndicatorsZeroOverlapAcrossWidthsFontScalesThemesAndMoves() {
+        fun collectNodeTextLayouts(tag: String): List<androidx.compose.ui.text.TextLayoutResult> {
+            val node = composeTestRule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode()
+            val textLayouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            fun collectFrom(sNode: androidx.compose.ui.semantics.SemanticsNode) {
+                if (sNode.config.contains(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult)) {
+                    sNode.config[androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult].action?.invoke(textLayouts)
+                }
+                sNode.children.forEach { collectFrom(it) }
+            }
+            collectFrom(node)
+            return textLayouts
+        }
+
+        fun assertNoVisualTextOverflow(tag: String, contextInfo: String): String {
+            val textLayouts = collectNodeTextLayouts(tag)
+            assertTrue("Nó '$tag' deve produzir TextLayoutResult ($contextInfo)", textLayouts.isNotEmpty())
+            for (layout in textLayouts) {
+                val renderedText = layout.layoutInput.text.text
+                assertFalse(
+                    "Texto de '$tag' ('$renderedText') NÃO pode sofrer corte vertical em $contextInfo (didOverflowHeight=${layout.didOverflowHeight})",
+                    layout.didOverflowHeight
+                )
+                assertFalse(
+                    "Texto de '$tag' ('$renderedText') NÃO pode exceder maxLines em $contextInfo",
+                    layout.multiParagraph.didExceedMaxLines
+                )
+                for (line in 0 until layout.lineCount) {
+                    assertFalse(
+                        "Linha $line de '$tag' ('$renderedText') NÃO pode sofrer elipse/truncamento em $contextInfo",
+                        layout.isLineEllipsized(line)
+                    )
+                }
+                assertEquals(
+                    "Todos os caracteres de '$tag' ('$renderedText') devem estar visíveis no layout em $contextInfo",
+                    renderedText.length,
+                    layout.getLineEnd(layout.lineCount - 1)
+                )
+            }
+            return textLayouts.joinToString(" ") { it.layoutInput.text.text }
+        }
+
+        // Combinações de larguras compactas (320dp, 360dp), larguras maiores (411dp, 720dp paisagem) e escalas de fonte (1.0x, 1.3x, 1.5x)
+        val screenAndFontConfigs = listOf(
+            "w320dp-h740dp-xhdpi" to 1.0f,
+            "w320dp-h740dp-xhdpi" to 1.3f,
+            "w320dp-h740dp-xhdpi" to 1.5f,
+            "w360dp-h780dp-xhdpi" to 1.0f,
+            "w360dp-h780dp-xhdpi" to 1.3f,
+            "w360dp-h780dp-xhdpi" to 1.5f,
+            "w411dp-h891dp-xhdpi" to 1.0f,
+            "w720dp-h420dp-land-xhdpi" to 1.0f
+        )
+        val themes = listOf(true, false) // true = escuro, false = claro
+        val movesToVerify = listOf(
+            CubeMove.R,       // descrição curta: "Direita Subindo"
+            CubeMove.B_PRIME, // descrição longa: "Trás Anti-horário"
+            CubeMove.S_PRIME  // descrição muito longa: "Meio Lateral Anti-horário"
+        )
+
+        try {
+            for ((qualifiers, fontScale) in screenAndFontConfigs) {
+                org.robolectric.RuntimeEnvironment.setQualifiers(qualifiers)
+                org.robolectric.RuntimeEnvironment.getApplication().resources.configuration.fontScale = fontScale
+                lateinit var vm: com.example.viewmodel.CuboMestreViewModel
+                composeTestRule.activityRule.scenario.onActivity { act ->
+                    act.resources.configuration.fontScale = fontScale
+                    act.recreate()
+                }
+                composeTestRule.waitForIdle()
+                composeTestRule.activityRule.scenario.onActivity { act ->
+                    vm = androidx.lifecycle.ViewModelProvider(act)[com.example.viewmodel.CuboMestreViewModel::class.java]
+                }
+
+                for (isDark in themes) {
+                    composeTestRule.runOnUiThread {
+                        if (vm.progressState.value.isDarkTheme != isDark) {
+                            vm.toggleDarkTheme()
+                        }
+                        vm.navigateTo(com.example.viewmodel.AppScreen.HOME)
+                        vm.forceMultiFrameAnimationInTest = false
+                        vm.resetHomePreviewCube()
+                    }
+                    composeTestRule.waitForIdle()
+
+                    val baseCtx = "$qualifiers | font=${fontScale}x | dark=$isDark"
+
+                    // A. Estado inicial sem movimento ativo
+                    val badgeIdleNode = composeTestRule.onNodeWithTag("home_interactive_cube_badge").assertIsDisplayed().fetchSemanticsNode()
+                    val restoreIdleNode = composeTestRule.onNodeWithTag("home_restore_cube_button").assertIsDisplayed().fetchSemanticsNode()
+                    val viewportIdleNode = composeTestRule.onNodeWithTag("cube_3d_viewport").assertIsDisplayed().fetchSemanticsNode()
+                    val touchModeIdleNode = composeTestRule.onNodeWithTag("touch_mode_selector").assertIsDisplayed().fetchSemanticsNode()
+                    val recenterIdleNode = composeTestRule.onNodeWithTag("recenter_camera_button").assertIsDisplayed().fetchSemanticsNode()
+
+                    assertEquals(
+                        "Sem movimento ativo, active_move_banner não deve estar visível em $baseCtx",
+                        0,
+                        composeTestRule.onAllNodes(hasTestTag("active_move_banner")).fetchSemanticsNodes().size
+                    )
+
+                    val badgeIdleBounds = badgeIdleNode.boundsInRoot
+                    val restoreIdleBounds = restoreIdleNode.boundsInRoot
+                    val viewportIdleBounds = viewportIdleNode.boundsInRoot
+
+                    assertFalse(
+                        "Selo 'Cubo 3×3 Interativo' ($badgeIdleBounds) e botão 'Restaurar' ($restoreIdleBounds) jamais podem se sobrepor em $baseCtx",
+                        badgeIdleBounds.overlaps(restoreIdleBounds)
+                    )
+                    assertTrue(
+                        "Selo 'Cubo 3×3 Interativo' deve ficar à esquerda do botão 'Restaurar' em $baseCtx (badgeRight=${badgeIdleBounds.right}, restoreLeft=${restoreIdleBounds.left})",
+                        badgeIdleBounds.right < restoreIdleBounds.left
+                    )
+
+                    val badgeText = assertNoVisualTextOverflow("home_interactive_cube_badge", baseCtx)
+                    val restoreText = assertNoVisualTextOverflow("home_restore_cube_button", baseCtx)
+                    assertEquals("Cubo 3×3 Interativo", badgeText)
+                    assertEquals("Restaurar", restoreText)
+
+                    // B, C, D, K. Execução de movimentos curtos e longos com presença simultânea dos 3 elementos superiores e controles inferiores
+                    for (move in movesToVerify) {
+                        composeTestRule.runOnUiThread {
+                            vm.forceMultiFrameAnimationInTest = true
+                            vm.executeHomePreviewMove(move)
+                        }
+                        composeTestRule.waitForIdle()
+
+                        val ctx = "$baseCtx | move=${move.notation} (${move.titlePt})"
+
+                        val badgeNode = composeTestRule.onNodeWithTag("home_interactive_cube_badge").assertIsDisplayed().fetchSemanticsNode()
+                        val restoreNode = composeTestRule.onNodeWithTag("home_restore_cube_button").assertIsDisplayed().fetchSemanticsNode()
+                        val bannerNode = composeTestRule.onNodeWithTag("active_move_banner").assertIsDisplayed().fetchSemanticsNode()
+                        val viewportNode = composeTestRule.onNodeWithTag("cube_3d_viewport").assertIsDisplayed().fetchSemanticsNode()
+                        val touchModeNode = composeTestRule.onNodeWithTag("touch_mode_selector").assertIsDisplayed().fetchSemanticsNode()
+                        val recenterNode = composeTestRule.onNodeWithTag("recenter_camera_button").assertIsDisplayed().fetchSemanticsNode()
+
+                        val badgeBounds = badgeNode.boundsInRoot
+                        val restoreBounds = restoreNode.boundsInRoot
+                        val bannerBounds = bannerNode.boundsInRoot
+                        val viewportBounds = viewportNode.boundsInRoot
+                        val touchModeBounds = touchModeNode.boundsInRoot
+                        val recenterBounds = recenterNode.boundsInRoot
+
+                        // 1. Zero sobreposição geométrica entre os 3 elementos superiores
+                        assertFalse(
+                            "Zero interseção entre home_interactive_cube_badge ($badgeBounds) e home_restore_cube_button ($restoreBounds) em $ctx",
+                            badgeBounds.overlaps(restoreBounds)
+                        )
+                        assertFalse(
+                            "Zero interseção entre home_interactive_cube_badge ($badgeBounds) e active_move_banner ($bannerBounds) em $ctx",
+                            badgeBounds.overlaps(bannerBounds)
+                        )
+                        assertFalse(
+                            "Zero interseção entre home_restore_cube_button ($restoreBounds) e active_move_banner ($bannerBounds) em $ctx",
+                            restoreBounds.overlaps(bannerBounds)
+                        )
+
+                        // 2. Faixa dedicada do indicador de movimento abaixo da 1ª faixa superior e acima dos controles inferiores
+                        val topRowBottom = maxOf(badgeBounds.bottom, restoreBounds.bottom)
+                        assertTrue(
+                            "active_move_banner deve ficar abaixo da faixa superior em $ctx (bannerTop=${bannerBounds.top}, topRowBottom=$topRowBottom)",
+                            bannerBounds.top >= topRowBottom - 0.5f
+                        )
+                        assertFalse(
+                            "active_move_banner ($bannerBounds) não pode sobrepor touch_mode_selector ($touchModeBounds) em $ctx",
+                            bannerBounds.overlaps(touchModeBounds)
+                        )
+                        assertFalse(
+                            "active_move_banner ($bannerBounds) não pode sobrepor recenter_camera_button ($recenterBounds) em $ctx",
+                            bannerBounds.overlaps(recenterBounds)
+                        )
+                        assertFalse(
+                            "touch_mode_selector ($touchModeBounds) e recenter_camera_button ($recenterBounds) não podem se sobrepor em $ctx",
+                            touchModeBounds.overlaps(recenterBounds)
+                        )
+
+                        // 3. Todos os 3 elementos superiores contidos nos limites do viewport 3D
+                        for ((name, rect) in listOf(
+                            "home_interactive_cube_badge" to badgeBounds,
+                            "home_restore_cube_button" to restoreBounds,
+                            "active_move_banner" to bannerBounds
+                        )) {
+                            assertTrue(
+                                "$name ($rect) deve estar contido horizontalmente no cube_3d_viewport ($viewportBounds) em $ctx",
+                                rect.left >= viewportBounds.left - 1f && rect.right <= viewportBounds.right + 1f
+                            )
+                        }
+
+                        // 4. Estabilidade visual: aparecer o active_move_banner não desloca o selo nem o botão Restaurar
+                        assertTrue(
+                            "Selo 'Cubo 3×3 Interativo' não pode saltar ao exibir active_move_banner em $ctx (idle=$badgeIdleBounds, active=$badgeBounds)",
+                            kotlin.math.abs(badgeBounds.top - badgeIdleBounds.top) < 1f &&
+                                kotlin.math.abs(badgeBounds.left - badgeIdleBounds.left) < 1f
+                        )
+                        assertTrue(
+                            "Botão 'Restaurar' não pode saltar ao exibir active_move_banner em $ctx (idle=$restoreIdleBounds, active=$restoreBounds)",
+                            kotlin.math.abs(restoreBounds.top - restoreIdleBounds.top) < 1f &&
+                                kotlin.math.abs(restoreBounds.right - restoreIdleBounds.right) < 1f
+                        )
+
+                        // 5. Textos completos e sem truncamento em todos os 3 elementos
+                        assertEquals("Cubo 3×3 Interativo", assertNoVisualTextOverflow("home_interactive_cube_badge", ctx))
+                        assertEquals("Restaurar", assertNoVisualTextOverflow("home_restore_cube_button", ctx))
+                        val bannerText = assertNoVisualTextOverflow("active_move_banner", ctx)
+                        assertTrue(
+                            "Texto de active_move_banner ('$bannerText') deve conter '${move.notation}' e '${move.titlePt}' em $ctx",
+                            bannerText.contains(move.notation) && bannerText.contains(move.titlePt)
+                        )
+
+                        // I. Avança a animação até o término e confirma o desaparecimento limpo do indicador temporário
+                        repeat(30) {
+                            org.robolectric.shadows.ShadowLooper.idleMainLooper(16, java.util.concurrent.TimeUnit.MILLISECONDS)
+                            composeTestRule.waitForIdle()
+                        }
+                        assertNull(
+                            "activeAnimation deve ser nulo após concluir o movimento em $ctx",
+                            vm.homePreviewState.value.activeAnimation
+                        )
+                        assertEquals(
+                            "active_move_banner deve desaparecer após o término da animação em $ctx",
+                            0,
+                            composeTestRule.onAllNodes(hasTestTag("active_move_banner")).fetchSemanticsNodes().size
+                        )
+                    }
+
+                    // J. Funcionamento normal do botão "Restaurar" após os movimentos
+                    assertFalse(
+                        "Cubo da Home deve estar embaralhado antes de clicar em Restaurar em $baseCtx",
+                        vm.homePreviewState.value.cubeState.isSolved()
+                    )
+                    composeTestRule.onNodeWithTag("home_restore_cube_button").performClick()
+                    composeTestRule.waitForIdle()
+                    assertTrue(
+                        "Clicar em 'Restaurar' deve restaurar o cubo da Home ao estado resolvido em $baseCtx",
+                        vm.homePreviewState.value.cubeState.isSolved()
+                    )
+
+                    vm.forceMultiFrameAnimationInTest = false
+                    ShadowTrace.reset()
+                }
+            }
+        } finally {
+            org.robolectric.RuntimeEnvironment.setQualifiers("w360dp-h780dp-xhdpi")
+            org.robolectric.RuntimeEnvironment.getApplication().resources.configuration.fontScale = 1.0f
+            ShadowTrace.reset()
+        }
     }
 }
+
 
 
 

@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -609,6 +610,7 @@ fun InteractiveCube3DView(
     celebrationPulse: Float = 0f,
     cameraResetTrigger: Int = 0,
     showCameraControlsOverlay: Boolean = true,
+    showActiveMoveBanner: Boolean = true,
     onMoveSwiped: (CubeMove) -> Unit = {}
 ) {
     val isRobolectric = remember {
@@ -783,42 +785,18 @@ fun InteractiveCube3DView(
         val themeColors = CuboMestreTheme.colors
 
         // Indicador superior compacto da direção/eixo do movimento em execução (sem encobrir o cubo)
-        val bannerMove = activeAnimation?.move
-        AnimatedVisibility(
-            visible = bannerMove != null,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 8.dp)
-        ) {
-            bannerMove?.let { move ->
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.94f),
-                    shape = RoundedCornerShape(50),
-                    tonalElevation = 4.dp,
-                    modifier = Modifier
-                        .border(1.dp, themeColors.turquoiseAccent.copy(alpha = 0.65f), RoundedCornerShape(50))
-                        .testTag("active_move_banner")
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "${move.notation} ${directionArrowForMove(move)}",
-                            fontFamily = JetBrainsMonoFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            color = themeColors.turquoiseAccent,
-                            style = MaterialTheme.typography.labelLarge
-                        )
-                        Text(
-                            text = move.titlePt,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
+        if (showActiveMoveBanner) {
+            val bannerMove = activeAnimation?.move
+            AnimatedVisibility(
+                visible = bannerMove != null,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 8.dp)
+            ) {
+                bannerMove?.let { move ->
+                    ActiveMoveIndicatorBanner(move = move)
                 }
             }
         }
@@ -964,7 +942,64 @@ object Cube3DViewAuditHolder {
     var lastActiveRenderer: CubeGLRenderer? = null
 }
 
-private fun directionArrowForMove(move: CubeMove): String = when (move) {
+@Composable
+fun ActiveMoveIndicatorBanner(
+    move: CubeMove,
+    modifier: Modifier = Modifier
+) {
+    val themeColors = CuboMestreTheme.colors
+    val density = LocalDensity.current
+    val fontScale = density.fontScale
+    val titleLength = move.titlePt.length
+    val effectiveScale = when {
+        titleLength >= 22 -> fontScale.coerceAtMost(1.06f)
+        titleLength >= 16 -> fontScale.coerceAtMost(1.14f)
+        else -> fontScale.coerceAtMost(1.22f)
+    }
+    val notationFontSize = with(density) { (12.dp.toPx() * effectiveScale).toSp() }
+    val titleFontSize = with(density) { (11.dp.toPx() * effectiveScale).toSp() }
+    val horizontalPad = if (fontScale > 1.2f || titleLength >= 20) 10.dp else 12.dp
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.94f),
+        shape = RoundedCornerShape(50),
+        tonalElevation = 4.dp,
+        modifier = modifier
+            .border(1.dp, themeColors.turquoiseAccent.copy(alpha = 0.65f), RoundedCornerShape(50))
+            .testTag("active_move_banner")
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(horizontal = horizontalPad, vertical = 4.dp)
+        ) {
+            Text(
+                text = "${move.notation} ${directionArrowForMove(move)}",
+                fontFamily = JetBrainsMonoFontFamily,
+                fontWeight = FontWeight.Bold,
+                color = themeColors.turquoiseAccent,
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontSize = notationFontSize,
+                    lineHeight = notationFontSize * 1.2f
+                ),
+                maxLines = 1,
+                softWrap = false
+            )
+            Text(
+                text = move.titlePt,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = titleFontSize,
+                    lineHeight = titleFontSize * 1.2f
+                ),
+                maxLines = 1,
+                softWrap = false
+            )
+        }
+    }
+}
+
+internal fun directionArrowForMove(move: CubeMove): String = when (move) {
     CubeMove.R, CubeMove.L_PRIME, CubeMove.M_PRIME -> "↑"
     CubeMove.R_PRIME, CubeMove.L, CubeMove.M -> "↓"
     CubeMove.U, CubeMove.D_PRIME, CubeMove.E_PRIME -> "←"
