@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -25,13 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.outlined.MenuBook
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -50,19 +45,20 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.curriculum.CurriculumRepository
+import com.example.data.AppLanguage
 import com.example.data.UserProgressState
 import com.example.model.CubeMove
 import com.example.model.CubeState
@@ -70,12 +66,6 @@ import com.example.renderer.ActiveLayerAnimation
 import com.example.renderer.ActiveMoveIndicatorBanner
 import com.example.renderer.InteractiveCube3DView
 import com.example.ui.theme.CuboMestreTheme
-import com.example.ui.theme.StickerBlue
-import com.example.ui.theme.StickerGreen
-import com.example.ui.theme.StickerOrange
-import com.example.ui.theme.StickerRed
-import com.example.ui.theme.StickerWhite
-import com.example.ui.theme.StickerYellow
 import com.example.ui.theme.SuccessEmerald
 import com.example.ui.theme.TurquoisePrimary
 import com.example.ui.theme.VioletAccent
@@ -92,6 +82,10 @@ fun HomeScreen(
     homePreviewState: HomePreviewUiState = HomePreviewUiState(),
     onExecuteHomePreviewMove: (CubeMove) -> Unit = {},
     onRestoreHomePreviewCube: () -> Unit = {},
+    onPracticeClick: () -> Unit = onContinueLessonClick,
+    onOpenSettingsClick: () -> Unit = {},
+    onToggleLanguageQuickClick: () -> Unit = {},
+    onOpenSolveMyCubePreview: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val currentOnExecuteHomeMove by rememberUpdatedState(onExecuteHomePreviewMove)
@@ -106,7 +100,9 @@ fun HomeScreen(
             .testTag("home_screen"),
         contentAlignment = Alignment.TopCenter
     ) {
+        val fontScale = LocalConfiguration.current.fontScale
         val isWideScreen = maxWidth >= 680.dp || (maxWidth > maxHeight && maxHeight < 520.dp)
+        val isCompactVertical = maxHeight < 760.dp || fontScale > 1.15f
 
         if (isWideScreen) {
             // Layout adaptativo horizontal (Paisagem / Tablet): Sem rolagem vertical, duas colunas equilibradas
@@ -114,18 +110,22 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .widthIn(max = 1040.dp)
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                    .padding(horizontal = 18.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(18.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(
                     modifier = Modifier
                         .weight(0.48f)
                         .fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     HomeHeaderBar(
                         isDarkTheme = progressState.isDarkTheme,
+                        appLanguage = progressState.appLanguage,
+                        isCompact = true,
+                        onToggleLanguage = onToggleLanguageQuickClick,
+                        onOpenSettings = onOpenSettingsClick,
                         onToggleTheme = onToggleTheme
                     )
 
@@ -148,9 +148,16 @@ fun HomeScreen(
                         .fillMaxHeight(),
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
+                    SolveMyCubeHeroCard(
+                        isCompact = true,
+                        onOpenPreview = onOpenSolveMyCubePreview
+                    )
+
                     StudentProgressBannerCard(
                         progressState = progressState,
-                        onContinueLessonClick = onContinueLessonClick
+                        isCompact = true,
+                        onContinueLessonClick = onContinueLessonClick,
+                        onPracticeClick = onPracticeClick
                     )
 
                     HomePrimaryActionsSection(
@@ -166,12 +173,19 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .widthIn(max = 560.dp)
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(
+                        horizontal = if (maxWidth < 340.dp) 12.dp else 16.dp,
+                        vertical = if (isCompactVertical) 6.dp else 10.dp
+                    ),
+                verticalArrangement = Arrangement.spacedBy(if (isCompactVertical) 6.dp else 8.dp)
             ) {
-                // 1. Cabeçalho compacto
+                // 1. Cabeçalho do Menu Principal (Identidade visual, idioma, configurações e tema)
                 HomeHeaderBar(
                     isDarkTheme = progressState.isDarkTheme,
+                    appLanguage = progressState.appLanguage,
+                    isCompact = isCompactVertical,
+                    onToggleLanguage = onToggleLanguageQuickClick,
+                    onOpenSettings = onOpenSettingsClick,
                     onToggleTheme = onToggleTheme
                 )
 
@@ -188,13 +202,21 @@ fun HomeScreen(
                         .weight(1f)
                 )
 
-                // 3. Cartão de progresso e botão rápido para continuar última etapa
-                StudentProgressBannerCard(
-                    progressState = progressState,
-                    onContinueLessonClick = onContinueLessonClick
+                // 3. Cartão Principal em Destaque — Resolver meu cubo / Solve My Cube (Etapa 3: Câmera & Manual)
+                SolveMyCubeHeroCard(
+                    isCompact = isCompactVertical,
+                    onOpenPreview = onOpenSolveMyCubePreview
                 )
 
-                // 4. Botões principais (Começar a Aprender, Explorar Cubo, Guia de Notação)
+                // 4. Cartão de progresso, botão Continuar e acesso rápido ao Modo Praticar
+                StudentProgressBannerCard(
+                    progressState = progressState,
+                    isCompact = isCompactVertical,
+                    onContinueLessonClick = onContinueLessonClick,
+                    onPracticeClick = onPracticeClick
+                )
+
+                // 5. Botões principais do Hub (Começar a Aprender, Explorar Cubo, Guia de Notação)
                 HomePrimaryActionsSection(
                     onStartLearningClick = onStartLearningClick,
                     onExploreCubeClick = onExploreCubeClick,
@@ -208,9 +230,15 @@ fun HomeScreen(
 @Composable
 private fun HomeHeaderBar(
     isDarkTheme: Boolean,
+    appLanguage: AppLanguage,
+    isCompact: Boolean,
+    onToggleLanguage: () -> Unit,
+    onOpenSettings: () -> Unit,
     onToggleTheme: () -> Unit
 ) {
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -218,32 +246,39 @@ private fun HomeHeaderBar(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 6.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(if (isCompact) 36.dp else 40.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .border(
                         width = 1.dp,
-                        color = themeColors.turquoiseAccent.copy(alpha = 0.5f),
+                        brush = Brush.linearGradient(
+                            listOf(themeColors.turquoiseAccent, themeColors.violetAccent)
+                        ),
                         shape = RoundedCornerShape(12.dp)
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                MiniCubeGridBadge()
+                VibrantCubeEmblemCanvas(modifier = Modifier.size(if (isCompact) 20.dp else 22.dp))
             }
 
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(R.string.app_name),
+                    text = strings.appName,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onBackground,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = stringResource(R.string.home_subtitle),
+                    text = strings.homeSubtitle,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -252,40 +287,77 @@ private fun HomeHeaderBar(
             }
         }
 
-        IconButton(
-            onClick = onToggleTheme,
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .testTag("theme_toggle_button")
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Icon(
-                imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
-                contentDescription = "Alternar tema claro/escuro",
-                tint = themeColors.turquoiseAccent
-            )
-        }
-    }
-}
+            // Seletor rápido de idioma (PT / EN)
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = RoundedCornerShape(50),
+                modifier = Modifier
+                    .height(36.dp)
+                    .border(
+                        width = 1.dp,
+                        color = themeColors.turquoiseAccent.copy(alpha = 0.45f),
+                        shape = RoundedCornerShape(50)
+                    )
+                    .clickable { onToggleLanguage() }
+                    .testTag("language_selector_button")
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(horizontal = 9.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_rounded_language),
+                        contentDescription = strings.settingsLanguageSectionTitle,
+                        tint = themeColors.turquoiseAccent,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = appLanguage.shortCode,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
 
-@Composable
-private fun MiniCubeGridBadge() {
-    val colors = listOf(
-        StickerWhite, StickerRed, StickerBlue,
-        StickerOrange, TurquoisePrimary, StickerGreen,
-        StickerYellow, StickerWhite, VioletAccent
-    )
-    Canvas(modifier = Modifier.size(22.dp)) {
-        val cell = size.width / 3f
-        val pad = 1.2.dp.toPx()
-        for (r in 0..2) {
-            for (c in 0..2) {
-                val color = colors[r * 3 + c]
-                drawRect(
-                    color = color,
-                    topLeft = Offset(c * cell + pad, r * cell + pad),
-                    size = Size(cell - pad * 2, cell - pad * 2)
+            // Acesso rápido a Configurações
+            IconButton(
+                onClick = onOpenSettings,
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .testTag("home_settings_button")
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_rounded_settings),
+                    contentDescription = strings.settingsButton,
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            // Alternador rápido de Tema Claro / Escuro
+            IconButton(
+                onClick = onToggleTheme,
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .testTag("theme_toggle_button")
+            ) {
+                Icon(
+                    painter = painterResource(
+                        id = if (isDarkTheme) R.drawable.ic_rounded_light_mode else R.drawable.ic_rounded_dark_mode
+                    ),
+                    contentDescription = "Alternar tema claro/escuro",
+                    tint = themeColors.turquoiseAccent,
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
@@ -303,6 +375,8 @@ private fun HomeHeroCubeViewport(
     modifier: Modifier = Modifier
 ) {
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
+
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(24.dp),
@@ -380,7 +454,7 @@ private fun HomeHeroCubeViewport(
                                     .background(SuccessEmerald)
                             )
                             Text(
-                                text = "Cubo 3×3 Interativo",
+                                text = strings.interactiveCubeBadge,
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = topBadgeFontSize,
                                     lineHeight = topBadgeFontSize * 1.2f
@@ -412,12 +486,12 @@ private fun HomeHeroCubeViewport(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
-                                contentDescription = "Restaurar cubo inicial",
+                                contentDescription = strings.restoreCubeButton,
                                 tint = themeColors.turquoiseAccent,
                                 modifier = Modifier.size(if (isCompactViewport) 13.dp else 14.dp)
                             )
                             Text(
-                                text = "Restaurar",
+                                text = strings.restoreCubeButton,
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = topBadgeFontSize,
                                     lineHeight = topBadgeFontSize * 1.2f
@@ -447,12 +521,167 @@ private fun HomeHeroCubeViewport(
     }
 }
 
+/**
+ * 8.2 Cartão Principal em Destaque — "Resolver meu cubo / Solve My Cube" (Etapa 3).
+ * Apresenta visualmente as duas modalidades planejadas (Resolver com câmera / Resolver manualmente),
+ * claramente identificadas como recurso da Etapa 3.
+ */
+@Composable
+private fun SolveMyCubeHeroCard(
+    isCompact: Boolean,
+    onOpenPreview: () -> Unit
+) {
+    val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
+
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        shape = RoundedCornerShape(18.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.2.dp,
+                brush = Brush.horizontalGradient(
+                    colors = listOf(
+                        TurquoisePrimary.copy(alpha = 0.65f),
+                        VioletAccent.copy(alpha = 0.65f)
+                    )
+                ),
+                shape = RoundedCornerShape(18.dp)
+            )
+            .clickable { onOpenPreview() }
+            .testTag("solve_my_cube_hero_card")
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = if (isCompact) 6.dp else 8.dp),
+            verticalArrangement = Arrangement.spacedBy(if (isCompact) 5.dp else 6.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_rounded_auto_awesome),
+                        contentDescription = null,
+                        tint = themeColors.turquoiseAccent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = strings.solveMyCubeTitle,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Surface(
+                    color = themeColors.violetAccent.copy(alpha = 0.18f),
+                    shape = RoundedCornerShape(50),
+                    modifier = Modifier.testTag("solve_my_cube_stage3_badge")
+                ) {
+                    Text(
+                        text = strings.solveMyCubeStage3Badge,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = themeColors.violetText,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            // Duas modalidades planejadas para a Etapa 3: Câmera e Manual
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                SolveModalityPreviewChip(
+                    iconRes = R.drawable.ic_rounded_camera_cube,
+                    label = strings.solveWithCameraLabel,
+                    accentColor = themeColors.turquoiseAccent,
+                    onClick = onOpenPreview,
+                    testTag = "solve_with_camera_preview_chip",
+                    modifier = Modifier.weight(1f)
+                )
+                SolveModalityPreviewChip(
+                    iconRes = R.drawable.ic_rounded_grid_manual,
+                    label = strings.solveManuallyLabel,
+                    accentColor = themeColors.violetText,
+                    onClick = onOpenPreview,
+                    testTag = "solve_manually_preview_chip",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SolveModalityPreviewChip(
+    iconRes: Int,
+    label: String,
+    accentColor: Color,
+    onClick: () -> Unit,
+    testTag: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+        shape = RoundedCornerShape(10.dp),
+        modifier = modifier
+            .border(
+                width = 1.dp,
+                color = accentColor.copy(alpha = 0.35f),
+                shape = RoundedCornerShape(10.dp)
+            )
+            .clickable { onClick() }
+            .testTag(testTag)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+        ) {
+            Icon(
+                painter = painterResource(id = iconRes),
+                contentDescription = null,
+                tint = accentColor,
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
 @Composable
 private fun StudentProgressBannerCard(
     progressState: UserProgressState,
-    onContinueLessonClick: () -> Unit
+    isCompact: Boolean,
+    onContinueLessonClick: () -> Unit,
+    onPracticeClick: () -> Unit
 ) {
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
     val completedCount = progressState.completedSteps.size
     val progressFraction = progressState.completionFraction
     val overallPercentage = (progressFraction * 100).toInt()
@@ -464,13 +693,18 @@ private fun StudentProgressBannerCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onContinueLessonClick() }
             .testTag("student_progress_card")
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+        Column(
+            modifier = Modifier.padding(
+                horizontal = 12.dp,
+                vertical = if (isCompact) 6.dp else 8.dp
+            )
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -478,11 +712,11 @@ private fun StudentProgressBannerCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     Box(
-                        modifier = Modifier.size(44.dp),
+                        modifier = Modifier.size(if (isCompact) 36.dp else 40.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -491,14 +725,14 @@ private fun StudentProgressBannerCard(
                                 startAngle = 0f,
                                 sweepAngle = 360f,
                                 useCenter = false,
-                                style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
+                                style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round)
                             )
                             drawArc(
                                 color = activeArcColor,
                                 startAngle = -90f,
                                 sweepAngle = 360f * progressFraction,
                                 useCenter = false,
-                                style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
+                                style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round)
                             )
                         }
                         Text(
@@ -511,7 +745,7 @@ private fun StudentProgressBannerCard(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "$completedCount de 7 etapas concluídas",
+                            text = strings.stagesCompletedFormat(completedCount),
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold,
@@ -519,7 +753,7 @@ private fun StudentProgressBannerCard(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "Continuar: Etapa ${lastStep.number} — ${lastStep.title}",
+                            text = strings.continueStageFormat(lastStep.number, lastStep.title),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -528,39 +762,77 @@ private fun StudentProgressBannerCard(
                     }
                 }
 
-                Surface(
-                    color = themeColors.turquoiseAccent.copy(alpha = 0.14f),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.testTag("continue_lesson_chip")
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    // Botão rápido de Praticar (Etapa 1 Hub)
+                    Surface(
+                        color = themeColors.violetAccent.copy(alpha = 0.16f),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .clickable { onPracticeClick() }
+                            .testTag("home_practice_button")
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = null,
-                            tint = themeColors.turquoiseAccent,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = "Continuar",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = themeColors.turquoiseAccent,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_rounded_practice),
+                                contentDescription = null,
+                                tint = themeColors.violetText,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = strings.practiceButton,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = themeColors.violetText,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+
+                    // Chip Continuar aula
+                    Surface(
+                        color = themeColors.turquoiseAccent.copy(alpha = 0.14f),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.testTag("continue_lesson_chip")
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_rounded_play),
+                                contentDescription = null,
+                                tint = themeColors.turquoiseAccent,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = strings.continueButton,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = themeColors.turquoiseAccent,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(if (isCompact) 4.dp else 6.dp))
 
             LinearProgressIndicator(
                 progress = { progressFraction },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(5.dp)
+                    .height(4.dp)
                     .clip(RoundedCornerShape(50)),
                 color = themeColors.turquoiseAccent,
                 trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
@@ -576,7 +848,8 @@ private fun HomePrimaryActionsSection(
     onOpenNotationGuide: () -> Unit
 ) {
     val themeColors = CuboMestreTheme.colors
-    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val strings = CuboMestreTheme.strings
+    val configuration = LocalConfiguration.current
     val fontScale = configuration.fontScale
 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
@@ -587,17 +860,17 @@ private fun HomePrimaryActionsSection(
 
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(if (compactVertical) 6.dp else 8.dp)
+            verticalArrangement = Arrangement.spacedBy(if (compactVertical) 5.dp else 7.dp)
         ) {
-            // Botão Primário — Começar a aprender
+            // Botão Primário — Começar a aprender / Start learning
             Button(
                 onClick = onStartLearningClick,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(if (compactVertical) 44.dp else 50.dp)
+                    .height(if (compactVertical) 42.dp else 46.dp)
                     .testTag("start_learning_button"),
                 shape = RoundedCornerShape(16.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                contentPadding = PaddingValues(
                     horizontal = 14.dp,
                     vertical = 0.dp
                 ),
@@ -607,13 +880,13 @@ private fun HomePrimaryActionsSection(
                 )
             ) {
                 Icon(
-                    imageVector = Icons.Default.School,
+                    painter = painterResource(id = R.drawable.ic_rounded_school),
                     contentDescription = null,
                     modifier = Modifier.size(if (compactVertical) 18.dp else 20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = stringResource(R.string.btn_start_learning),
+                    text = strings.startLearningButton,
                     style = if (compactVertical || fontScale > 1.3f) {
                         MaterialTheme.typography.labelLarge
                     } else {
@@ -638,23 +911,23 @@ private fun HomePrimaryActionsSection(
                     onClick = onExploreCubeClick,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(42.dp)
+                        .height(38.dp)
                         .testTag("explore_cube_button"),
                     shape = RoundedCornerShape(14.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    contentPadding = PaddingValues(
                         horizontal = 12.dp,
                         vertical = 0.dp
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Explore,
+                        painter = painterResource(id = R.drawable.ic_rounded_explore_3d),
                         contentDescription = null,
                         tint = themeColors.turquoiseAccent,
-                        modifier = Modifier.size(17.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = stringResource(R.string.btn_explore_cube),
+                        text = strings.exploreCubeButton,
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.SemiBold,
@@ -667,23 +940,23 @@ private fun HomePrimaryActionsSection(
                     onClick = onOpenNotationGuide,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(42.dp)
+                        .height(38.dp)
                         .testTag("notation_guide_button"),
                     shape = RoundedCornerShape(14.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    contentPadding = PaddingValues(
                         horizontal = 12.dp,
                         vertical = 0.dp
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.MenuBook,
+                        painter = painterResource(id = R.drawable.ic_rounded_notation_book),
                         contentDescription = null,
                         tint = themeColors.violetAccent,
-                        modifier = Modifier.size(17.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = stringResource(R.string.btn_notation_guide),
+                        text = strings.notationGuideButton,
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.SemiBold,
@@ -702,23 +975,23 @@ private fun HomePrimaryActionsSection(
                         onClick = onExploreCubeClick,
                         modifier = Modifier
                             .weight(1f)
-                            .height(48.dp)
+                            .height(44.dp)
                             .testTag("explore_cube_button"),
                         shape = RoundedCornerShape(14.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        contentPadding = PaddingValues(
                             horizontal = 10.dp,
                             vertical = 0.dp
                         )
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Explore,
+                            painter = painterResource(id = R.drawable.ic_rounded_explore_3d),
                             contentDescription = null,
                             tint = themeColors.turquoiseAccent,
-                            modifier = Modifier.size(17.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = stringResource(R.string.btn_explore_cube),
+                            text = strings.exploreCubeButton,
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.SemiBold,
@@ -731,23 +1004,23 @@ private fun HomePrimaryActionsSection(
                         onClick = onOpenNotationGuide,
                         modifier = Modifier
                             .weight(1f)
-                            .height(48.dp)
+                            .height(44.dp)
                             .testTag("notation_guide_button"),
                         shape = RoundedCornerShape(14.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        contentPadding = PaddingValues(
                             horizontal = 10.dp,
                             vertical = 0.dp
                         )
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.MenuBook,
+                            painter = painterResource(id = R.drawable.ic_rounded_notation_book),
                             contentDescription = null,
                             tint = themeColors.violetAccent,
-                            modifier = Modifier.size(17.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = stringResource(R.string.btn_notation_guide),
+                            text = strings.notationGuideButton,
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.SemiBold,

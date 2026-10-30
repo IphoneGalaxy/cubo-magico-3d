@@ -3356,12 +3356,179 @@ class ExampleRobolectricTest {
             ShadowTrace.reset()
         }
     }
+
+    @Test
+    @Config(qualifiers = "w360dp-h780dp-xhdpi")
+    fun testStage1OpeningWelcomeLanguagePersistenceAndMainMenuHub() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val repo = ProgressRepository(context)
+
+        fun nodeCombinedText(tag: String): String {
+            return composeTestRule.onNodeWithTag(tag, useUnmergedTree = true)
+                .fetchSemanticsNode()
+                .let { root ->
+                    val texts = mutableListOf<String>()
+                    fun walk(n: androidx.compose.ui.semantics.SemanticsNode) {
+                        n.config.getOrElse(androidx.compose.ui.semantics.SemanticsProperties.Text) { emptyList() }
+                            .forEach { texts.add(it.text) }
+                        n.children.forEach { walk(it) }
+                    }
+                    walk(root)
+                    texts.joinToString(" ")
+                }
+        }
+
+        try {
+            // 1. Verifica que o idioma base/fallback da estrutura de internacionalização é English (en-US)
+            assertEquals(com.example.data.AppLanguage.EN_US, com.example.data.AppLanguage.BASE_FALLBACK)
+            assertEquals(com.example.data.AppLanguage.EN_US, com.example.data.AppLanguage.fromTag(null))
+            assertEquals(com.example.data.AppLanguage.EN_US, com.example.data.AppLanguage.fromTag("fr-FR"))
+            assertEquals(com.example.data.AppLanguage.EN_US, com.example.data.AppLanguage.fromTag("en-US"))
+            assertEquals(com.example.data.AppLanguage.PT_BR, com.example.data.AppLanguage.fromTag("pt-BR"))
+
+            // 2. Simula primeira abertura (First Launch): Tela de Abertura -> Tela de Boas-Vindas e Escolha de Idioma
+            ProgressRepository.simulateFirstLaunchInHeadlessTest = true
+            lateinit var vm: com.example.viewmodel.CuboMestreViewModel
+            composeTestRule.activityRule.scenario.onActivity { act ->
+                vm = androidx.lifecycle.ViewModelProvider(act)[com.example.viewmodel.CuboMestreViewModel::class.java]
+            }
+            composeTestRule.runOnUiThread {
+                vm.resetOnboardingForFirstLaunch(com.example.data.AppLanguage.EN_US)
+            }
+            composeTestRule.waitForIdle()
+            ShadowTrace.reset()
+
+            // A. Tela de Abertura (OpeningScreen) em en-US (idioma base/fallback)
+            assertEquals(com.example.viewmodel.AppScreen.OPENING, vm.currentScreen.value)
+            composeTestRule.onNodeWithTag("opening_screen").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("opening_badge").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("opening_cube_showcase").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("opening_title").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("opening_continue_button").assertIsDisplayed()
+            assertEquals("Cubo Mestre 3D", nodeCombinedText("opening_title"))
+            assertEquals("Enter Experience", nodeCombinedText("opening_continue_button"))
+
+            // Avança da Tela de Abertura para a Tela de Boas-Vindas / Escolha de Idioma (pois hasCompletedOnboarding == false)
+            composeTestRule.onNodeWithTag("opening_continue_button").performClick()
+            composeTestRule.waitForIdle()
+            ShadowTrace.reset()
+
+            // B. Tela de Boas-Vindas e Escolha de Idioma na primeira execução
+            assertEquals(com.example.viewmodel.AppScreen.WELCOME_LANGUAGE, vm.currentScreen.value)
+            composeTestRule.onNodeWithTag("welcome_language_screen").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("language_option_en_us").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("language_option_pt_br").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("welcome_get_started_button").assertIsDisplayed()
+
+            // Verifica textos em Inglês (en-US) inicialmente selecionado
+            assertEquals("Welcome to Cubo Mestre 3D", nodeCombinedText("welcome_title_text"))
+            assertEquals("Get Started", nodeCombinedText("welcome_get_started_button"))
+
+            // Seleciona Português (pt-BR) na tela de boas-vindas e verifica tradução imediata
+            composeTestRule.onNodeWithTag("language_option_pt_br").performClick()
+            composeTestRule.waitForIdle()
+            assertEquals(com.example.data.AppLanguage.PT_BR, vm.progressState.value.appLanguage)
+            assertEquals("Bem-vindo ao Cubo Mestre 3D", nodeCombinedText("welcome_title_text"))
+            assertEquals("Começar", nodeCombinedText("welcome_get_started_button"))
+
+            // Seleciona English (en-US) e confirma com "Get Started"
+            composeTestRule.onNodeWithTag("language_option_en_us").performClick()
+            composeTestRule.waitForIdle()
+            assertEquals(com.example.data.AppLanguage.EN_US, vm.progressState.value.appLanguage)
+            assertEquals("Get Started", nodeCombinedText("welcome_get_started_button"))
+
+            composeTestRule.onNodeWithTag("welcome_get_started_button").performClick()
+            composeTestRule.waitForIdle()
+            ShadowTrace.reset()
+
+            // C. Verifica abertura do Novo Menu Principal em en-US e persistência no DataStore
+            assertEquals(com.example.viewmodel.AppScreen.HOME, vm.currentScreen.value)
+            composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
+            val savedAfterEnOnboarding = repo.initialStateSnapshot()
+            assertTrue("hasCompletedOnboarding deve ser salvo como true no DataStore", savedAfterEnOnboarding.hasCompletedOnboarding)
+            assertEquals(com.example.data.AppLanguage.EN_US, savedAfterEnOnboarding.appLanguage)
+
+            // Verifica componentes e rótulos traduzidos em en-US no Novo Menu Principal
+            assertEquals("Interactive 3×3 Cube", nodeCombinedText("home_interactive_cube_badge"))
+            assertEquals("Restore", nodeCombinedText("home_restore_cube_button"))
+            assertEquals("Start learning", nodeCombinedText("start_learning_button"))
+            assertEquals("Explore Cube", nodeCombinedText("explore_cube_button"))
+            assertEquals("Notation Guide", nodeCombinedText("notation_guide_button"))
+            assertEquals("Practice", nodeCombinedText("home_practice_button"))
+            assertEquals("Stage 3 • Coming Soon", nodeCombinedText("solve_my_cube_stage3_badge"))
+            assertEquals("Solve with Camera", nodeCombinedText("solve_with_camera_preview_chip"))
+            assertEquals("Solve Manually", nodeCombinedText("solve_manually_preview_chip"))
+
+            // D. Execuções seguintes: instancia novo ViewModel simulando reabertura do app e comprova que inicia
+            //    DIRETAMENTE no Menu Principal no idioma salvo (en-US), sem obrigar o usuário a repetir o onboarding!
+            val nextLaunchVmEn = com.example.viewmodel.CuboMestreViewModel(
+                ApplicationProvider.getApplicationContext()
+            )
+            assertEquals(
+                "Execução seguinte deve abrir diretamente no Menu Principal (HOME)",
+                com.example.viewmodel.AppScreen.HOME,
+                nextLaunchVmEn.currentScreen.value
+            )
+            assertEquals(
+                "Idioma salvo (en-US) deve ser mantido na execução seguinte",
+                com.example.data.AppLanguage.EN_US,
+                nextLaunchVmEn.progressState.value.appLanguage
+            )
+            composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
+            assertEquals("Start learning", nodeCombinedText("start_learning_button"))
+
+            // E. Testa o Cartão Principal em Destaque "Resolver meu cubo / Solve My Cube" e modal informativo da Etapa 3
+            composeTestRule.onNodeWithTag("solve_my_cube_hero_card").assertIsDisplayed().performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("solve_my_cube_roadmap_modal").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("solve_modal_camera_card").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("solve_modal_manual_card").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("close_solve_preview_modal_button").performClick()
+            composeTestRule.waitForIdle()
+            assertFalse(vm.showSolveMyCubePreviewModal.value)
+            ShadowTrace.reset()
+
+            // F. Testa troca de idioma posterior via Configurações (en-US -> pt-BR) e persistência
+            composeTestRule.onNodeWithTag("home_settings_button").assertIsDisplayed().performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("settings_modal").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("settings_lang_pt_br").performClick()
+            composeTestRule.waitForIdle()
+            assertEquals(com.example.data.AppLanguage.PT_BR, repo.initialStateSnapshot().appLanguage)
+
+            composeTestRule.onNodeWithTag("close_settings_modal_button").performClick()
+            composeTestRule.waitForIdle()
+            ShadowTrace.reset()
+
+            // Verifica atualização imediata do Menu Principal para Português (pt-BR)
+            assertEquals("Cubo 3×3 Interativo", nodeCombinedText("home_interactive_cube_badge"))
+            assertEquals("Restaurar", nodeCombinedText("home_restore_cube_button"))
+            assertEquals("Começar a aprender", nodeCombinedText("start_learning_button"))
+            assertEquals("Explorar Cubo", nodeCombinedText("explore_cube_button"))
+            assertEquals("Guia de Notação", nodeCombinedText("notation_guide_button"))
+            assertEquals("Praticar", nodeCombinedText("home_practice_button"))
+            assertEquals("Etapa 3 • Em breve", nodeCombinedText("solve_my_cube_stage3_badge"))
+            assertEquals("Resolver com câmera", nodeCombinedText("solve_with_camera_preview_chip"))
+            assertEquals("Resolver manualmente", nodeCombinedText("solve_manually_preview_chip"))
+
+            // Simula nova abertura do aplicativo para confirmar persistência de pt-BR nas execuções seguintes
+            val nextLaunchVmPt = com.example.viewmodel.CuboMestreViewModel(
+                ApplicationProvider.getApplicationContext()
+            )
+            assertEquals(com.example.viewmodel.AppScreen.HOME, nextLaunchVmPt.currentScreen.value)
+            assertEquals(com.example.data.AppLanguage.PT_BR, nextLaunchVmPt.progressState.value.appLanguage)
+            assertEquals("Começar a aprender", nodeCombinedText("start_learning_button"))
+
+            // G. Testa botão rápido "Praticar" do Menu Principal
+            composeTestRule.onNodeWithTag("home_practice_button").performClick()
+            composeTestRule.waitForIdle()
+            assertEquals(com.example.viewmodel.AppScreen.LESSON, vm.currentScreen.value)
+            assertEquals(com.example.viewmodel.LearningMode.PRACTICE, vm.lessonState.value.mode)
+        } finally {
+            ProgressRepository.simulateFirstLaunchInHeadlessTest = false
+            repo.applyOnboardingImmediate(com.example.data.AppLanguage.PT_BR, completed = true)
+            ProgressRepository.resetInMemoryCacheForTest()
+            ShadowTrace.reset()
+        }
+    }
 }
-
-
-
-
-
-
-
-

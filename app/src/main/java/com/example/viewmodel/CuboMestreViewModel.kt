@@ -22,7 +22,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
+import com.example.data.AppLanguage
+import java.util.Locale
+
 enum class AppScreen {
+    OPENING,
+    WELCOME_LANGUAGE,
     HOME,
     COURSE,
     LESSON,
@@ -122,14 +127,20 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
     val progressState: StateFlow<UserProgressState> = progressRepository.progressFlow.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = UserProgressState()
+        initialValue = progressRepository.initialStateSnapshot()
     )
 
-    private val _currentScreen = MutableStateFlow(AppScreen.HOME)
+    private val _currentScreen = MutableStateFlow(determineInitialScreen())
     val currentScreen: StateFlow<AppScreen> = _currentScreen.asStateFlow()
 
     private val _showNotationGuideModal = MutableStateFlow(false)
     val showNotationGuideModal: StateFlow<Boolean> = _showNotationGuideModal.asStateFlow()
+
+    private val _showSettingsModal = MutableStateFlow(false)
+    val showSettingsModal: StateFlow<Boolean> = _showSettingsModal.asStateFlow()
+
+    private val _showSolveMyCubePreviewModal = MutableStateFlow(false)
+    val showSolveMyCubePreviewModal: StateFlow<Boolean> = _showSolveMyCubePreviewModal.asStateFlow()
 
     private val _notationPreviewMove = MutableStateFlow(CubeMove.R)
     val notationPreviewMove: StateFlow<CubeMove> = _notationPreviewMove.asStateFlow()
@@ -245,13 +256,72 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
     private val shouldSkipAnimationLoop: Boolean
         get() = isHeadlessTest && !forceMultiFrameAnimationInTest
 
+    private fun determineInitialScreen(): AppScreen {
+        val snapshot = progressRepository.initialStateSnapshot()
+        val isHeadless = android.os.Build.FINGERPRINT.equals("robolectric", ignoreCase = true)
+        return when {
+            !isHeadless -> {
+                if (snapshot.hasCompletedOnboarding) AppScreen.HOME else AppScreen.OPENING
+            }
+            ProgressRepository.simulateFirstLaunchInHeadlessTest -> {
+                if (snapshot.hasCompletedOnboarding) AppScreen.HOME else AppScreen.OPENING
+            }
+            else -> AppScreen.HOME
+        }
+    }
+
     // =========================================================================
-    // NAVEGAÇÃO ENTRE TELAS
+    // NAVEGAÇÃO ENTRE TELAS E FLUXO INICIAL (ABERTURA, BOAS-VINDAS E IDIOMA)
     // =========================================================================
 
     fun navigateTo(screen: AppScreen) {
         stopAllAnimations()
         _currentScreen.value = screen
+    }
+
+    fun openOpeningScreen() {
+        navigateTo(AppScreen.OPENING)
+    }
+
+    fun completeOpeningScreen() {
+        stopAllAnimations()
+        val hasCompleted = progressRepository.initialStateSnapshot().hasCompletedOnboarding
+        if (!hasCompleted) {
+            _currentScreen.value = AppScreen.WELCOME_LANGUAGE
+        } else {
+            _currentScreen.value = AppScreen.HOME
+        }
+    }
+
+    fun openWelcomeLanguageScreen() {
+        _showSettingsModal.value = false
+        navigateTo(AppScreen.WELCOME_LANGUAGE)
+    }
+
+    fun completeWelcomeOnboarding(language: AppLanguage = progressRepository.initialStateSnapshot().appLanguage) {
+        Locale.setDefault(language.toLocale())
+        progressRepository.applyOnboardingImmediate(language = language, completed = true)
+        viewModelScope.launch {
+            progressRepository.completeOnboardingWithLanguage(language)
+        }
+        navigateTo(AppScreen.HOME)
+    }
+
+    fun resetOnboardingForFirstLaunch(initialLanguage: AppLanguage = AppLanguage.BASE_FALLBACK) {
+        Locale.setDefault(initialLanguage.toLocale())
+        progressRepository.applyOnboardingImmediate(language = initialLanguage, completed = false)
+        viewModelScope.launch {
+            progressRepository.resetOnboardingForFirstLaunch(initialLanguage)
+        }
+        navigateTo(AppScreen.OPENING)
+    }
+
+    fun setSettingsModalVisible(visible: Boolean) {
+        _showSettingsModal.value = visible
+    }
+
+    fun setSolveMyCubePreviewModalVisible(visible: Boolean) {
+        _showSolveMyCubePreviewModal.value = visible
     }
 
     fun openCourseScreen() {
@@ -264,6 +334,14 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         val savedCaseIdx = step.cases.indexOfFirst { it.id == progressState.value.lastVisitedCaseId }
             .let { if (it >= 0) it else 0 }
         openLesson(stepNumber = savedStep, caseIndex = savedCaseIdx, mode = LearningMode.LEARN)
+    }
+
+    fun startOrContinuePractice() {
+        val savedStep = progressState.value.lastVisitedStep.coerceIn(1, 7)
+        val step = CurriculumRepository.getStep(savedStep)
+        val savedCaseIdx = step.cases.indexOfFirst { it.id == progressState.value.lastVisitedCaseId }
+            .let { if (it >= 0) it else 0 }
+        openLesson(stepNumber = savedStep, caseIndex = savedCaseIdx, mode = LearningMode.PRACTICE)
     }
 
     fun openLesson(
@@ -1517,6 +1595,29 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             progressRepository.setDarkTheme(!current)
         }
+    }
+
+    fun setDarkThemeExplicit(isDark: Boolean) {
+        viewModelScope.launch {
+            progressRepository.setDarkTheme(isDark)
+        }
+    }
+
+    fun selectAppLanguage(language: AppLanguage) {
+        Locale.setDefault(language.toLocale())
+        progressRepository.applyLanguageImmediate(language)
+        viewModelScope.launch {
+            progressRepository.setAppLanguage(language)
+        }
+    }
+
+    fun toggleAppLanguageQuick() {
+        val currentLang = progressRepository.initialStateSnapshot().appLanguage
+        val next = when (currentLang) {
+            AppLanguage.EN_US -> AppLanguage.PT_BR
+            AppLanguage.PT_BR -> AppLanguage.EN_US
+        }
+        selectAppLanguage(next)
     }
 
     fun toggleHighlightTargetPieces() {

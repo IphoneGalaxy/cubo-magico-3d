@@ -67,6 +67,11 @@ object CuboMestreTheme {
         @Composable
         @ReadOnlyComposable
         get() = LocalCuboMestreColors.current
+
+    val strings: com.example.ui.i18n.AppStrings
+        @Composable
+        @ReadOnlyComposable
+        get() = com.example.ui.i18n.LocalAppStrings.current
 }
 
 /**
@@ -156,12 +161,17 @@ val AppShapes = Shapes(
 @Composable
 fun CuboMestreTheme(
     darkTheme: Boolean = true,
+    appLanguage: com.example.data.AppLanguage = com.example.data.ProgressRepository.defaultInitialLanguage(),
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
     val customColors = if (darkTheme) DarkCuboMestreColors else LightCuboMestreColors
+    val appStrings = com.example.ui.i18n.stringsForLanguage(appLanguage)
 
-    CompositionLocalProvider(LocalCuboMestreColors provides customColors) {
+    CompositionLocalProvider(
+        LocalCuboMestreColors provides customColors,
+        com.example.ui.i18n.LocalAppStrings provides appStrings
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = Typography,

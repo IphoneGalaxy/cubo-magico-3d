@@ -2,6 +2,7 @@ package com.example
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.Crossfade
@@ -20,10 +21,14 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.components.NotationGuideModal
+import com.example.ui.components.SettingsDialogModal
+import com.example.ui.components.SolveMyCubeStage3Modal
 import com.example.ui.screens.CourseScreen
 import com.example.ui.screens.ExploreScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.LessonScreen
+import com.example.ui.screens.OpeningScreen
+import com.example.ui.screens.WelcomeLanguageScreen
 import com.example.ui.theme.CuboMestreTheme
 import com.example.viewmodel.AppScreen
 import com.example.viewmodel.CuboMestreViewModel
@@ -67,12 +72,19 @@ fun CuboMestreApp(
     val exploreState by viewModel.exploreState.collectAsStateWithLifecycle()
     val homePreviewState by viewModel.homePreviewState.collectAsStateWithLifecycle()
     val showNotationModal by viewModel.showNotationGuideModal.collectAsStateWithLifecycle()
+    val showSettingsModal by viewModel.showSettingsModal.collectAsStateWithLifecycle()
+    val showSolvePreviewModal by viewModel.showSolveMyCubePreviewModal.collectAsStateWithLifecycle()
     val notationPreviewMove by viewModel.notationPreviewMove.collectAsStateWithLifecycle()
     val notationPreviewCube by viewModel.notationPreviewCube.collectAsStateWithLifecycle()
     val notationPreviewAnim by viewModel.notationPreviewAnim.collectAsStateWithLifecycle()
     val notationCameraResetCounter by viewModel.notationCameraResetCounter.collectAsStateWithLifecycle()
 
-    CuboMestreTheme(darkTheme = progressState.isDarkTheme) {
+    val isRobolectric = android.os.Build.FINGERPRINT.equals("robolectric", ignoreCase = true)
+
+    CuboMestreTheme(
+        darkTheme = progressState.isDarkTheme,
+        appLanguage = progressState.appLanguage
+    ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             contentWindowInsets = WindowInsets.safeDrawing
@@ -85,6 +97,26 @@ fun CuboMestreApp(
                     .padding(innerPadding)
             ) { screen ->
                 when (screen) {
+                    AppScreen.OPENING -> {
+                        OpeningScreen(
+                            isDarkTheme = progressState.isDarkTheme,
+                            autoAdvanceEnabled = !isRobolectric,
+                            onContinue = { viewModel.completeOpeningScreen() }
+                        )
+                    }
+
+                    AppScreen.WELCOME_LANGUAGE -> {
+                        BackHandler(enabled = progressState.hasCompletedOnboarding) {
+                            viewModel.navigateTo(AppScreen.HOME)
+                        }
+                        WelcomeLanguageScreen(
+                            selectedLanguage = progressState.appLanguage,
+                            isDarkTheme = progressState.isDarkTheme,
+                            onSelectLanguage = { lang -> viewModel.selectAppLanguage(lang) },
+                            onConfirmStart = { lang -> viewModel.completeWelcomeOnboarding(lang) }
+                        )
+                    }
+
                     AppScreen.HOME -> HomeScreen(
                         progressState = progressState,
                         homePreviewState = homePreviewState,
@@ -94,7 +126,11 @@ fun CuboMestreApp(
                         onOpenNotationGuide = { viewModel.setNotationGuideVisible(true) },
                         onToggleTheme = { viewModel.toggleDarkTheme() },
                         onExecuteHomePreviewMove = { move -> viewModel.executeHomePreviewMove(move) },
-                        onRestoreHomePreviewCube = { viewModel.resetHomePreviewCube() }
+                        onRestoreHomePreviewCube = { viewModel.resetHomePreviewCube() },
+                        onPracticeClick = { viewModel.startOrContinuePractice() },
+                        onOpenSettingsClick = { viewModel.setSettingsModalVisible(true) },
+                        onToggleLanguageQuickClick = { viewModel.toggleAppLanguageQuick() },
+                        onOpenSolveMyCubePreview = { viewModel.setSolveMyCubePreviewModalVisible(true) }
                     )
 
                     AppScreen.COURSE -> CourseScreen(
@@ -159,6 +195,26 @@ fun CuboMestreApp(
                     onDismiss = { viewModel.setNotationGuideVisible(false) },
                     cameraResetCounter = notationCameraResetCounter,
                     onResetCube = { viewModel.resetNotationPreviewCube() }
+                )
+            }
+
+            if (showSettingsModal) {
+                SettingsDialogModal(
+                    progressState = progressState,
+                    onSelectLanguage = { lang -> viewModel.selectAppLanguage(lang) },
+                    onSetDarkTheme = { isDark -> viewModel.setDarkThemeExplicit(isDark) },
+                    onSetAnimationSpeed = { speed -> viewModel.setAnimationSpeed(speed) },
+                    onToggleHighlightPieces = { viewModel.toggleHighlightTargetPieces() },
+                    onReopenWelcomeScreen = { viewModel.openWelcomeLanguageScreen() },
+                    onDismiss = { viewModel.setSettingsModalVisible(false) }
+                )
+            }
+
+            if (showSolvePreviewModal) {
+                SolveMyCubeStage3Modal(
+                    onStartLearnClick = { viewModel.openCourseScreen() },
+                    onExploreCubeClick = { viewModel.openExploreScreen() },
+                    onDismiss = { viewModel.setSolveMyCubePreviewModalVisible(false) }
                 )
             }
         }

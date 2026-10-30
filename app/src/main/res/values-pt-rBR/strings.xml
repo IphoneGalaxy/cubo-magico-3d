@@ -1,0 +1,33 @@
+<resources>
+    <string name="app_name">Cubo Mestre 3D</string>
+    <string name="home_subtitle">Aprenda a resolver o cubo mágico, um movimento de cada vez.</string>
+    <string name="btn_start_learning">Começar a aprender</string>
+    <string name="btn_continue_learning">Continuar de onde parou</string>
+    <string name="btn_explore_cube">Explorar Cubo</string>
+    <string name="btn_notation_guide">Guia de Notação</string>
+    <string name="btn_practice">Praticar</string>
+    <string name="btn_settings">Configurações</string>
+    <string name="course_title">Método de Camadas (7 Etapas)</string>
+    <string name="mode_learn">Aprender</string>
+    <string name="mode_practice">Praticar</string>
+    <string name="status_not_started">Não iniciada</string>
+    <string name="status_in_progress">Em andamento</string>
+    <string name="status_completed">Concluída</string>
+    <string name="action_reset_camera">Recentralizar câmera</string>
+    <string name="action_reset_cube">Restaurar cubo</string>
+    <string name="action_scramble">Embaralhar</string>
+    <string name="action_undo">Desfazer</string>
+    <string name="opening_badge">LABORATÓRIO INTERATIVO 3D</string>
+    <string name="opening_subtitle">Domine o Cubo Mágico 3×3 com física 3D em tempo real e orientação visual passo a passo.</string>
+    <string name="opening_enter_button">Entrar na Experiência</string>
+    <string name="welcome_title">Bem-vindo ao Cubo Mestre 3D</string>
+    <string name="welcome_subtitle">Uma jornada 3D interativa e colorida, criada para crianças, jovens e adultos dominarem cada camada do Cubo Mágico.</string>
+    <string name="welcome_choose_language">Escolha seu idioma de preferência</string>
+    <string name="welcome_language_note">Você pode alterar o idioma a qualquer momento no Menu Principal ou em Configurações.</string>
+    <string name="welcome_get_started">Começar</string>
+    <string name="solve_my_cube_title">Resolver meu cubo</string>
+    <string name="solve_my_cube_badge">Etapa 3 • Em breve</string>
+    <string name="solve_my_cube_subtitle">Assistente inteligente passo a passo para o seu cubo físico</string>
+    <string name="solve_with_camera">Resolver com câmera</string>
+    <string name="solve_manually">Resolver manualmente</string>
+</resources>
