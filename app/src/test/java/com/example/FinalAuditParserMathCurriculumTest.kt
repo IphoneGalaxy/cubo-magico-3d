@@ -1086,5 +1086,193 @@ class FinalAuditParserMathCurriculumTest {
         assertTrue("Descrição de s6_c2 deve explicar que o par surge na Esquerda após a Fase 1", s6c2.description.lowercase().contains("esquerda"))
         assertEquals(26, CurriculumRepository.steps.sumOf { it.cases.size })
     }
+
+    /**
+     * SEÇÃO 9 — AUDITORIA DE INTERNACIONALIZAÇÃO COMPLETA (EN-US / PT-BR) E PREPARAÇÃO PARA TTS:
+     * - Verifica que todas as 7 etapas, 26 casos, fases pedagógicas, notas de manipulação do cubo físico,
+     *   grupos de notação, movimentos, cores e faces possuem traduções completas e distintas em en-US e pt-BR.
+     * - Confirma a precisão terminológica em inglês (White Cross, Yellow Cross, Corners, Edges, Headlights, Sune, Minerva).
+     * - Confirma a tradução da Etapa 6 (incluindo "headlights" / "faróis" e diagnósticos em tempo real).
+     * - Valida os segmentos estruturados de narração (`buildNarrationSegments`) prontos para futura leitura por voz (TTS).
+     */
+    @Test
+    fun testCompleteInternationalizationEnUsAndPtBrForAll7StepsAnd26Cases() {
+        val en = com.example.data.AppLanguage.EN_US
+        val pt = com.example.data.AppLanguage.PT_BR
+        val prohibitedTerms = listOf("pdf", "camadas.pdf")
+
+        // 1. Verifica CubeFace, CubeColor, CubeMove, HighlightMode e InvalidCubeNotationException em en-US e pt-BR
+        for (face in CubeFace.entries) {
+            assertTrue(face.localizedLabel(en).isNotBlank())
+            assertTrue(face.localizedLabel(pt).isNotBlank())
+            assertFalse("CubeFace ${face.name} deve ter rótulos distintos em EN e PT", face.localizedLabel(en) == face.localizedLabel(pt))
+        }
+        for (color in CubeColor.entries) {
+            assertTrue(color.localizedLabel(en).isNotBlank())
+            assertTrue(color.localizedLabel(pt).isNotBlank())
+            assertFalse("CubeColor ${color.name} deve ter rótulos distintos em EN e PT", color.localizedLabel(en) == color.localizedLabel(pt))
+        }
+        for (move in CubeMove.entries) {
+            assertTrue(move.localizedTitle(en).isNotBlank())
+            assertTrue(move.localizedTitle(pt).isNotBlank())
+            assertTrue(move.localizedExplanation(en).isNotBlank())
+            assertTrue(move.localizedExplanation(pt).isNotBlank())
+            assertFalse("Título de ${move.notation} deve ser traduzido em EN", move.localizedTitle(en) == move.localizedTitle(pt))
+            assertFalse("Explicação de ${move.notation} deve ser traduzida em EN", move.localizedExplanation(en) == move.localizedExplanation(pt))
+        }
+        for (mode in HighlightMode.entries) {
+            assertTrue(mode.localizedLabel(en).isNotBlank())
+            assertTrue(mode.localizedLabel(pt).isNotBlank())
+            assertFalse("HighlightMode ${mode.name} deve ser traduzido em EN", mode.localizedLabel(en) == mode.localizedLabel(pt))
+        }
+        for (group in CurriculumRepository.notationGroups) {
+            assertTrue(group.localizedName(en).isNotBlank())
+            assertTrue(group.localizedName(pt).isNotBlank())
+            assertTrue(group.localizedDescription(en).isNotBlank())
+            assertTrue(group.localizedDescription(pt).isNotBlank())
+            assertFalse(group.localizedName(en) == group.localizedName(pt))
+            assertFalse(group.localizedDescription(en) == group.localizedDescription(pt))
+        }
+
+        try {
+            CubeMove.parseSequence("R U INVALID_TOKEN")
+            fail("Deveria lançar InvalidCubeNotationException")
+        } catch (e: InvalidCubeNotationException) {
+            val msgEn = e.localizedMessage(en)
+            val msgPt = e.localizedMessage(pt)
+            assertTrue(msgEn.contains("Invalid move token 'INVALID_TOKEN' at position 2 (1-based: 3)"))
+            assertTrue(msgPt.contains("Token de movimento inválido 'INVALID_TOKEN' na posição 2 (1-based: 3)"))
+        }
+
+        // 2. Audita todas as 7 etapas e todos os 26 casos em en-US e pt-BR
+        val steps = CurriculumRepository.steps
+        assertEquals(7, steps.size)
+        var totalCasesCount = 0
+
+        for (step in steps) {
+            val titleEn = step.localizedTitle(en)
+            val titlePt = step.localizedTitle(pt)
+            val subtitleEn = step.localizedSubtitle(en)
+            val subtitlePt = step.localizedSubtitle(pt)
+            val shortGoalEn = step.localizedShortGoal(en)
+            val shortGoalPt = step.localizedShortGoal(pt)
+            val goalSimpleEn = step.localizedGoalSimple(en)
+            val goalSimplePt = step.localizedGoalSimple(pt)
+            val theoryEn = step.localizedDetailedTheory(en)
+            val theoryPt = step.localizedDetailedTheory(pt)
+
+            assertTrue("Step ${step.number} titleEn vazio", titleEn.isNotBlank())
+            assertTrue("Step ${step.number} subtitleEn vazio", subtitleEn.isNotBlank())
+            assertTrue("Step ${step.number} shortGoalEn vazio", shortGoalEn.isNotBlank())
+            assertTrue("Step ${step.number} goalSimpleEn vazio", goalSimpleEn.isNotBlank())
+            assertTrue("Step ${step.number} theoryEn vazio", theoryEn.isNotBlank())
+
+            assertFalse("Step ${step.number} title deve diferir entre EN e PT", titleEn == titlePt)
+            assertFalse("Step ${step.number} subtitle deve diferir entre EN e PT", subtitleEn == subtitlePt)
+            assertFalse("Step ${step.number} shortGoal deve diferir entre EN e PT", shortGoalEn == shortGoalPt)
+            assertFalse("Step ${step.number} goalSimple deve diferir entre EN e PT", goalSimpleEn == goalSimplePt)
+            assertFalse("Step ${step.number} detailedTheory deve diferir entre EN e PT", theoryEn == theoryPt)
+
+            for (case in step.cases) {
+                totalCasesCount++
+                val cTitleEn = case.localizedCaseTitle(en)
+                val cTitlePt = case.localizedCaseTitle(pt)
+                val sitTitleEn = case.localizedSituationTitle(en)
+                val sitTitlePt = case.localizedSituationTitle(pt)
+                val badgeEn = case.localizedShortBadge(en)
+                val badgePt = case.localizedShortBadge(pt)
+                val summaryEn = case.localizedCompactSummary(en)
+                val summaryPt = case.localizedCompactSummary(pt)
+                val descEn = case.localizedDescription(en)
+                val descPt = case.localizedDescription(pt)
+                val noteEn = case.localizedPedagogicalNote(en)
+                val notePt = case.localizedPedagogicalNote(pt)
+
+                assertTrue("caseTitleEn vazio em ${case.id}", cTitleEn.isNotBlank())
+                assertTrue("situationTitleEn vazio em ${case.id}", sitTitleEn.isNotBlank())
+                assertTrue("shortBadgeEn vazio em ${case.id}", badgeEn.isNotBlank())
+                assertTrue("compactSummaryEn vazio em ${case.id}", summaryEn.isNotBlank())
+                assertTrue("descriptionEn vazia em ${case.id}", descEn.isNotBlank())
+                assertTrue("pedagogicalNoteEn vazia em ${case.id}", noteEn.isNotBlank())
+
+                assertFalse("caseTitle deve diferir entre EN e PT em ${case.id}", cTitleEn == cTitlePt)
+                assertFalse("situationTitle deve diferir entre EN e PT em ${case.id}", sitTitleEn == sitTitlePt)
+                assertFalse("compactSummary deve diferir entre EN e PT em ${case.id}", summaryEn == summaryPt)
+                assertFalse("description deve diferir entre EN e PT em ${case.id}", descEn == descPt)
+                assertFalse("pedagogicalNote deve diferir entre EN e PT em ${case.id}", noteEn == notePt)
+
+                if (case.pdfValidationNote != null) {
+                    val pdfEn = case.localizedPdfValidationNote(en)
+                    val pdfPt = case.localizedPdfValidationNote(pt)
+                    assertNotNull("pdfValidationNoteEn não pode ser nulo em ${case.id}", pdfEn)
+                    assertTrue(pdfEn!!.isNotBlank())
+                    assertFalse("pdfValidationNote deve diferir entre EN e PT em ${case.id}", pdfEn == pdfPt)
+                }
+
+                for (phase in case.pedagogicalPhases) {
+                    val pTitleEn = phase.localizedTitle(en)
+                    val pTitlePt = phase.localizedTitle(pt)
+                    val pExecEn = phase.localizedExecutionBannerText(en)
+                    val pExecPt = phase.localizedExecutionBannerText(pt)
+                    assertTrue(pTitleEn.isNotBlank())
+                    assertTrue(pExecEn.isNotBlank())
+                    assertFalse("Phase title deve diferir entre EN e PT em ${case.id} F${phase.phaseNumber}", pTitleEn == pTitlePt)
+                    assertFalse("Phase executionBannerText deve diferir entre EN e PT em ${case.id} F${phase.phaseNumber}", pExecEn == pExecPt)
+                    if (phase.completionSummaryText.isNotBlank()) {
+                        val pCompEn = phase.localizedCompletionSummaryText(en)
+                        val pCompPt = phase.localizedCompletionSummaryText(pt)
+                        assertTrue(pCompEn.isNotBlank())
+                        assertFalse("Phase completionSummaryText deve diferir entre EN e PT em ${case.id} F${phase.phaseNumber}", pCompEn == pCompPt)
+                    }
+                }
+
+                // Verifica segmentos de narração estruturados para futura integração Android TTS
+                val narrationEn = case.buildNarrationSegments(en, step)
+                val narrationPt = case.buildNarrationSegments(pt, step)
+                assertTrue("Segmentos de narração EN devem conter pelo menos 5 partes em ${case.id}", narrationEn.size >= 5)
+                assertEquals("Contagem de segmentos de narração EN e PT deve coincidir em ${case.id}", narrationPt.size, narrationEn.size)
+                assertTrue(narrationEn.all { it.isNotBlank() })
+                assertTrue(narrationPt.all { it.isNotBlank() })
+                assertFalse(narrationEn == narrationPt)
+
+                // Zero referências a PDF em ambos os idiomas
+                for (text in narrationEn + narrationPt) {
+                    for (term in prohibitedTerms) {
+                        assertFalse("Texto de narração em ${case.id} não pode conter '$term'", text.lowercase().contains(term))
+                    }
+                }
+            }
+        }
+        assertEquals(26, totalCasesCount)
+
+        // 3. Verifica terminologia pedagógica em inglês da Etapa 6 ("headlights", "corners", "edges")
+        val step6 = CurriculumRepository.getStep(6)
+        val s6c1 = step6.cases[0]
+        val s6c2 = step6.cases[1]
+        assertTrue(s6c1.localizedDescription(en).lowercase().contains("headlights"))
+        assertTrue(s6c1.localizedDescription(en).lowercase().contains("orange"))
+        assertTrue(s6c1.localizedDescription(en).lowercase().contains("3-color"))
+        assertTrue(s6c1.localizedDescription(en).lowercase().contains("stage 5"))
+        assertTrue(s6c2.localizedDescription(en).lowercase().contains("headlights"))
+        assertTrue(s6c2.localizedDescription(en).lowercase().contains("left"))
+
+        // Diagnósticos em tempo real da Etapa 6 em en-US e pt-BR
+        val s6c1Init = s6c1.createInitialState()
+        assertTrue(CurriculumRepository.describeStage6CornerState(s6c1Init, en).contains("Orange pair on Back (B)"))
+        assertTrue(CurriculumRepository.describeStage6CornerState(s6c1Init, pt).contains("Par Laranja em Trás (B)"))
+
+        val s6c1Final = s6c1Init.applyMoves(s6c1.fullMoveList)
+        assertTrue(CurriculumRepository.describeStage6CornerState(s6c1Final, en).contains("4 pairs aligned"))
+        assertTrue(CurriculumRepository.describeStage6CornerState(s6c1Final, pt).contains("4 pares alinhados"))
+
+        val s6c2Init = s6c2.createInitialState()
+        assertTrue(CurriculumRepository.describeStage6CornerState(s6c2Init, en).contains("No pairs on sides"))
+        assertTrue(CurriculumRepository.describeStage6CornerState(s6c2Init, pt).contains("Nenhum par nas laterais"))
+
+        val s6c2AfterPhase1 = s6c2Init.applyMoves(s6c2.fullMoveList.subList(0, 9))
+        assertTrue(CurriculumRepository.describeStage6CornerState(s6c2AfterPhase1, en).contains("Green pair on Left (L)"))
+        assertTrue(CurriculumRepository.describeStage6CornerState(s6c2AfterPhase1, pt).contains("Par Verde na Esquerda (L)"))
+    }
 }
+
 

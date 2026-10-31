@@ -23,8 +23,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -41,11 +39,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.R
 import com.example.curriculum.CurriculumRepository
 import com.example.curriculum.NotationGuideGroup
 import com.example.model.CubeMove
@@ -86,6 +86,7 @@ fun NotationGuideModal(
                     .padding(14.dp)
             ) {
                 val themeColors = CuboMestreTheme.colors
+                val strings = CuboMestreTheme.strings
                 val isLandscape = maxWidth > maxHeight && maxHeight < 540.dp
 
                 Column(modifier = Modifier.fillMaxSize()) {
@@ -108,7 +109,7 @@ fun NotationGuideModal(
                             .testTag("notation_orientation_banner")
                     ) {
                         Text(
-                            text = "Toque em uma notação para observar o movimento no cubo.",
+                            text = strings.notationOrientationBanner,
                             style = MaterialTheme.typography.labelMedium,
                             color = themeColors.turquoiseAccent,
                             fontWeight = FontWeight.SemiBold,
@@ -209,6 +210,7 @@ fun NotationGuideModal(
 
 @Composable
 private fun NotationModalHeader(onDismiss: () -> Unit) {
+    val strings = CuboMestreTheme.strings
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -216,13 +218,13 @@ private fun NotationModalHeader(onDismiss: () -> Unit) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Guia de Notação 3×3",
+                text = strings.notationModalTitle,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Demonstração 3D física em tempo real (F, R, U, L, D, B, M, E, S)",
+                text = strings.notationModalSubtitle,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -239,8 +241,8 @@ private fun NotationModalHeader(onDismiss: () -> Unit) {
                 .testTag("close_notation_modal_button")
         ) {
             Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = "Fechar guia de notação",
+                painter = painterResource(id = R.drawable.ic_close),
+                contentDescription = strings.notationCloseContentDesc,
                 tint = MaterialTheme.colorScheme.onSurface
             )
         }
@@ -259,6 +261,7 @@ private fun Notation3DPreviewViewport(
     modifier: Modifier = Modifier
 ) {
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
     Card(
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
@@ -307,13 +310,13 @@ private fun Notation3DPreviewViewport(
                     modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "Restaurar cubo do guia",
+                        painter = painterResource(id = R.drawable.ic_refresh),
+                        contentDescription = strings.notationRestoreContentDesc,
                         tint = themeColors.turquoiseAccent,
                         modifier = Modifier.size(13.dp)
                     )
                     Text(
-                        text = "Restaurar",
+                        text = strings.notationRestoreButton,
                         style = MaterialTheme.typography.labelSmall,
                         color = themeColors.turquoiseAccent,
                         fontWeight = FontWeight.Bold
@@ -330,6 +333,7 @@ private fun NotationSelectedMoveCard(
     onReplayMove: () -> Unit
 ) {
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = RoundedCornerShape(14.dp),
@@ -355,7 +359,7 @@ private fun NotationSelectedMoveCard(
                     .padding(end = 8.dp)
             ) {
                 Text(
-                    text = "${selectedMove.notation} — ${selectedMove.titlePt}",
+                    text = "${selectedMove.notation} — ${selectedMove.localizedTitle(strings.language)}",
                     style = MaterialTheme.typography.titleSmall,
                     color = themeColors.turquoiseAccent,
                     fontWeight = FontWeight.Bold,
@@ -364,7 +368,7 @@ private fun NotationSelectedMoveCard(
                     modifier = Modifier.testTag("notation_selected_move_title")
                 )
                 Text(
-                    text = selectedMove.explanationPt,
+                    text = selectedMove.localizedExplanation(strings.language),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 2,
@@ -387,12 +391,12 @@ private fun NotationSelectedMoveCard(
             ) {
                 Icon(
                     imageVector = Icons.Default.Replay,
-                    contentDescription = "Repetir movimento no cubo 3D",
+                    contentDescription = strings.notationRepeatContentDesc,
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(5.dp))
                 Text(
-                    text = "Repetir",
+                    text = strings.notationRepeatButton,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1
@@ -408,6 +412,7 @@ private fun NotationScrollableListSection(
     onSelectMove: (CubeMove) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val strings = CuboMestreTheme.strings
     Column(
         modifier = modifier
             .verticalScroll(rememberScrollState())
@@ -422,16 +427,14 @@ private fun NotationScrollableListSection(
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
                 Text(
-                    text = "Como ler os símbolos",
+                    text = strings.notationHowToReadTitle,
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(3.dp))
                 Text(
-                    text = "• Letra sozinha (ex: R, U, F): Giro de 90° no sentido horário.\n" +
-                        "• Letra com apóstrofo ' (ex: R', U', F'): Giro de 90° no sentido anti-horário.\n" +
-                        "• Letra com número 2 (ex: R2, U2, B2): Giro duplo de 180° (meia-volta).",
+                    text = strings.notationHowToReadBody,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -456,6 +459,7 @@ private fun NotationFamilyCard(
     onSelectMove: (CubeMove) -> Unit
 ) {
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
@@ -472,7 +476,7 @@ private fun NotationFamilyCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "${group.family} — ${group.namePt}",
+                    text = "${group.family} — ${group.localizedName(strings.language)}",
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
@@ -482,7 +486,7 @@ private fun NotationFamilyCard(
             Spacer(modifier = Modifier.height(3.dp))
 
             Text(
-                text = group.descriptionPt,
+                text = group.localizedDescription(strings.language),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -522,9 +526,9 @@ private fun NotationFamilyCard(
                                 style = MaterialTheme.typography.titleSmall
                             )
                             val sub = when {
-                                move.notation.endsWith("'") -> "Anti-horário"
-                                move.notation.endsWith("2") -> "180° Duplo"
-                                else -> "Horário"
+                                move.notation.endsWith("'") -> strings.notationSubCounterClockwise
+                                move.notation.endsWith("2") -> strings.notationSubDouble180
+                                else -> strings.notationSubClockwise
                             }
                             Text(
                                 text = sub,

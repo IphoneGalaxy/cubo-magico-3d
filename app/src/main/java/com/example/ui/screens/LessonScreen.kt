@@ -163,6 +163,7 @@ fun LessonScreen(
     onPlayDemoPhase: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val strings = CuboMestreTheme.strings
     val stepNumber = lessonState.stepNumber
     val caseIndex = lessonState.caseIndex
     val step = remember(stepNumber) { CurriculumRepository.getStep(stepNumber) }
@@ -245,7 +246,7 @@ fun LessonScreen(
             ) {
                 LessonCompactHeader(
                     stepNumber = stepNumber,
-                    shortTitle = step.title,
+                    shortTitle = step.localizedTitle(strings.language),
                     speedMultiplier = progressState.animationSpeedMultiplier,
                     highlightTargetPieces = progressState.highlightTargetPieces,
                     onBackToCourse = stableBackToCourse,
@@ -380,7 +381,7 @@ fun LessonScreen(
                 // 1. Cabeçalho Compacto e Adaptativo
                 LessonCompactHeader(
                     stepNumber = stepNumber,
-                    shortTitle = step.title,
+                    shortTitle = step.localizedTitle(strings.language),
                     speedMultiplier = progressState.animationSpeedMultiplier,
                     highlightTargetPieces = progressState.highlightTargetPieces,
                     onBackToCourse = stableBackToCourse,
@@ -504,6 +505,7 @@ private fun LessonCompactHeader(
     onOpenCaseDetail: () -> Unit = {}
 ) {
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
     val fontScale = LocalDensity.current.fontScale
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         // Quando a tela é estreita (< 460dp, ou seja, qualquer celular em retrato),
@@ -543,7 +545,7 @@ private fun LessonCompactHeader(
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Voltar ao curso",
+                                contentDescription = strings.lessonBackToCourseDesc,
                                 tint = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -590,7 +592,7 @@ private fun LessonCompactHeader(
                             ) {
                                 Icon(
                                     imageVector = Icons.Outlined.Speed,
-                                    contentDescription = "Velocidade da demonstração",
+                                    contentDescription = strings.lessonSpeedDesc,
                                     tint = themeColors.turquoiseAccent,
                                     modifier = Modifier.size(14.dp)
                                 )
@@ -620,7 +622,7 @@ private fun LessonCompactHeader(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Visibility,
-                                contentDescription = "Destacar peças importantes",
+                                contentDescription = strings.lessonHighlightPiecesDesc,
                                 tint = if (highlightTargetPieces) {
                                     themeColors.turquoiseAccent
                                 } else {
@@ -640,7 +642,7 @@ private fun LessonCompactHeader(
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Outlined.MenuBook,
-                                contentDescription = "Guia de Notação",
+                                contentDescription = strings.lessonNotationGuideDesc,
                                 tint = themeColors.violetAccent,
                                 modifier = Modifier.size(17.dp)
                             )
@@ -684,7 +686,7 @@ private fun LessonCompactHeader(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Voltar ao curso",
+                            contentDescription = strings.lessonBackToCourseDesc,
                             tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(19.dp)
                         )
@@ -744,7 +746,7 @@ private fun LessonCompactHeader(
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.Speed,
-                                contentDescription = "Velocidade da demonstração",
+                                contentDescription = strings.lessonSpeedDesc,
                                 tint = themeColors.turquoiseAccent,
                                 modifier = Modifier.size(15.dp)
                             )
@@ -774,7 +776,7 @@ private fun LessonCompactHeader(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Visibility,
-                            contentDescription = "Destacar peças importantes",
+                            contentDescription = strings.lessonHighlightPiecesDesc,
                             tint = if (highlightTargetPieces) {
                                 themeColors.turquoiseAccent
                             } else {
@@ -794,7 +796,7 @@ private fun LessonCompactHeader(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Outlined.MenuBook,
-                            contentDescription = "Guia de Notação",
+                            contentDescription = strings.lessonNotationGuideDesc,
                             tint = themeColors.violetAccent,
                             modifier = Modifier.size(18.dp)
                         )
@@ -811,6 +813,7 @@ private fun LessonModeSelectorBar(
     onSelectMode: (LearningMode) -> Unit
 ) {
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -833,7 +836,7 @@ private fun LessonModeSelectorBar(
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
-                        text = mode.shortLabelPt,
+                        text = mode.localizedShortLabel(strings.language),
                         style = MaterialTheme.typography.labelMedium,
                         color = if (isSelected) themeColors.onTurquoiseAccent else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Bold,
@@ -883,6 +886,7 @@ private fun LessonCubeViewportBox(
     val effectiveHighlightEnabled = highlightTargetPieces || isLShapeIntermediateMilestone
 
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
 
     SideEffect {
         LessonRecompositionTracker.viewportRecompositions++
@@ -937,7 +941,7 @@ private fun LessonCubeViewportBox(
                         modifier = Modifier.size(15.dp)
                     )
                     Text(
-                        text = "Formato de L formado (Trás + Esquerda)",
+                        text = strings.lessonLShapeFormedBadge,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold
@@ -975,7 +979,7 @@ private fun LessonCubeViewportBox(
                         modifier = Modifier.size(15.dp)
                     )
                     Text(
-                        text = "Demonstração concluída.",
+                        text = strings.lessonDemoCompletedBanner,
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.SemiBold
@@ -1012,7 +1016,7 @@ private fun LessonCubeViewportBox(
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
-                        text = "Excelente! Você completou esta etapa.",
+                        text = strings.lessonGoalAchievedBanner,
                         style = MaterialTheme.typography.labelMedium,
                         color = Color.White,
                         fontWeight = FontWeight.Bold
@@ -1053,8 +1057,8 @@ private fun LessonCubeViewportBox(
 
         // 4. Na Etapa 6 ("Posicionar os Cantos Finais"): indicador em tempo real do par de cantos ("faróis")
         if (stepNumber == 6) {
-            val stage6StatusText = remember(cubeState) {
-                CurriculumRepository.describeStage6CornerState(cubeState)
+            val stage6StatusText = remember(cubeState, strings.language) {
+                CurriculumRepository.describeStage6CornerState(cubeState, strings.language)
             }
             val isBackReady = remember(cubeState) {
                 cubeState.hasCornerPairOnSide(com.example.model.CubeFace.BACK) &&
@@ -1117,6 +1121,7 @@ private fun LessonCaseAndAlgorithmCard(
     isCompactHeight: Boolean = false
 ) {
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
     val step = remember(stepNumber) { CurriculumRepository.getStep(stepNumber) }
     val currentCase = remember(step, caseIndex) {
         step.cases.getOrElse(caseIndex) { step.cases.first() }
@@ -1127,7 +1132,7 @@ private fun LessonCaseAndAlgorithmCard(
     val caseNum = caseIndex + 1
     val canPrevCase = caseIndex > 0
     val canNextCase = caseIndex < step.cases.lastIndex
-    val caseSituationTitle = currentCase.situationTitle
+    val caseSituationTitle = currentCase.localizedSituationTitle(strings.language)
 
     var showCaseOrientationTip by rememberSaveable { mutableStateOf(true) }
     var showFullAlgorithm by rememberSaveable(stepNumber, caseIndex) { mutableStateOf(false) }
@@ -1190,7 +1195,7 @@ private fun LessonCaseAndAlgorithmCard(
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                                contentDescription = "Caso anterior",
+                                contentDescription = strings.lessonPrevCaseDesc,
                                 tint = if (canPrevCase) {
                                     themeColors.turquoiseAccent
                                 } else {
@@ -1200,7 +1205,7 @@ private fun LessonCaseAndAlgorithmCard(
                             )
                             if (showNavText) {
                                 Text(
-                                    text = "Anterior",
+                                    text = strings.lessonPrevCaseButton,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = if (canPrevCase) {
                                         themeColors.turquoiseAccent
@@ -1215,7 +1220,7 @@ private fun LessonCaseAndAlgorithmCard(
                     }
 
                     Text(
-                        text = "Caso $caseNum de $totalCases",
+                        text = strings.lessonCaseHeader(caseNum, totalCases),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold,
@@ -1241,7 +1246,7 @@ private fun LessonCaseAndAlgorithmCard(
                         ) {
                             if (showNavText) {
                                 Text(
-                                    text = "Próximo",
+                                    text = strings.lessonNextCaseButton,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = if (canNextCase) {
                                         themeColors.turquoiseAccent
@@ -1254,7 +1259,7 @@ private fun LessonCaseAndAlgorithmCard(
                             }
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                contentDescription = "Próximo caso",
+                                contentDescription = strings.lessonNextCaseDesc,
                                 tint = if (canNextCase) {
                                     themeColors.turquoiseAccent
                                 } else {
@@ -1310,12 +1315,12 @@ private fun LessonCaseAndAlgorithmCard(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Info,
-                                contentDescription = "Entender o caso",
+                                contentDescription = strings.lessonUnderstandCaseButton,
                                 tint = themeColors.turquoiseAccent,
                                 modifier = Modifier.size(12.dp)
                             )
                             Text(
-                                text = "Entender o caso",
+                                text = strings.lessonUnderstandCaseButton,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = themeColors.turquoiseAccent,
                                 fontWeight = FontWeight.SemiBold,
@@ -1343,7 +1348,7 @@ private fun LessonCaseAndAlgorithmCard(
                                     modifier = Modifier.fillMaxSize()
                                 ) {
                                     Text(
-                                        text = "Caso ${idx + 1}",
+                                        text = strings.lessonCaseChip(idx + 1),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontWeight = FontWeight.Bold,
@@ -1378,7 +1383,7 @@ private fun LessonCaseAndAlgorithmCard(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text(
-                                        text = "Escolha um caso para estudar e toque em 'Entender o caso' para a teoria completa.",
+                                        text = strings.lessonCaseOrientationTip,
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = if (fontScale >= 1.25f) 4 else 3,
@@ -1397,7 +1402,7 @@ private fun LessonCaseAndAlgorithmCard(
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Close,
-                                            contentDescription = "Fechar dica sobre casos",
+                                            contentDescription = strings.lessonDismissCaseTipDesc,
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.size(12.dp)
                                         )
@@ -1409,7 +1414,7 @@ private fun LessonCaseAndAlgorithmCard(
                         // Modo Compacto da Descrição do Caso: resumo autocontido sem corte no meio da frase
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = currentCase.compactSummary,
+                            text = currentCase.localizedCompactSummary(strings.language),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = if (fontScale >= 1.25f) 4 else 3,
@@ -1452,6 +1457,7 @@ private fun LessonCaseAndAlgorithmCard(
 
                             if (activePhase != null) {
                                 // Painel de Fases Pedagógicas (Etapa 4 Caso 2: 2 fases; Etapa 6 Caso 2: 4 fases)
+                                val localizedCompletionSummary = activePhase.localizedCompletionSummaryText(strings.language)
                                 Surface(
                                     color = themeColors.turquoiseAccent.copy(alpha = 0.12f),
                                     shape = RoundedCornerShape(8.dp),
@@ -1474,7 +1480,7 @@ private fun LessonCaseAndAlgorithmCard(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                text = activePhase.title,
+                                                text = activePhase.localizedTitle(strings.language),
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = themeColors.turquoiseAccent,
                                                 fontWeight = FontWeight.ExtraBold,
@@ -1504,7 +1510,7 @@ private fun LessonCaseAndAlgorithmCard(
                                         }
 
                                         Text(
-                                            text = activePhase.executionBannerText,
+                                            text = activePhase.localizedExecutionBannerText(strings.language),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurface,
                                             maxLines = if (fontScale >= 1.25f) 3 else 2,
@@ -1516,7 +1522,7 @@ private fun LessonCaseAndAlgorithmCard(
 
                                         if (currentMoveIndex == activePhase.endMoveIndex &&
                                             executingMoveIndex == null &&
-                                            activePhase.completionSummaryText.isNotBlank()
+                                            localizedCompletionSummary.isNotBlank()
                                         ) {
                                             Surface(
                                                 color = themeColors.warningText.copy(alpha = 0.14f),
@@ -1531,7 +1537,7 @@ private fun LessonCaseAndAlgorithmCard(
                                                     .testTag("phase_transition_message_banner")
                                             ) {
                                                 Text(
-                                                    text = activePhase.completionSummaryText,
+                                                    text = localizedCompletionSummary,
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = themeColors.warningText,
                                                     fontWeight = FontWeight.Bold,
@@ -1565,7 +1571,7 @@ private fun LessonCaseAndAlgorithmCard(
                                                 ) {
                                                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                                                         Text(
-                                                            text = "▶ Fase 1 (Linha→L)",
+                                                            text = strings.lessonPlayPhase1Button,
                                                             style = MaterialTheme.typography.labelSmall,
                                                             color = if (isPhase1Active) themeColors.onTurquoiseAccent else MaterialTheme.colorScheme.onSurface,
                                                             fontWeight = FontWeight.Bold,
@@ -1585,7 +1591,7 @@ private fun LessonCaseAndAlgorithmCard(
                                                 ) {
                                                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                                                         Text(
-                                                            text = "▶ Fase 2 (L→Cruz)",
+                                                            text = strings.lessonPlayPhase2Button,
                                                             style = MaterialTheme.typography.labelSmall,
                                                             color = if (isPhase2Active) themeColors.onTurquoiseAccent else MaterialTheme.colorScheme.onSurface,
                                                             fontWeight = FontWeight.Bold,
@@ -1608,7 +1614,7 @@ private fun LessonCaseAndAlgorithmCard(
                                                         modifier = Modifier.padding(horizontal = 6.dp)
                                                     ) {
                                                         Text(
-                                                            text = "▶ 2 Fases",
+                                                            text = strings.lessonPlay2PhasesButton,
                                                             style = MaterialTheme.typography.labelSmall,
                                                             color = themeColors.violetText,
                                                             fontWeight = FontWeight.Bold,
@@ -1630,7 +1636,7 @@ private fun LessonCaseAndAlgorithmCard(
                                                     ) {
                                                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                                                             Text(
-                                                                text = "▶ F${phase.phaseNumber}",
+                                                                text = strings.lessonPlayPhaseShortButton(phase.phaseNumber),
                                                                 style = MaterialTheme.typography.labelSmall,
                                                                 color = if (isPhaseActive) themeColors.onTurquoiseAccent else MaterialTheme.colorScheme.onSurface,
                                                                 fontWeight = FontWeight.Bold,
@@ -1654,7 +1660,7 @@ private fun LessonCaseAndAlgorithmCard(
                                                         modifier = Modifier.padding(horizontal = 6.dp)
                                                     ) {
                                                         Text(
-                                                            text = "▶ ${phases.size} Fases",
+                                                            text = strings.lessonPlayNPhasesButton(phases.size),
                                                             style = MaterialTheme.typography.labelSmall,
                                                             color = themeColors.violetText,
                                                             fontWeight = FontWeight.Bold,
@@ -1671,10 +1677,18 @@ private fun LessonCaseAndAlgorithmCard(
                             val activeMove = demoMoves.getOrNull(visualMoveIndex)
                             val moveStatusText = when {
                                 activeMove != null ->
-                                    "Mov. ${visualMoveIndex + 1}/${demoMoves.size}: ${activeMove.notation} (${activeMove.titlePt})"
+                                    strings.lessonCurrentMoveStatus(
+                                        visualMoveIndex + 1,
+                                        demoMoves.size,
+                                        activeMove.notation,
+                                        activeMove.localizedTitle(strings.language)
+                                    )
                                 demoMoves.isNotEmpty() ->
-                                    "1º mov.: ${demoMoves.first().notation} (${demoMoves.first().titlePt})"
-                                else -> "Algoritmo"
+                                    strings.lessonFirstMoveStatus(
+                                        demoMoves.first().notation,
+                                        demoMoves.first().localizedTitle(strings.language)
+                                    )
+                                else -> strings.lessonAlgorithmDefaultTitle
                             }
 
                             Row(
@@ -1684,9 +1698,9 @@ private fun LessonCaseAndAlgorithmCard(
                             ) {
                                 Text(
                                     text = when {
-                                        phases.size == 2 -> "Algoritmo completo (${demoMoves.size} mov. = 2×6)"
-                                        phases.size == 4 -> "Algoritmo completo (${demoMoves.size} mov. = 9 + U + 9 + U')"
-                                        else -> "Algoritmo (${demoMoves.size} mov.)"
+                                        phases.size == 2 -> strings.lessonFullAlgorithm2PhasesTitle(demoMoves.size)
+                                        phases.size == 4 -> strings.lessonFullAlgorithm4PhasesTitle(demoMoves.size)
+                                        else -> strings.lessonAlgorithmTitle(demoMoves.size)
                                     },
                                     style = MaterialTheme.typography.labelSmall,
                                     color = themeColors.violetText,
@@ -1703,7 +1717,7 @@ private fun LessonCaseAndAlgorithmCard(
                                             .testTag("toggle_full_algorithm_button")
                                     ) {
                                         Text(
-                                            text = if (showFullAlgorithm) "Compactar" else "Ver todos",
+                                            text = if (showFullAlgorithm) strings.lessonCollapseAlgorithmButton else strings.lessonViewAllAlgorithmButton,
                                             style = MaterialTheme.typography.labelSmall,
                                             color = themeColors.turquoiseAccent,
                                             fontWeight = FontWeight.SemiBold,
@@ -1747,7 +1761,7 @@ private fun LessonCaseAndAlgorithmCard(
                                                 .testTag("phase_transition_badge")
                                         ) {
                                             Text(
-                                                text = "→ L →",
+                                                text = strings.lessonPhaseTransitionLBadge,
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = themeColors.warningText,
                                                 fontWeight = FontWeight.ExtraBold,
@@ -1757,9 +1771,9 @@ private fun LessonCaseAndAlgorithmCard(
                                         }
                                     } else if (phases.size == 4 && (index == 9 || index == 10 || index == 19)) {
                                         val badgeLabel = when (index) {
-                                            9 -> "→ Par Esq. →"
-                                            10 -> "→ Par Trás →"
-                                            else -> "→ 4 Pares →"
+                                            9 -> strings.lessonPhaseTransitionLeftPairBadge
+                                            10 -> strings.lessonPhaseTransitionBackPairBadge
+                                            else -> strings.lessonPhaseTransition4PairsBadge
                                         }
                                         Surface(
                                             color = themeColors.warningText.copy(alpha = 0.16f),
@@ -1882,6 +1896,7 @@ private fun LearnPlaybackControlsCard(
     val canForward = currentMoveIndex < demoMoves.lastIndex && !isPlayingDemo
     val fontScale = LocalDensity.current.fontScale
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
 
     Card(
         colors = CardDefaults.cardColors(
@@ -1913,7 +1928,7 @@ private fun LearnPlaybackControlsCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
-                        contentDescription = "Reiniciar demonstração",
+                        contentDescription = strings.lessonResetDemoDesc,
                         tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
@@ -1929,7 +1944,7 @@ private fun LearnPlaybackControlsCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.SkipPrevious,
-                        contentDescription = "Movimento anterior",
+                        contentDescription = strings.lessonPrevMoveDesc,
                         tint = if (canBack) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
                     )
                 }
@@ -1949,12 +1964,12 @@ private fun LearnPlaybackControlsCard(
                     if (!isTight) {
                         Icon(
                             imageVector = if (isPlayingDemo) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (isPlayingDemo) "Pausar" else "Reproduzir"
+                            contentDescription = if (isPlayingDemo) strings.lessonPauseButton else strings.lessonPlayButton
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                     }
                     Text(
-                        text = if (isPlayingDemo) "Pausar" else "Reproduzir",
+                        text = if (isPlayingDemo) strings.lessonPauseButton else strings.lessonPlayButton,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1
@@ -1972,7 +1987,7 @@ private fun LearnPlaybackControlsCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.SkipNext,
-                        contentDescription = "Próximo movimento",
+                        contentDescription = strings.lessonNextMoveDesc,
                         tint = if (canForward) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
                     )
                 }
@@ -1987,7 +2002,7 @@ private fun LearnPlaybackControlsCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Repeat,
-                        contentDescription = "Repetir sequência",
+                        contentDescription = strings.lessonRepeatSequenceDesc,
                         tint = themeColors.violetAccent
                     )
                 }
@@ -2028,6 +2043,7 @@ private fun PracticeInteractiveCard(
     }
     val fontScale = LocalDensity.current.fontScale
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
 
     Card(
         colors = CardDefaults.cardColors(
@@ -2058,7 +2074,7 @@ private fun PracticeInteractiveCard(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
-                            text = "Família $activeFamily",
+                            text = strings.practiceFamilyTitle(activeFamily),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold,
@@ -2085,10 +2101,10 @@ private fun PracticeInteractiveCard(
                             ) {
                                 Text(
                                     text = when {
-                                        isMovesExpanded && isCompactLabels -> "Ocultar"
-                                        isMovesExpanded -> "Ocultar teclado"
-                                        isCompactLabels -> "Teclado"
-                                        else -> "Teclado completo"
+                                        isMovesExpanded && isCompactLabels -> strings.practiceHideCompactButton
+                                        isMovesExpanded -> strings.practiceHideKeyboardButton
+                                        isCompactLabels -> strings.practiceKeyboardCompactButton
+                                        else -> strings.practiceFullKeyboardButton
                                     },
                                     style = MaterialTheme.typography.labelSmall,
                                     color = themeColors.turquoiseAccent,
@@ -2097,7 +2113,7 @@ private fun PracticeInteractiveCard(
                                 )
                                 Icon(
                                     imageVector = if (isMovesExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                    contentDescription = "Alternar teclado completo de movimentos",
+                                    contentDescription = strings.practiceToggleKeyboardDesc,
                                     tint = themeColors.turquoiseAccent,
                                     modifier = Modifier.size(14.dp)
                                 )
@@ -2117,7 +2133,7 @@ private fun PracticeInteractiveCard(
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.Undo,
-                                contentDescription = "Desfazer último movimento",
+                                contentDescription = strings.practiceUndoDesc,
                                 tint = if (canUndo) {
                                     themeColors.turquoiseAccent
                                 } else {
@@ -2137,7 +2153,7 @@ private fun PracticeInteractiveCard(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
-                                contentDescription = "Reiniciar exercício",
+                                contentDescription = strings.practiceResetDesc,
                                 tint = themeColors.warningText,
                                 modifier = Modifier.size(15.dp)
                             )
@@ -2186,9 +2202,9 @@ private fun PracticeInteractiveCard(
                 ) {
                     familyMoves.forEachIndexed { idx, move ->
                         val subLabel = when (idx) {
-                            0 -> "Normal"
-                            1 -> "Inverso"
-                            else -> "Duplo"
+                            0 -> strings.practiceMoveNormalLabel
+                            1 -> strings.practiceMoveInverseLabel
+                            else -> strings.practiceMoveDoubleLabel
                         }
                         Surface(
                             color = MaterialTheme.colorScheme.surface,
@@ -2296,6 +2312,7 @@ private fun ExpandableExplanationPanel(
     val activeMove = currentCase.fullMoveList.getOrNull(currentMoveIndex) ?: selectedNotationMove
     val fontScale = LocalDensity.current.fontScale
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
 
     Card(
         colors = CardDefaults.cardColors(
@@ -2317,7 +2334,7 @@ private fun ExpandableExplanationPanel(
             Column(modifier = Modifier.fillMaxWidth()) {
                 if (stackGoalAndButtons) {
                     Text(
-                        text = step.shortGoal,
+                        text = step.localizedShortGoal(strings.language),
                         style = MaterialTheme.typography.labelSmall,
                         color = themeColors.turquoiseAccent,
                         fontWeight = FontWeight.Bold,
@@ -2353,7 +2370,7 @@ private fun ExpandableExplanationPanel(
                                         modifier = Modifier.padding(horizontal = 6.dp)
                                     ) {
                                         Text(
-                                            text = st.labelPt,
+                                            text = st.localizedLabel(strings.language),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = if (selected) themeColors.turquoiseAccent else MaterialTheme.colorScheme.onSurfaceVariant,
                                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
@@ -2371,7 +2388,7 @@ private fun ExpandableExplanationPanel(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = step.shortGoal,
+                            text = step.localizedShortGoal(strings.language),
                             style = MaterialTheme.typography.labelSmall,
                             color = themeColors.turquoiseAccent,
                             fontWeight = FontWeight.Bold,
@@ -2403,7 +2420,7 @@ private fun ExpandableExplanationPanel(
                                         modifier = Modifier.padding(horizontal = 6.dp)
                                     ) {
                                         Text(
-                                            text = st.labelPt,
+                                            text = st.localizedLabel(strings.language),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = if (selected) themeColors.turquoiseAccent else MaterialTheme.colorScheme.onSurfaceVariant,
                                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
@@ -2433,18 +2450,18 @@ private fun ExpandableExplanationPanel(
                         verticalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
                         Text(
-                            text = "Objetivo da etapa: ${step.goalSimple}",
+                            text = strings.panelStepGoalPrefix(step.localizedGoalSimple(strings.language)),
                             style = MaterialTheme.typography.labelSmall,
                             color = themeColors.turquoiseAccent,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = currentCase.description,
+                            text = currentCase.localizedDescription(strings.language),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Dica: ${currentCase.pedagogicalNote}",
+                            text = strings.panelTipPrefix(currentCase.localizedPedagogicalNote(strings.language)),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -2468,41 +2485,44 @@ private fun ExpandableExplanationPanel(
                         verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         Text(
-                            text = "Etapa ${step.number}: ${step.title}",
+                            text = strings.panelStepHeader(step.number, step.localizedTitle(strings.language)),
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Objetivo: ${step.goalSimple}",
+                            text = strings.panelGoalPrefix(step.localizedGoalSimple(strings.language)),
                             style = MaterialTheme.typography.bodySmall,
                             color = themeColors.turquoiseAccent,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = step.detailedTheory,
+                            text = step.localizedDetailedTheory(strings.language),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = currentCase.description,
+                            text = currentCase.localizedDescription(strings.language),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Dica do Professor: ${currentCase.pedagogicalNote}",
+                            text = strings.panelTeacherTipPrefix(currentCase.localizedPedagogicalNote(strings.language)),
                             style = MaterialTheme.typography.bodySmall,
                             color = themeColors.turquoiseAccent
                         )
                         if (activeMove != null) {
                             Text(
-                                text = "Notação ${activeMove.notation}: ${activeMove.explanationPt}",
+                                text = strings.panelNotationMoveExplanation(
+                                    activeMove.notation,
+                                    activeMove.localizedExplanation(strings.language)
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
-                        currentCase.pdfValidationNote?.let { pdfNote ->
+                        currentCase.localizedPdfValidationNote(strings.language)?.let { pdfNote ->
                             Surface(
                                 color = themeColors.warningText.copy(alpha = 0.14f),
                                 shape = RoundedCornerShape(10.dp),
@@ -2555,6 +2575,7 @@ private fun CaseDetailedExplanationModal(
     val caseNum = caseIndex + 1
     val moves = currentCase.fullMoveList
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
 
     Box(
         modifier = Modifier
@@ -2590,13 +2611,17 @@ private fun CaseDetailedExplanationModal(
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Text(
-                            text = "Etapa ${step.number} de 7 — ${step.title}",
+                            text = strings.caseModalStepHeader(step.number, step.localizedTitle(strings.language)),
                             style = MaterialTheme.typography.labelMedium,
                             color = themeColors.turquoiseAccent,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Caso $caseNum de $totalCases — ${currentCase.situationTitle}",
+                            text = strings.caseModalTitleHeader(
+                                caseNum,
+                                totalCases,
+                                currentCase.localizedSituationTitle(strings.language)
+                            ),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold,
@@ -2614,7 +2639,7 @@ private fun CaseDetailedExplanationModal(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "Fechar explicação do caso",
+                            contentDescription = strings.caseModalCloseDesc,
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
@@ -2644,13 +2669,13 @@ private fun CaseDetailedExplanationModal(
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                text = "O que acontece neste caso",
+                                text = strings.caseModalWhatHappensTitle,
                                 style = MaterialTheme.typography.labelMedium,
                                 color = themeColors.turquoiseAccent,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = currentCase.description,
+                                text = currentCase.localizedDescription(strings.language),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.testTag("case_detail_full_description")
@@ -2673,13 +2698,13 @@ private fun CaseDetailedExplanationModal(
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                text = "Dica do Professor",
+                                text = strings.caseModalTeacherTipTitle,
                                 style = MaterialTheme.typography.labelMedium,
                                 color = themeColors.turquoiseAccent,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = currentCase.pedagogicalNote,
+                                text = currentCase.localizedPedagogicalNote(strings.language),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.testTag("case_detail_pedagogical_note")
@@ -2705,7 +2730,7 @@ private fun CaseDetailedExplanationModal(
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                text = "Algoritmo completo (${moves.size} movimentos)",
+                                text = strings.caseModalFullAlgorithmTitle(moves.size),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = themeColors.violetText,
                                 fontWeight = FontWeight.Bold
@@ -2721,6 +2746,7 @@ private fun CaseDetailedExplanationModal(
 
                             if (currentCase.pedagogicalPhases.isNotEmpty()) {
                                 currentCase.pedagogicalPhases.forEach { phase ->
+                                    val phaseCompletion = phase.localizedCompletionSummaryText(strings.language)
                                     Surface(
                                         color = themeColors.turquoiseAccent.copy(alpha = 0.12f),
                                         shape = RoundedCornerShape(8.dp),
@@ -2734,26 +2760,26 @@ private fun CaseDetailedExplanationModal(
                                             verticalArrangement = Arrangement.spacedBy(2.dp)
                                         ) {
                                             Text(
-                                                text = phase.title,
+                                                text = phase.localizedTitle(strings.language),
                                                 style = MaterialTheme.typography.labelMedium,
                                                 color = themeColors.turquoiseAccent,
                                                 fontWeight = FontWeight.Bold
                                             )
                                             Text(
-                                                text = phase.executionBannerText,
+                                                text = phase.localizedExecutionBannerText(strings.language),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                             Text(
-                                                text = "Algoritmo: ${phase.algorithmText}",
+                                                text = strings.caseModalPhaseAlgorithmPrefix(phase.algorithmText),
                                                 fontFamily = JetBrainsMonoFontFamily,
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = themeColors.violetText,
                                                 fontWeight = FontWeight.Bold
                                             )
-                                            if (phase.completionSummaryText.isNotBlank()) {
+                                            if (phaseCompletion.isNotBlank()) {
                                                 Text(
-                                                    text = phase.completionSummaryText,
+                                                    text = phaseCompletion,
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = themeColors.warningText,
                                                     fontWeight = FontWeight.SemiBold
@@ -2780,13 +2806,17 @@ private fun CaseDetailedExplanationModal(
                                         verticalArrangement = Arrangement.spacedBy(2.dp)
                                     ) {
                                         Text(
-                                            text = "Passo ${idx + 1}: ${move.notation} — ${move.titlePt}",
+                                            text = strings.caseModalMoveStepHeader(
+                                                idx + 1,
+                                                move.notation,
+                                                move.localizedTitle(strings.language)
+                                            ),
                                             style = MaterialTheme.typography.labelMedium,
                                             color = if (isCurrent) themeColors.turquoiseAccent else MaterialTheme.colorScheme.onSurface,
                                             fontWeight = FontWeight.Bold
                                         )
                                         Text(
-                                            text = move.explanationPt,
+                                            text = move.localizedExplanation(strings.language),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -2809,20 +2839,20 @@ private fun CaseDetailedExplanationModal(
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                text = "Objetivo da Etapa ${step.number}",
+                                text = strings.caseModalStepGoalTitle(step.number),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = themeColors.turquoiseAccent,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = step.goalSimple,
+                                text = step.localizedGoalSimple(strings.language),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.testTag("case_detail_goal_text")
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = step.detailedTheory,
+                                text = step.localizedDetailedTheory(strings.language),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.testTag("case_detail_theory_text")
@@ -2831,7 +2861,7 @@ private fun CaseDetailedExplanationModal(
                     }
 
                     // 5. Nota de Validação do PDF (quando existir)
-                    currentCase.pdfValidationNote?.let { pdfNote ->
+                    currentCase.localizedPdfValidationNote(strings.language)?.let { pdfNote ->
                         Card(
                             colors = CardDefaults.cardColors(
                                 containerColor = themeColors.warningText.copy(alpha = 0.14f)
@@ -2847,7 +2877,7 @@ private fun CaseDetailedExplanationModal(
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    text = "Dica de orientação",
+                                    text = strings.caseModalOrientationTipTitle,
                                     style = MaterialTheme.typography.labelMedium,
                                     color = themeColors.warningText,
                                     fontWeight = FontWeight.Bold
@@ -2877,7 +2907,7 @@ private fun CaseDetailedExplanationModal(
                         .testTag("return_to_cube_from_detail_button")
                 ) {
                     Text(
-                        text = "Voltar para o cubo 3D",
+                        text = strings.caseModalReturnToCubeButton,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold
                     )
@@ -2897,15 +2927,16 @@ private fun Stage6HeadlightsVisualGuideCard(
     caseIndex: Int
 ) {
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
     val isCase1 = caseIndex == 0
     val pairStickerColor = if (isCase1) StickerOrange else StickerGreen
-    val pairColorLabel = if (isCase1) "Laranja" else "Verde"
+    val pairColorLabel = if (isCase1) strings.stage6HeadlightsOrangeLabel else strings.stage6HeadlightsGreenLabel
     val centerStickerColor = if (isCase1) StickerGreen else StickerOrange
-    val centerColorLabel = if (isCase1) "Verde" else "Laranja"
+    val centerColorLabel = if (isCase1) strings.stage6HeadlightsGreenLabel else strings.stage6HeadlightsOrangeLabel
     val faceTitle = if (isCase1) {
-        "Face de Trás (B) no início do Caso 1"
+        strings.stage6HeadlightsCase1FaceTitle
     } else {
-        "Face da Esquerda (L) após a Fase 1 do Caso 2"
+        strings.stage6HeadlightsCase2FaceTitle
     }
 
     Card(
@@ -2923,7 +2954,7 @@ private fun Stage6HeadlightsVisualGuideCard(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "Como identificar um par ('faróis') na Etapa 6",
+                text = strings.stage6HeadlightsGuideTitle,
                 style = MaterialTheme.typography.labelMedium,
                 color = themeColors.turquoiseAccent,
                 fontWeight = FontWeight.Bold,
@@ -2955,7 +2986,7 @@ private fun Stage6HeadlightsVisualGuideCard(
                     )
 
                     Text(
-                        text = "Topo (U): os 4 adesivos amarelos já apontam para cima (Etapa 5)",
+                        text = strings.stage6HeadlightsTopYellowCaption,
                         style = MaterialTheme.typography.labelSmall,
                         color = StickerYellow,
                         textAlign = TextAlign.Center
@@ -3003,7 +3034,7 @@ private fun Stage6HeadlightsVisualGuideCard(
                                     .testTag("stage6_diagram_left_corner_sticker")
                             ) {
                                 Text(
-                                    text = "1º",
+                                    text = strings.stage6HeadlightsFirstCornerBadge,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = Color.Black,
                                     fontWeight = FontWeight.ExtraBold
@@ -3039,7 +3070,7 @@ private fun Stage6HeadlightsVisualGuideCard(
                                     .testTag("stage6_diagram_right_corner_sticker")
                             ) {
                                 Text(
-                                    text = "2º",
+                                    text = strings.stage6HeadlightsSecondCornerBadge,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = Color.Black,
                                     fontWeight = FontWeight.ExtraBold
@@ -3086,7 +3117,7 @@ private fun Stage6HeadlightsVisualGuideCard(
                     }
 
                     Text(
-                        text = "Compare SOMENTE os adesivos 1º e 2º (cantos da fileira superior): $pairColorLabel = $pairColorLabel → Par ('faróis')! O meio (×) fica para a Etapa 7 e o centro (C = $centerColorLabel) ainda não precisa ter a mesma cor.",
+                        text = strings.stage6HeadlightsDiagramCaption(pairColorLabel, centerColorLabel),
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White,
                         textAlign = TextAlign.Center,
@@ -3102,14 +3133,7 @@ private fun Stage6HeadlightsVisualGuideCard(
                     .testTag("stage6_headlights_six_rules_list"),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                val rules = listOf(
-                    "1. Cada peça de canto possui três cores, e cada combinação é única no cubo 3×3.",
-                    "2. Não estamos procurando dois cantos com as mesmas três cores.",
-                    "3. Na Etapa 6, os quatro adesivos amarelos dos cantos já devem estar voltados para cima, pois isso foi resolvido na Etapa 5.",
-                    "4. Para encontrar um par ('faróis'), devemos olhar uma face lateral e comparar somente os dois adesivos dos cantos da fileira superior.",
-                    "5. Se esses dois adesivos laterais possuem a mesma cor, encontramos um par.",
-                    "6. Não importa se essa cor corresponde inicialmente ao centro daquela face; o alinhamento com os centros será concluído durante a resolução."
-                )
+                val rules = strings.stage6HeadlightsSixRules
                 rules.forEachIndexed { idx, ruleText ->
                     Text(
                         text = ruleText,
@@ -3134,18 +3158,18 @@ private fun Stage6HeadlightsVisualGuideCard(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = "Exemplo prático nos Casos 1 e 2:",
+                        text = strings.stage6HeadlightsExamplesTitle,
                         style = MaterialTheme.typography.labelSmall,
                         color = themeColors.turquoiseAccent,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "• No Caso 1, os dois cantos superiores da face de trás possuem adesivos laranja. Eles formam um par, mesmo que o centro traseiro seja verde, as outras cores das duas peças sejam diferentes e as arestas superiores ainda não estejam resolvidas.",
+                        text = strings.stage6HeadlightsExampleCase1,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "• No Caso 2, nenhuma das quatro faces laterais possui um par assim inicialmente; por isso a primeira execução do algoritmo serve para criar o primeiro par.",
+                        text = strings.stage6HeadlightsExampleCase2,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -3170,6 +3194,7 @@ private fun StepNavigationFooterBar(
     val canNext = stepNumber < 7
     val fontScale = LocalDensity.current.fontScale
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val showIcons = maxWidth >= 340.dp && fontScale < 1.25f
@@ -3192,13 +3217,13 @@ private fun StepNavigationFooterBar(
                 if (showIcons) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Etapa anterior",
+                        contentDescription = strings.footerPrevStepDesc,
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(3.dp))
                 }
                 Text(
-                    text = "Anterior",
+                    text = strings.footerPrevStepButton,
                     style = MaterialTheme.typography.labelMedium,
                     maxLines = 1
                 )
@@ -3216,14 +3241,14 @@ private fun StepNavigationFooterBar(
                 if (showIcons) {
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
-                        contentDescription = "Concluir etapa",
+                        contentDescription = strings.footerCompleteStepDesc,
                         tint = themeColors.successText,
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(3.dp))
                 }
                 Text(
-                    text = if (isStepCompleted) "Concluída" else "Concluir",
+                    text = if (isStepCompleted) strings.footerCompletedStepButton else strings.footerCompleteStepButton,
                     style = MaterialTheme.typography.labelMedium,
                     color = if (isStepCompleted) themeColors.successText else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1
@@ -3245,7 +3270,7 @@ private fun StepNavigationFooterBar(
                     .testTag("next_step_button")
             ) {
                 Text(
-                    text = "Próxima",
+                    text = strings.footerNextStepButton,
                     style = MaterialTheme.typography.labelMedium,
                     maxLines = 1
                 )
@@ -3253,7 +3278,7 @@ private fun StepNavigationFooterBar(
                     Spacer(modifier = Modifier.width(3.dp))
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "Próxima etapa",
+                        contentDescription = strings.footerNextStepDesc,
                         modifier = Modifier.size(14.dp)
                     )
                 }

@@ -238,6 +238,12 @@ class CubeGLRenderer(
     var isDarkBackground: Boolean = true
 
     @Volatile
+    var transparentBackground: Boolean = false
+
+    @Volatile
+    var initialCameraDistance: Float = DEFAULT_DISTANCE
+
+    @Volatile
     var autoRotateIdle: Boolean = false
 
     @Volatile
@@ -419,8 +425,11 @@ class CubeGLRenderer(
         newHighlightEnabled: Boolean,
         newIsDarkBackground: Boolean,
         newAutoRotateIdle: Boolean,
-        newCelebrationPulse: Float
+        newCelebrationPulse: Float,
+        newTransparentBackground: Boolean = false,
+        newInitialCameraDistance: Float = DEFAULT_DISTANCE
     ) {
+        val distanceChanged: Boolean
         synchronized(sceneStateLock) {
             cubeState = newCubeState
             activeAnimation = newAnimation
@@ -430,11 +439,20 @@ class CubeGLRenderer(
             isDarkBackground = newIsDarkBackground
             autoRotateIdle = newAutoRotateIdle
             celebrationPulse = newCelebrationPulse
+            transparentBackground = newTransparentBackground
+            distanceChanged = abs(initialCameraDistance - newInitialCameraDistance) > 0.001f
+            initialCameraDistance = newInitialCameraDistance
             if (newAnimation != null && newAutoRotateIdle) {
                 val targetResume = android.os.SystemClock.uptimeMillis() + 1500L
                 if (targetResume > resumeAutoRotateAfterUptimeMs) {
                     resumeAutoRotateAfterUptimeMs = targetResume
                 }
+            }
+        }
+        if (distanceChanged) {
+            synchronized(vpLock) {
+                cameraDistance = newInitialCameraDistance.coerceIn(MIN_DISTANCE, MAX_DISTANCE)
+                updateViewProjectionLocked()
             }
         }
         if (newAnimation != null) {
@@ -764,6 +782,7 @@ class CubeGLRenderer(
         val guidedSnapshot: CubeMove?
         val modeSnapshot: HighlightMode
         val darkBgSnapshot: Boolean
+        val transparentBgSnapshot: Boolean
         val autoRotateSnapshot: Boolean
         val pulse: Float
 
@@ -773,6 +792,7 @@ class CubeGLRenderer(
             guidedSnapshot = animSnapshot?.move ?: previewTouchMove ?: guidedMove
             modeSnapshot = if (highlightEnabled) highlightMode else HighlightMode.ALL_VIVID
             darkBgSnapshot = isDarkBackground
+            transparentBgSnapshot = transparentBackground
             autoRotateSnapshot = autoRotateIdle
             pulse = celebrationPulse
         }
@@ -781,7 +801,7 @@ class CubeGLRenderer(
             recordAnimationAngleIfAuditEnabled(animSnapshot.currentAngleDegrees, deduplicateLast = true)
         }
 
-        // Rotação automática permitida EXCLUSIVAMENTE quando autoRotateIdle == true (Home),
+        // Rotação automática permitida EXCLUSIVAMENTE quando autoRotateIdle == true (Home / Opening),
         // sem animação de camada ativa, sem dedo na tela e após a janela de inatividade pós-interação
         if (autoRotateSnapshot && animSnapshot == null && !isUserTouching &&
             android.os.SystemClock.uptimeMillis() >= resumeAutoRotateAfterUptimeMs
@@ -797,7 +817,9 @@ class CubeGLRenderer(
             buildGeometryBuffers()
         }
 
-        if (darkBgSnapshot) {
+        if (transparentBgSnapshot) {
+            GLES20.glClearColor(0f, 0f, 0f, 0f)
+        } else if (darkBgSnapshot) {
             GLES20.glClearColor(0.027f, 0.043f, 0.078f, 1.0f)
         } else {
             GLES20.glClearColor(0.957f, 0.969f, 0.984f, 1.0f)
@@ -1533,7 +1555,7 @@ class CubeGLRenderer(
             _cameraYaw = DEFAULT_YAW
             _cameraPitch = DEFAULT_PITCH
             _cameraRoll = 0f
-            cameraDistance = DEFAULT_DISTANCE
+            cameraDistance = initialCameraDistance.coerceIn(MIN_DISTANCE, MAX_DISTANCE)
             cameraQuaternion = CameraQuaternion.fromYawPitch(DEFAULT_YAW, DEFAULT_PITCH)
             updateViewProjectionLocked()
         }

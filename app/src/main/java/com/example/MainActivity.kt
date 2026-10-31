@@ -79,8 +79,6 @@ fun CuboMestreApp(
     val notationPreviewAnim by viewModel.notationPreviewAnim.collectAsStateWithLifecycle()
     val notationCameraResetCounter by viewModel.notationCameraResetCounter.collectAsStateWithLifecycle()
 
-    val isRobolectric = android.os.Build.FINGERPRINT.equals("robolectric", ignoreCase = true)
-
     CuboMestreTheme(
         darkTheme = progressState.isDarkTheme,
         appLanguage = progressState.appLanguage
@@ -100,7 +98,6 @@ fun CuboMestreApp(
                     AppScreen.OPENING -> {
                         OpeningScreen(
                             isDarkTheme = progressState.isDarkTheme,
-                            autoAdvanceEnabled = !isRobolectric,
                             onContinue = { viewModel.completeOpeningScreen() }
                         )
                     }

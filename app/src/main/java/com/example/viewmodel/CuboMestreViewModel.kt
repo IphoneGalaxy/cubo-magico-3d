@@ -34,9 +34,20 @@ enum class AppScreen {
     EXPLORE
 }
 
-enum class LearningMode(val labelPt: String, val shortLabelPt: String) {
-    LEARN("Modo 1: Aprender", "Aprender"),
-    PRACTICE("Modo 2: Praticar", "Praticar")
+enum class LearningMode(
+    val labelPt: String,
+    val shortLabelPt: String,
+    val labelEn: String,
+    val shortLabelEn: String
+) {
+    LEARN("Modo 1: Aprender", "Aprender", "Mode 1: Learn", "Learn"),
+    PRACTICE("Modo 2: Praticar", "Praticar", "Mode 2: Practice", "Practice");
+
+    fun localizedLabel(language: AppLanguage): String =
+        if (language == AppLanguage.EN_US) labelEn else labelPt
+
+    fun localizedShortLabel(language: AppLanguage): String =
+        if (language == AppLanguage.EN_US) shortLabelEn else shortLabelPt
 }
 
 /**
@@ -45,10 +56,16 @@ enum class LearningMode(val labelPt: String, val shortLabelPt: String) {
  * - [INTERMEDIATE]: Mostra objetivo, descrição do caso e dica principal.
  * - [EXPANDED]: Mostra explicação completa da etapa, notação, nota de validação e orientações adicionais com rolagem interna.
  */
-enum class ExplanationPanelState(val labelPt: String) {
-    COLLAPSED("Recolhido"),
-    INTERMEDIATE("Resumo"),
-    EXPANDED("Completo")
+enum class ExplanationPanelState(
+    val labelPt: String,
+    val labelEn: String
+) {
+    COLLAPSED("Recolhido", "Collapsed"),
+    INTERMEDIATE("Resumo", "Summary"),
+    EXPANDED("Completo", "Full");
+
+    fun localizedLabel(language: AppLanguage): String =
+        if (language == AppLanguage.EN_US) labelEn else labelPt
 }
 
 data class LessonUiState(
@@ -256,16 +273,13 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
     private val shouldSkipAnimationLoop: Boolean
         get() = isHeadlessTest && !forceMultiFrameAnimationInTest
 
+    private var manuallyOpenedPresentationScreen: Boolean = false
+
     private fun determineInitialScreen(): AppScreen {
-        val snapshot = progressRepository.initialStateSnapshot()
         val isHeadless = android.os.Build.FINGERPRINT.equals("robolectric", ignoreCase = true)
         return when {
-            !isHeadless -> {
-                if (snapshot.hasCompletedOnboarding) AppScreen.HOME else AppScreen.OPENING
-            }
-            ProgressRepository.simulateFirstLaunchInHeadlessTest -> {
-                if (snapshot.hasCompletedOnboarding) AppScreen.HOME else AppScreen.OPENING
-            }
+            !isHeadless -> AppScreen.OPENING
+            ProgressRepository.simulateFirstLaunchInHeadlessTest -> AppScreen.OPENING
             else -> AppScreen.HOME
         }
     }
@@ -280,12 +294,15 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun openOpeningScreen() {
+        manuallyOpenedPresentationScreen = true
         navigateTo(AppScreen.OPENING)
     }
 
     fun completeOpeningScreen() {
         stopAllAnimations()
-        val hasCompleted = progressRepository.initialStateSnapshot().hasCompletedOnboarding
+        manuallyOpenedPresentationScreen = false
+        val hasCompleted = progressRepository.initialStateSnapshot().hasCompletedOnboarding ||
+            progressState.value.hasCompletedOnboarding
         if (!hasCompleted) {
             _currentScreen.value = AppScreen.WELCOME_LANGUAGE
         } else {
@@ -299,6 +316,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun completeWelcomeOnboarding(language: AppLanguage = progressRepository.initialStateSnapshot().appLanguage) {
+        manuallyOpenedPresentationScreen = false
         Locale.setDefault(language.toLocale())
         progressRepository.applyOnboardingImmediate(language = language, completed = true)
         viewModelScope.launch {
@@ -308,6 +326,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun resetOnboardingForFirstLaunch(initialLanguage: AppLanguage = AppLanguage.BASE_FALLBACK) {
+        manuallyOpenedPresentationScreen = false
         Locale.setDefault(initialLanguage.toLocale())
         progressRepository.applyOnboardingImmediate(language = initialLanguage, completed = false)
         viewModelScope.launch {
@@ -631,6 +650,9 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         val moves = current.demoMoves
         if (moves.isEmpty()) return
 
+        val activeLang = progressRepository.initialStateSnapshot().appLanguage
+        val phaseExecutionBanner = targetPhase.localizedExecutionBannerText(activeLang)
+
         // Se já estiver reproduzindo exatamente esta fase, evita duplicação; se estiver em pause-pending, retoma
         if (demoJob?.isActive == true && activeDemoPhaseNumber == phaseNumber) {
             if (pauseRequested) {
@@ -639,7 +661,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                     it.copy(
                         isPlayingDemo = true,
                         isPausePending = false,
-                        feedbackMessage = targetPhase.executionBannerText
+                        feedbackMessage = phaseExecutionBanner
                     )
                 }
             }
@@ -683,7 +705,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                         isPausePending = false,
                         isDemoCompleted = false,
                         celebrationPulse = 0f,
-                        feedbackMessage = targetPhase.executionBannerText
+                        feedbackMessage = phaseExecutionBanner
                     )
                 }
             } else {
@@ -694,7 +716,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                         isPlayingDemo = true,
                         isPausePending = false,
                         isDemoCompleted = false,
-                        feedbackMessage = targetPhase.executionBannerText
+                        feedbackMessage = phaseExecutionBanner
                     )
                 }
             }
@@ -721,7 +743,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                         isPausePending = false,
                         isDemoCompleted = false,
                         celebrationPulse = 0f,
-                        feedbackMessage = targetPhase.executionBannerText
+                        feedbackMessage = phaseExecutionBanner
                     )
                 }
             } else {
@@ -730,7 +752,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                         isPlayingDemo = true,
                         isPausePending = false,
                         isDemoCompleted = false,
-                        feedbackMessage = targetPhase.executionBannerText
+                        feedbackMessage = phaseExecutionBanner
                     )
                 }
             }
@@ -834,6 +856,8 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                 val nextIndex = snap.currentMoveIndex + 1
 
                 if (nextIndex > endIdx || nextIndex > moves.lastIndex) {
+                    val activeLang = progressRepository.initialStateSnapshot().appLanguage
+                    val isEn = activeLang == AppLanguage.EN_US
                     val isFinalMove = nextIndex > moves.lastIndex
                     val completedPhase = phases.firstOrNull { it.endMoveIndex == snap.currentMoveIndex }
                     activeDemoTargetEndIndex = null
@@ -847,9 +871,9 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                             executingMoveIndex = null,
                             isDemoCompleted = isFinalMove,
                             feedbackMessage = if (isFinalMove) {
-                                "Demonstração concluída."
+                                if (isEn) "Demonstration completed." else "Demonstração concluída."
                             } else {
-                                completedPhase?.completionSummaryText ?: it.feedbackMessage
+                                completedPhase?.localizedCompletionSummaryText(activeLang) ?: it.feedbackMessage
                             }
                         )
                     }
@@ -857,12 +881,19 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                 }
 
                 val move = moves[nextIndex]
+                val activeLang = progressRepository.initialStateSnapshot().appLanguage
+                val isEn = activeLang == AppLanguage.EN_US
+                val moveProgressMsg = if (isEn) {
+                    "Move ${nextIndex + 1}/${moves.size}: ${move.notation}"
+                } else {
+                    "Movimento ${nextIndex + 1}/${moves.size}: ${move.notation}"
+                }
                 // Destaca o movimento em execução em executingMoveIndex SEM avançar currentMoveIndex antes do commit!
                 _lessonState.update {
                     it.copy(
                         executingMoveIndex = nextIndex,
                         selectedNotationMoveInfo = move,
-                        feedbackMessage = "Movimento ${nextIndex + 1}/${moves.size}: ${move.notation}"
+                        feedbackMessage = moveProgressMsg
                     )
                 }
 
@@ -870,6 +901,8 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                     move = move,
                     sessionEpoch = sessionEpoch,
                     onCommitState = { stateAtCommit ->
+                        val langAtCommit = progressRepository.initialStateSnapshot().appLanguage
+                        val isEnCommit = langAtCommit == AppLanguage.EN_US
                         val currentEndIdx = (activeDemoTargetEndIndex ?: moves.lastIndex).coerceIn(0, moves.lastIndex)
                         val reachedTargetEnd = nextIndex >= currentEndIdx
                         val reachedFullEnd = nextIndex >= moves.lastIndex
@@ -887,9 +920,13 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                             isPausePending = false,
                             isDemoCompleted = reachedFullEnd,
                             feedbackMessage = when {
-                                reachedFullEnd -> "Demonstração concluída."
-                                phaseAtMove != null -> phaseAtMove.completionSummaryText
-                                else -> "Movimento ${nextIndex + 1}/${moves.size}: ${move.notation}"
+                                reachedFullEnd -> if (isEnCommit) "Demonstration completed." else "Demonstração concluída."
+                                phaseAtMove != null -> phaseAtMove.localizedCompletionSummaryText(langAtCommit)
+                                else -> if (isEnCommit) {
+                                    "Move ${nextIndex + 1}/${moves.size}: ${move.notation}"
+                                } else {
+                                    "Movimento ${nextIndex + 1}/${moves.size}: ${move.notation}"
+                                }
                             }
                         )
                     }
@@ -1012,17 +1049,25 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                         val nextIndex = snap.currentMoveIndex + 1
                         if (nextIndex > moves.lastIndex) continue
                         val move = moves[nextIndex]
+                        val activeLang = progressRepository.initialStateSnapshot().appLanguage
+                        val isEn = activeLang == AppLanguage.EN_US
                         _lessonState.update {
                             it.copy(
                                 executingMoveIndex = nextIndex,
                                 selectedNotationMoveInfo = move,
-                                feedbackMessage = "Movimento ${nextIndex + 1}/${moves.size}: ${move.notation}"
+                                feedbackMessage = if (isEn) {
+                                    "Move ${nextIndex + 1}/${moves.size}: ${move.notation}"
+                                } else {
+                                    "Movimento ${nextIndex + 1}/${moves.size}: ${move.notation}"
+                                }
                             )
                         }
                         val committed = animateLessonMoveInternal(
                             move = move,
                             sessionEpoch = sessionEpoch,
                             onCommitState = { current ->
+                                val langAtCommit = progressRepository.initialStateSnapshot().appLanguage
+                                val isEnCommit = langAtCommit == AppLanguage.EN_US
                                 val completedPhase = phases.firstOrNull {
                                     it.endMoveIndex == nextIndex && nextIndex < moves.lastIndex
                                 }
@@ -1034,9 +1079,13 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                                     activeAnimation = null,
                                     isDemoCompleted = isFinal,
                                     feedbackMessage = when {
-                                        isFinal -> "Demonstração concluída."
-                                        completedPhase != null -> completedPhase.completionSummaryText
-                                        else -> "Movimento ${nextIndex + 1}/${moves.size}: ${move.notation}"
+                                        isFinal -> if (isEnCommit) "Demonstration completed." else "Demonstração concluída."
+                                        completedPhase != null -> completedPhase.localizedCompletionSummaryText(langAtCommit)
+                                        else -> if (isEnCommit) {
+                                            "Move ${nextIndex + 1}/${moves.size}: ${move.notation}"
+                                        } else {
+                                            "Movimento ${nextIndex + 1}/${moves.size}: ${move.notation}"
+                                        }
                                     }
                                 )
                             }
@@ -1050,18 +1099,26 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                         val moveToUndo = moves[currentIdx]
                         val inverseMove = moveToUndo.inverse()
                         val targetIdx = currentIdx - 1
+                        val activeLang = progressRepository.initialStateSnapshot().appLanguage
+                        val isEn = activeLang == AppLanguage.EN_US
                         _lessonState.update {
                             it.copy(
                                 isDemoCompleted = false,
                                 executingMoveIndex = currentIdx,
                                 selectedNotationMoveInfo = moveToUndo,
-                                feedbackMessage = "Passo revertido: ${moveToUndo.notation}"
+                                feedbackMessage = if (isEn) {
+                                    "Reverted step: ${moveToUndo.notation}"
+                                } else {
+                                    "Passo revertido: ${moveToUndo.notation}"
+                                }
                             )
                         }
                         val committed = animateLessonMoveInternal(
                             move = inverseMove,
                             sessionEpoch = sessionEpoch,
                             onCommitState = { current ->
+                                val langAtCommit = progressRepository.initialStateSnapshot().appLanguage
+                                val isEnCommit = langAtCommit == AppLanguage.EN_US
                                 val phaseMilestone = phases.firstOrNull {
                                     it.endMoveIndex == targetIdx && targetIdx < moves.lastIndex
                                 }
@@ -1071,8 +1128,12 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                                     executingMoveIndex = null,
                                     activeAnimation = null,
                                     isDemoCompleted = false,
-                                    feedbackMessage = phaseMilestone?.completionSummaryText
-                                        ?: "Passo revertido: ${moveToUndo.notation}"
+                                    feedbackMessage = phaseMilestone?.localizedCompletionSummaryText(langAtCommit)
+                                        ?: if (isEnCommit) {
+                                            "Reverted step: ${moveToUndo.notation}"
+                                        } else {
+                                            "Passo revertido: ${moveToUndo.notation}"
+                                        }
                                 )
                             }
                         )
@@ -1122,6 +1183,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                     useDidacticSpeed = false,
                     customDurationMs = manualDuration,
                     onCommitState = { current ->
+                        val isEn = progressRepository.initialStateSnapshot().appLanguage == AppLanguage.EN_US
                         val updatedCube = current.cubeState.applyMove(nextMove)
                         val goalReached = updatedCube.isStepGoalAchieved(current.stepNumber)
                         reachedGoalAfterCommit = goalReached
@@ -1133,9 +1195,9 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                             practiceMoveHistory = current.practiceMoveHistory + nextMove,
                             isPracticeGoalAchieved = goalReached,
                             feedbackMessage = if (goalReached) {
-                                "Excelente! Você completou esta etapa."
+                                if (isEn) "Excellent! You completed this stage." else "Excelente! Você completou esta etapa."
                             } else {
-                                "Movimento executado: ${nextMove.notation}"
+                                if (isEn) "Move executed: ${nextMove.notation}" else "Movimento executado: ${nextMove.notation}"
                             }
                         )
                     }
@@ -1175,6 +1237,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                 useDidacticSpeed = false,
                 customDurationMs = MANUAL_UNDO_DURATION_MS,
                 onCommitState = { current ->
+                    val isEn = progressRepository.initialStateSnapshot().appLanguage == AppLanguage.EN_US
                     val updatedCube = current.cubeState.applyMove(inverseMove)
                     val goalReached = updatedCube.isStepGoalAchieved(current.stepNumber)
                     current.copy(
@@ -1183,7 +1246,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                         executingMoveIndex = null,
                         practiceMoveHistory = current.practiceMoveHistory.dropLast(1),
                         isPracticeGoalAchieved = goalReached,
-                        feedbackMessage = "Movimento desfeito"
+                        feedbackMessage = if (isEn) "Move undone" else "Movimento desfeito"
                     )
                 }
             )
@@ -1194,6 +1257,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         val stepNum = _lessonState.value.stepNumber
         val step = _lessonState.value.currentStep
         val caseId = _lessonState.value.currentCase.id
+        val isEn = progressRepository.initialStateSnapshot().appLanguage == AppLanguage.EN_US
         viewModelScope.launch {
             progressRepository.markCaseCompleted(
                 stepNumber = stepNum,
@@ -1203,7 +1267,13 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
             progressRepository.markStepCompleted(stepNum)
         }
         _lessonState.update {
-            it.copy(feedbackMessage = "Etapa $stepNum marcada manualmente como concluída.")
+            it.copy(
+                feedbackMessage = if (isEn) {
+                    "Stage $stepNum manually marked as completed."
+                } else {
+                    "Etapa $stepNum marcada manualmente como concluída."
+                }
+            )
         }
         triggerLessonCelebration()
     }
@@ -1332,6 +1402,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                 } else {
                     MANUAL_MOVE_90_DURATION_MS
                 }
+                val isEn = progressRepository.initialStateSnapshot().appLanguage == AppLanguage.EN_US
                 val committed = animateExploreMoveInternal(
                     move = nextMove,
                     durationMs = duration,
@@ -1341,7 +1412,11 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                             cubeState = current.cubeState.applyMove(nextMove),
                             activeAnimation = null,
                             moveHistory = current.moveHistory + nextMove,
-                            feedbackMessage = "Movimento executado: ${nextMove.notation}"
+                            feedbackMessage = if (isEn) {
+                                "Move executed: ${nextMove.notation}"
+                            } else {
+                                "Movimento executado: ${nextMove.notation}"
+                            }
                         )
                     }
                 )
@@ -1357,6 +1432,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
 
         exploreMoveQueue.clear()
         val epoch = exploreSessionEpoch
+        val isEn = progressRepository.initialStateSnapshot().appLanguage == AppLanguage.EN_US
         exploreAnimJob = viewModelScope.launch {
             val inverseMove = lastMove.inverse()
             animateExploreMoveInternal(
@@ -1368,7 +1444,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                         cubeState = current.cubeState.applyMove(inverseMove),
                         activeAnimation = null,
                         moveHistory = current.moveHistory.dropLast(1),
-                        feedbackMessage = "Movimento desfeito"
+                        feedbackMessage = if (isEn) "Move undone" else "Movimento desfeito"
                     )
                 }
             )
@@ -1380,8 +1456,13 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         exploreMoveQueue.clear()
         val epoch = exploreSessionEpoch
         val scramble = CubeState.generateScramble(length = 16)
+        val isEn = progressRepository.initialStateSnapshot().appLanguage == AppLanguage.EN_US
         exploreAnimJob = viewModelScope.launch {
-            _exploreState.update { it.copy(feedbackMessage = "Embaralhando cubo 3×3...") }
+            _exploreState.update {
+                it.copy(
+                    feedbackMessage = if (isEn) "Scrambling 3×3 cube..." else "Embaralhando cubo 3×3..."
+                )
+            }
             for (move in scramble) {
                 if (!isActive || epoch != exploreSessionEpoch) return@launch
                 val committed = animateExploreMoveInternal(
@@ -1402,7 +1483,11 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                 _exploreState.update {
                     it.copy(
                         lastScramble = scramble,
-                        feedbackMessage = "Cubo embaralhado (${scramble.size} movimentos)"
+                        feedbackMessage = if (isEn) {
+                            "Cube scrambled (${scramble.size} moves)"
+                        } else {
+                            "Cubo embaralhado (${scramble.size} movimentos)"
+                        }
                     )
                 }
             }
@@ -1414,6 +1499,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         exploreMoveQueue.clear()
         exploreAnimJob?.cancel()
         exploreAnimJob = null
+        val isEn = progressRepository.initialStateSnapshot().appLanguage == AppLanguage.EN_US
         _exploreState.update {
             it.copy(
                 cubeState = CubeState.createSolved(),
@@ -1421,16 +1507,21 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
                 moveHistory = emptyList(),
                 lastScramble = emptyList(),
                 celebrationPulse = 0f,
-                feedbackMessage = "Cubo restaurado ao estado resolvido"
+                feedbackMessage = if (isEn) {
+                    "Cube restored to solved state"
+                } else {
+                    "Cubo restaurado ao estado resolvido"
+                }
             )
         }
     }
 
     fun recenterExploreCamera() {
+        val isEn = progressRepository.initialStateSnapshot().appLanguage == AppLanguage.EN_US
         _exploreState.update {
             it.copy(
                 cameraResetCounter = it.cameraResetCounter + 1,
-                feedbackMessage = "Câmera recentralizada"
+                feedbackMessage = if (isEn) "Camera recentered" else "Câmera recentralizada"
             )
         }
     }
@@ -1606,8 +1697,74 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
     fun selectAppLanguage(language: AppLanguage) {
         Locale.setDefault(language.toLocale())
         progressRepository.applyLanguageImmediate(language)
+        relocalizeActiveFeedbackMessages(language)
         viewModelScope.launch {
             progressRepository.setAppLanguage(language)
+        }
+    }
+
+    private fun relocalizeActiveFeedbackMessages(language: AppLanguage) {
+        val isEn = language == AppLanguage.EN_US
+        _lessonState.update { state ->
+            val msg = state.feedbackMessage ?: return@update state
+            val phases = state.currentCase.pedagogicalPhases
+            val matchingExecPhase = phases.firstOrNull {
+                it.executionBannerText == msg || it.executionBannerTextEn == msg
+            }
+            val matchingSummaryPhase = phases.firstOrNull {
+                it.completionSummaryText == msg || it.completionSummaryTextEn == msg
+            }
+            val translated = when {
+                matchingExecPhase != null -> matchingExecPhase.localizedExecutionBannerText(language)
+                matchingSummaryPhase != null -> matchingSummaryPhase.localizedCompletionSummaryText(language)
+                msg == "Demonstração concluída." || msg == "Demonstration completed." ->
+                    if (isEn) "Demonstration completed." else "Demonstração concluída."
+                msg == "Excelente! Você completou esta etapa." || msg == "Excellent! You completed this stage." ->
+                    if (isEn) "Excellent! You completed this stage." else "Excelente! Você completou esta etapa."
+                msg == "Movimento desfeito" || msg == "Move undone" ->
+                    if (isEn) "Move undone" else "Movimento desfeito"
+                msg.startsWith("Movimento executado: ") || msg.startsWith("Move executed: ") -> {
+                    val notation = msg.substringAfter(": ")
+                    if (isEn) "Move executed: $notation" else "Movimento executado: $notation"
+                }
+                msg.startsWith("Passo revertido: ") || msg.startsWith("Reverted step: ") -> {
+                    val notation = msg.substringAfter(": ")
+                    if (isEn) "Reverted step: $notation" else "Passo revertido: $notation"
+                }
+                msg.startsWith("Movimento ") ->
+                    if (isEn) "Move " + msg.removePrefix("Movimento ") else msg
+                msg.startsWith("Move ") ->
+                    if (isEn) msg else "Movimento " + msg.removePrefix("Move ")
+                msg.contains("marcada manualmente como concluída.") || msg.contains("manually marked as completed.") ->
+                    if (isEn) "Stage ${state.stepNumber} manually marked as completed."
+                    else "Etapa ${state.stepNumber} marcada manualmente como concluída."
+                else -> msg
+            }
+            if (translated == msg) state else state.copy(feedbackMessage = translated)
+        }
+
+        _exploreState.update { state ->
+            val msg = state.feedbackMessage ?: return@update state
+            val translated = when {
+                msg == "Movimento desfeito" || msg == "Move undone" ->
+                    if (isEn) "Move undone" else "Movimento desfeito"
+                msg.startsWith("Movimento executado: ") || msg.startsWith("Move executed: ") -> {
+                    val notation = msg.substringAfter(": ")
+                    if (isEn) "Move executed: $notation" else "Movimento executado: $notation"
+                }
+                msg == "Cubo restaurado ao estado resolvido" || msg == "Cube restored to solved state" ->
+                    if (isEn) "Cube restored to solved state" else "Cubo restaurado ao estado resolvido"
+                msg == "Câmera recentralizada" || msg == "Camera recentered" ->
+                    if (isEn) "Camera recentered" else "Câmera recentralizada"
+                msg == "Embaralhando cubo 3×3..." || msg == "Scrambling 3×3 cube..." ->
+                    if (isEn) "Scrambling 3×3 cube..." else "Embaralhando cubo 3×3..."
+                msg.startsWith("Cubo embaralhado (") || msg.startsWith("Cube scrambled (") -> {
+                    val count = state.lastScramble.size.takeIf { it > 0 } ?: 16
+                    if (isEn) "Cube scrambled ($count moves)" else "Cubo embaralhado ($count movimentos)"
+                }
+                else -> msg
+            }
+            if (translated == msg) state else state.copy(feedbackMessage = translated)
         }
     }
 

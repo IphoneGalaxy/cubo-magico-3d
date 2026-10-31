@@ -21,12 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.CenterFocusStrong
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -50,9 +45,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.R
 import com.example.model.CubeMove
 import com.example.renderer.InteractiveCube3DView
 import com.example.ui.theme.CuboMestreTheme
@@ -197,6 +194,7 @@ private fun ExploreStatusStrip(
     moveCount: Int
 ) {
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Start,
@@ -218,7 +216,7 @@ private fun ExploreStatusStrip(
             ) {
                 if (isCubeSolved) {
                     Icon(
-                        imageVector = Icons.Default.CheckCircle,
+                        painter = painterResource(id = R.drawable.ic_rounded_check_circle),
                         contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(14.dp)
@@ -226,9 +224,9 @@ private fun ExploreStatusStrip(
                 }
                 Text(
                     text = if (isCubeSolved) {
-                        "Cubo Resolvido • $moveCount mov."
+                        strings.exploreStatusSolvedFormat(moveCount)
                     } else {
-                        "Em exploração • $moveCount mov."
+                        strings.exploreStatusExploringFormat(moveCount)
                     },
                     style = MaterialTheme.typography.labelSmall,
                     color = if (isCubeSolved) Color.White else MaterialTheme.colorScheme.onSurface,
@@ -246,6 +244,7 @@ private fun ExploreCompactHeader(
     onOpenNotationGuide: () -> Unit
 ) {
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -265,15 +264,15 @@ private fun ExploreCompactHeader(
                     .testTag("explore_back_button")
             ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Voltar ao início",
+                    painter = painterResource(id = R.drawable.ic_arrow_back),
+                    contentDescription = strings.exploreBackContentDesc,
                     tint = MaterialTheme.colorScheme.onSurface
                 )
             }
 
             Column {
                 Text(
-                    text = "Explorar Cubo 3D",
+                    text = strings.exploreTitle,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground,
@@ -281,7 +280,7 @@ private fun ExploreCompactHeader(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = feedbackMessage ?: "Arraste camadas ou gire a câmera livremente",
+                    text = feedbackMessage ?: strings.exploreDefaultSubtitle,
                     style = MaterialTheme.typography.labelSmall,
                     color = if (feedbackMessage != null) themeColors.turquoiseAccent else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -299,8 +298,8 @@ private fun ExploreCompactHeader(
                 .testTag("explore_notation_button")
         ) {
             Icon(
-                imageVector = Icons.AutoMirrored.Outlined.MenuBook,
-                contentDescription = "Guia de Notação",
+                painter = painterResource(id = R.drawable.ic_rounded_notation_book),
+                contentDescription = strings.exploreNotationContentDesc,
                 tint = themeColors.turquoiseAccent
             )
         }
@@ -321,6 +320,7 @@ private fun ExploreControlsCard(
     }
 
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
     var modifierMode by remember { mutableIntStateOf(0) } // 0 = Normal (90°), 1 = Inverso ('), 2 = Meia-volta (2)
 
     Card(
@@ -341,7 +341,7 @@ private fun ExploreControlsCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Camadas",
+                    text = strings.exploreLayersTitle,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -354,7 +354,11 @@ private fun ExploreControlsCard(
                         .background(MaterialTheme.colorScheme.surface)
                         .padding(3.dp)
                 ) {
-                    val modes = listOf("90°" to 0, "Inverso (')" to 1, "180° (2)" to 2)
+                    val modes = listOf(
+                        strings.exploreModifierNormal to 0,
+                        strings.exploreModifierInverse to 1,
+                        strings.exploreModifierDouble to 2
+                    )
                     modes.forEach { (label, idx) ->
                         val selected = modifierMode == idx
                         Surface(
@@ -407,7 +411,7 @@ private fun ExploreControlsCard(
                                 style = MaterialTheme.typography.labelLarge
                             )
                             Text(
-                                text = famLabelShort(fam),
+                                text = strings.exploreFamilyShortLabel(fam),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1
@@ -437,7 +441,7 @@ private fun ExploreControlsCard(
                     Icon(Icons.Default.Shuffle, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Embaralhar",
+                        text = strings.exploreScrambleButton,
                         style = MaterialTheme.typography.labelMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -454,14 +458,14 @@ private fun ExploreControlsCard(
                         .testTag("undo_explore_button")
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Undo,
+                        painter = painterResource(id = R.drawable.ic_undo),
                         contentDescription = null,
                         tint = if (canUndo) themeColors.turquoiseAccent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Desfazer",
+                        text = strings.exploreUndoButton,
                         style = MaterialTheme.typography.labelMedium,
                         maxLines = 1
                     )
@@ -488,7 +492,7 @@ private fun ExploreControlsCard(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Câmera",
+                        text = strings.exploreCameraButton,
                         style = MaterialTheme.typography.labelMedium,
                         maxLines = 1
                     )
@@ -503,14 +507,14 @@ private fun ExploreControlsCard(
                         .testTag("restore_solved_cube_button")
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Refresh,
+                        painter = painterResource(id = R.drawable.ic_refresh),
                         contentDescription = null,
                         tint = themeColors.successText,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Restaurar",
+                        text = strings.exploreRestoreButton,
                         style = MaterialTheme.typography.labelMedium,
                         maxLines = 1
                     )
@@ -518,17 +522,4 @@ private fun ExploreControlsCard(
             }
         }
     }
-}
-
-private fun famLabelShort(family: String): String = when (family) {
-    "F" -> "Frente"
-    "R" -> "Direita"
-    "U" -> "Cima"
-    "L" -> "Esq."
-    "D" -> "Baixo"
-    "B" -> "Trás"
-    "M" -> "Meio V"
-    "E" -> "Meio H"
-    "S" -> "Meio Z"
-    else -> family
 }

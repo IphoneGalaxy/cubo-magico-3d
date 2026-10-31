@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,7 +22,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,16 +34,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -51,130 +51,110 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.curriculum.HighlightMode
 import com.example.model.CubeState
 import com.example.renderer.InteractiveCube3DView
 import com.example.ui.theme.CuboMestreTheme
-import com.example.ui.theme.GraphiteCard
-import com.example.ui.theme.NavyBackground
-import com.example.ui.theme.NavySurface
-import com.example.ui.theme.StickerBlue
-import com.example.ui.theme.StickerGreen
-import com.example.ui.theme.StickerOrange
-import com.example.ui.theme.StickerRed
-import com.example.ui.theme.StickerWhite
-import com.example.ui.theme.StickerYellow
+import com.example.ui.theme.JetBrainsMonoFontFamily
+import com.example.ui.theme.PlusJakartaSansFontFamily
+import com.example.ui.theme.SpaceGroteskFontFamily
 import com.example.ui.theme.TurquoisePrimary
 import com.example.ui.theme.VioletAccent
-import kotlinx.coroutines.delay
 
 /**
- * Tela de Abertura (Etapa 1) — Identidade visual neon moderna do Cubo Mestre 3D,
- * apresentando o cubo mágico 3D como protagonista visual, iluminação suave turquesa/violeta
- * e elementos geométricos discretos sem esperas artificiais longas.
+ * Tela de Abertura (OpeningScreen) da Etapa 1.1:
+ * - Cubo 3D flutuando livremente SEM moldura quadrada, SEM fundo de cartão e SEM recortes (transparentBackground = true).
+ * - Cubo 3D estritamente de apresentação visual (gesturesEnabled = false, autoRotateIdle = true): gira continuamente de forma
+ *   suave, ignorando completamente toques, arrastes, pinça ou torção.
+ * - Permanece aberta sem avanço automático por temporizador até que o usuário toque no botão de entrada.
+ * - Na primeira instalação segue para a escolha de idioma; nas execuções seguintes segue diretamente para o Menu Principal.
  */
 @Composable
 fun OpeningScreen(
     isDarkTheme: Boolean,
-    autoAdvanceEnabled: Boolean = true,
-    onContinue: () -> Unit,
-    modifier: Modifier = Modifier
+    onContinue: () -> Unit
 ) {
     val strings = CuboMestreTheme.strings
     val themeColors = CuboMestreTheme.colors
+    val showcaseCube = remember { CubeState.createSolved() }
+    var entranceVisible by remember { mutableStateOf(false) }
 
-    LaunchedEffect(autoAdvanceEnabled) {
-        if (autoAdvanceEnabled) {
-            delay(1350L)
-            onContinue()
-        }
+    LaunchedEffect(Unit) {
+        entranceVisible = true
     }
 
-    val isHeadlessTest = remember {
-        android.os.Build.FINGERPRINT.equals("robolectric", ignoreCase = true)
-    }
-
-    val glowPulse = if (isHeadlessTest) {
-        0.9f
-    } else {
-        val infiniteTransition = rememberInfiniteTransition(label = "opening_neon_pulse")
-        val animatedGlow by infiniteTransition.animateFloat(
-            initialValue = 0.78f,
-            targetValue = 1.0f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 1600, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "glow_pulse"
-        )
-        animatedGlow
-    }
+    val infiniteTransition = rememberInfiniteTransition(label = "opening_glow")
+    val glowPulse by infiniteTransition.animateFloat(
+        initialValue = 0.72f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glow_pulse"
+    )
 
     val backgroundBrush = if (isDarkTheme) {
         Brush.verticalGradient(
             colors = listOf(
-                NavyBackground,
-                NavySurface,
-                GraphiteCard,
-                NavyBackground
+                Color(0xFF070B14),
+                Color(0xFF0E1525),
+                Color(0xFF070B14)
             )
         )
     } else {
         Brush.verticalGradient(
             colors = listOf(
-                MaterialTheme.colorScheme.background,
-                MaterialTheme.colorScheme.surface,
-                MaterialTheme.colorScheme.surfaceVariant
+                Color(0xFFF4F7FB),
+                Color(0xFFEAF0F9),
+                Color(0xFFF4F7FB)
             )
         )
     }
 
     BoxWithConstraints(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(backgroundBrush)
-            .testTag("opening_screen"),
-        contentAlignment = Alignment.Center
+            .testTag("opening_screen")
     ) {
-        val isCompactHeight = maxHeight < 640.dp
-        val cubeBoxSize = when {
-            maxHeight < 520.dp -> 150.dp
-            isCompactHeight -> 190.dp
-            else -> 230.dp
-        }
+        val isCompactHeight = maxHeight < 680.dp
+        val floatingCubeSize = when {
+            maxHeight < 640.dp -> 210.dp
+            maxHeight < 740.dp -> 244.dp
+            else -> 276.dp
+        }.coerceAtMost(maxWidth - 40.dp)
 
-        // Fundo geométrico discreto com iluminação suave estilo neon
+        // Halos radiais e anéis geométricos de profundidade atrás do cubo 3D flutuante
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            val centerTop = Offset(w * 0.5f, h * 0.36f)
-            val maxRad = size.minDimension * 0.62f * glowPulse
-
+            val centerOffset = Offset(size.width * 0.5f, size.height * 0.37f)
+            val outerRadius = size.minDimension * 0.56f * glowPulse
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        TurquoisePrimary.copy(alpha = if (isDarkTheme) 0.20f else 0.12f),
-                        VioletAccent.copy(alpha = if (isDarkTheme) 0.12f else 0.07f),
+                        TurquoisePrimary.copy(alpha = if (isDarkTheme) 0.25f else 0.16f),
+                        VioletAccent.copy(alpha = if (isDarkTheme) 0.16f else 0.10f),
                         Color.Transparent
                     ),
-                    center = centerTop,
-                    radius = maxRad.coerceAtLeast(20f)
+                    center = centerOffset,
+                    radius = outerRadius.coerceAtLeast(24f)
                 ),
-                radius = maxRad.coerceAtLeast(20f),
-                center = centerTop
+                radius = outerRadius.coerceAtLeast(24f),
+                center = centerOffset
             )
-
-            // Anéis orbitais sutis
+            // Anel orbital sutil ao redor do cubo flutuante (sem caixa ou moldura retangular)
             drawCircle(
-                color = TurquoisePrimary.copy(alpha = if (isDarkTheme) 0.14f else 0.10f),
-                radius = size.minDimension * 0.34f,
-                center = centerTop,
+                color = TurquoisePrimary.copy(alpha = if (isDarkTheme) 0.16f else 0.12f),
+                radius = (size.minDimension * 0.34f).coerceAtLeast(20f),
+                center = centerOffset,
                 style = Stroke(width = 1.2.dp.toPx())
             )
             drawCircle(
-                color = VioletAccent.copy(alpha = if (isDarkTheme) 0.12f else 0.08f),
-                radius = size.minDimension * 0.44f,
-                center = centerTop,
+                color = VioletAccent.copy(alpha = if (isDarkTheme) 0.12f else 0.09f),
+                radius = (size.minDimension * 0.42f).coerceAtLeast(24f),
+                center = centerOffset,
                 style = Stroke(width = 1.dp.toPx())
             )
         }
@@ -182,177 +162,215 @@ fun OpeningScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .widthIn(max = 520.dp)
-                .padding(horizontal = 24.dp, vertical = if (isCompactHeight) 16.dp else 28.dp),
+                .widthIn(max = 560.dp)
+                .align(Alignment.Center)
+                .padding(horizontal = 24.dp, vertical = if (isCompactHeight) 16.dp else 26.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Selo superior tecnológico
+            // 1. Selo Superior de Identidade Tecnológica com ícone oficial de design-assets
             Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
+                color = if (isDarkTheme) Color(0xFF182235).copy(alpha = 0.90f) else Color.White.copy(alpha = 0.92f),
                 shape = RoundedCornerShape(50),
-                modifier = Modifier
-                    .border(
-                        width = 1.dp,
-                        brush = Brush.horizontalGradient(
-                            listOf(themeColors.turquoiseAccent, themeColors.violetAccent)
-                        ),
-                        shape = RoundedCornerShape(50)
+                border = BorderStroke(
+                    1.dp,
+                    Brush.horizontalGradient(
+                        listOf(
+                            themeColors.turquoiseAccent.copy(alpha = 0.65f),
+                            themeColors.violetAccent.copy(alpha = 0.65f)
+                        )
                     )
-                    .testTag("opening_badge")
+                ),
+                modifier = Modifier.testTag("opening_badge")
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_rounded_auto_awesome),
                         contentDescription = null,
                         tint = themeColors.turquoiseAccent,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                     Text(
-                        text = strings.openingBadge,
+                        text = strings.openingBadge.trim(),
+                        fontFamily = JetBrainsMonoFontFamily,
                         style = MaterialTheme.typography.labelSmall,
-                        color = themeColors.turquoiseAccent,
                         fontWeight = FontWeight.Bold,
+                        color = themeColors.turquoiseAccent,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
-            // Protagonista central: Cubo Mágico 3D interativo + moldura luminosa
-            Box(
-                modifier = Modifier
-                    .size(cubeBoxSize)
-                    .clip(RoundedCornerShape(32.dp))
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
-                            )
-                        )
-                    )
-                    .border(
-                        width = 1.5.dp,
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                TurquoisePrimary.copy(alpha = 0.75f),
-                                VioletAccent.copy(alpha = 0.75f)
-                            )
-                        ),
-                        shape = RoundedCornerShape(32.dp)
-                    )
-                    .padding(10.dp)
-                    .testTag("opening_cube_showcase"),
-                contentAlignment = Alignment.Center
-            ) {
-                InteractiveCube3DView(
-                    cubeState = CubeState.createSolved(),
-                    activeAnimation = null,
-                    isDarkTheme = isDarkTheme,
-                    autoRotateIdle = true,
-                    allowFaceSwipeMoves = false,
-                    showCameraControlsOverlay = false,
-                    showActiveMoveBanner = false,
-                    modifier = Modifier.fillMaxSize()
-                )
-
-                // Emblema cromático nos cantos para reforçar profundidade visual
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp)
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    VibrantCubeEmblemCanvas(modifier = Modifier.size(18.dp))
-                }
-            }
-
-            // Identidade tipográfica e recursos principais
+            // 2. Vitrine Central: Cubo 3D Flutuante Livre (SEM MOLDURA, SEM FUNDO DE CARTÃO, SEM TOQUE) + Identidade
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(if (isCompactHeight) 10.dp else 16.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = strings.appName,
-                    style = if (isCompactHeight) {
-                        MaterialTheme.typography.headlineLarge
-                    } else {
-                        MaterialTheme.typography.displayMedium
-                    },
-                    color = MaterialTheme.colorScheme.onBackground,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.testTag("opening_title")
-                )
-
-                Text(
-                    text = strings.openingSubtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
+                Box(
                     modifier = Modifier
-                        .padding(horizontal = 8.dp)
-                        .testTag("opening_subtitle")
-                )
+                        .size(floatingCubeSize)
+                        .testTag("opening_cube_showcase"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Halos luminosos concêntricos diretamente atrás do cubo flutuante
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val r = size.minDimension * 0.48f
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    TurquoisePrimary.copy(alpha = if (isDarkTheme) 0.30f * glowPulse else 0.18f * glowPulse),
+                                    VioletAccent.copy(alpha = if (isDarkTheme) 0.18f * glowPulse else 0.10f * glowPulse),
+                                    Color.Transparent
+                                ),
+                                center = center,
+                                radius = r.coerceAtLeast(16f)
+                            ),
+                            radius = r.coerceAtLeast(16f),
+                            center = center
+                        )
+                    }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                    // Cubo 3D flutuando livremente:
+                    // - transparentBackground = true (sem preenchimento retangular opaco e sem clip de cantos)
+                    // - gesturesEnabled = false (ignora 100% de toques, arrastes, pinça e torção)
+                    // - initialCameraDistance = 8.2f (folga espacial generosa para que nenhum vértice encoste nas bordas durante o giro)
+                    // - autoRotateIdle = true (rotação contínua suave)
+                    InteractiveCube3DView(
+                        cubeState = showcaseCube,
+                        activeAnimation = null,
+                        modifier = Modifier.fillMaxSize(),
+                        highlightMode = HighlightMode.ALL_VIVID,
+                        highlightEnabled = false,
+                        isDarkTheme = isDarkTheme,
+                        autoRotateIdle = true,
+                        allowFaceSwipeMoves = false,
+                        gesturesEnabled = false,
+                        transparentBackground = true,
+                        initialCameraDistance = 8.2f,
+                        showCameraControlsOverlay = false,
+                        showActiveMoveBanner = false
+                    )
+                }
 
-                // Destaques em pílulas com ícones Material Rounded
+                // Título e Subtítulo da Marca com tipografia Space Grotesk & Plus Jakarta Sans
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = strings.homeAppName,
+                        fontFamily = SpaceGroteskFontFamily,
+                        style = if (isCompactHeight) {
+                            MaterialTheme.typography.headlineMedium
+                        } else {
+                            MaterialTheme.typography.headlineLarge
+                        },
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.testTag("opening_title")
+                    )
+
+                    Text(
+                        text = strings.openingSubtitle,
+                        fontFamily = PlusJakartaSansFontFamily,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp)
+                            .testTag("opening_subtitle")
+                    )
+                }
+
+                // Pílulas de Pilares do App com ícones da biblioteca design-assets
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     OpeningFeaturePill(
-                        iconRes = R.drawable.ic_rounded_cube_3d,
-                        label = strings.openingFeature3D,
+                        iconRes = R.drawable.ic_rounded_school,
+                        label = strings.openingFeatureLearn,
                         accentColor = themeColors.turquoiseAccent,
                         modifier = Modifier.weight(1f, fill = false)
                     )
                     OpeningFeaturePill(
-                        iconRes = R.drawable.ic_rounded_school,
-                        label = strings.openingFeature7Stages,
-                        accentColor = themeColors.violetText,
+                        iconRes = R.drawable.ic_rounded_explore_3d,
+                        label = strings.openingFeatureExplore,
+                        accentColor = themeColors.violetAccent,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    OpeningFeaturePill(
+                        iconRes = R.drawable.ic_rounded_camera_cube,
+                        label = strings.openingFeatureSolve,
+                        accentColor = themeColors.warningText,
                         modifier = Modifier.weight(1f, fill = false)
                     )
                 }
             }
 
-            // Botão de entrada imediata (sem obrigar espera)
-            Button(
-                onClick = onContinue,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .testTag("opening_continue_button"),
-                shape = RoundedCornerShape(16.dp),
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = themeColors.turquoiseAccent,
-                    contentColor = themeColors.onTurquoiseAccent
-                )
+            // 3. Rodapé com CTA Principal e Assinatura Técnica
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_rounded_play),
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = onContinue,
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = themeColors.turquoiseAccent,
+                        contentColor = themeColors.onTurquoiseAccent
+                    ),
+                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .testTag("opening_continue_button")
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = strings.openingContinueButton,
+                            fontFamily = SpaceGroteskFontFamily,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(26.dp)
+                                .clip(CircleShape)
+                                .background(themeColors.onTurquoiseAccent.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_arrow_forward),
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+
                 Text(
-                    text = strings.openingEnterButton,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    text = strings.openingVersionLabel,
+                    fontFamily = JetBrainsMonoFontFamily,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.alpha(if (entranceVisible) 1f else 0.6f)
                 )
             }
         }
@@ -367,30 +385,31 @@ private fun OpeningFeaturePill(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
-        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+        shape = RoundedCornerShape(50),
         modifier = modifier.border(
             width = 1.dp,
-            color = accentColor.copy(alpha = 0.4f),
-            shape = RoundedCornerShape(12.dp)
+            color = accentColor.copy(alpha = 0.42f),
+            shape = RoundedCornerShape(50)
         )
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
         ) {
             Icon(
                 painter = painterResource(id = iconRes),
                 contentDescription = null,
                 tint = accentColor,
-                modifier = Modifier.size(15.dp)
+                modifier = Modifier.size(13.dp)
             )
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface,
+                fontFamily = PlusJakartaSansFontFamily,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                 fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -399,60 +418,33 @@ private fun OpeningFeaturePill(
 }
 
 /**
- * Ilustração vetorial cromática do cubo 3×3 usando as cores oficiais das faces e a paleta neon.
- */
-@Composable
-fun VibrantCubeEmblemCanvas(modifier: Modifier = Modifier) {
-    val colors = listOf(
-        StickerWhite, StickerRed, StickerBlue,
-        StickerOrange, TurquoisePrimary, StickerGreen,
-        StickerYellow, VioletAccent, StickerWhite
-    )
-    Canvas(modifier = modifier) {
-        val cell = size.width / 3f
-        val pad = (size.width * 0.055f).coerceAtLeast(1f)
-        val radius = CornerRadius(cell * 0.22f, cell * 0.22f)
-        for (r in 0..2) {
-            for (c in 0..2) {
-                drawRoundRect(
-                    color = colors[r * 3 + c],
-                    topLeft = Offset(c * cell + pad, r * cell + pad),
-                    size = Size(cell - pad * 2, cell - pad * 2),
-                    cornerRadius = radius
-                )
-            }
-        }
-    }
-}
-
-/**
- * Ilustração isométrica 3D de alta definição das 3 faces visíveis do Cubo Mágico
- * para enriquecer cartões de boas-vindas e cabeçalhos.
+ * Emblema vetorial isométrico de Cubo 3×3 compartilhado pelo cabeçalho do Menu Principal
+ * e pela tela de Boas-Vindas & Idioma.
  */
 @Composable
 fun IsometricCubeHeroIllustration(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
         val cx = size.width * 0.5f
-        val cy = size.height * 0.5f
-        val r = size.minDimension * 0.44f
+        val cy = size.height * 0.52f
+        val r = size.minDimension * 0.42f
         val dx = r * 0.866f
         val dy = r * 0.5f
 
-        val topFace = Path().apply {
+        val topFace = androidx.compose.ui.graphics.Path().apply {
             moveTo(cx, cy - r)
             lineTo(cx + dx, cy - dy)
             lineTo(cx, cy)
             lineTo(cx - dx, cy - dy)
             close()
         }
-        val leftFace = Path().apply {
+        val leftFace = androidx.compose.ui.graphics.Path().apply {
             moveTo(cx - dx, cy - dy)
             lineTo(cx, cy)
             lineTo(cx, cy + r)
             lineTo(cx - dx, cy + dy)
             close()
         }
-        val rightFace = Path().apply {
+        val rightFace = androidx.compose.ui.graphics.Path().apply {
             moveTo(cx, cy)
             lineTo(cx + dx, cy - dy)
             lineTo(cx + dx, cy + dy)
@@ -460,14 +452,16 @@ fun IsometricCubeHeroIllustration(modifier: Modifier = Modifier) {
             close()
         }
 
-        drawPath(topFace, color = StickerYellow)
-        drawPath(leftFace, color = StickerBlue)
-        drawPath(rightFace, color = StickerRed)
+        drawPath(topFace, color = com.example.ui.theme.StickerYellow)
+        drawPath(leftFace, color = com.example.ui.theme.StickerBlue)
+        drawPath(rightFace, color = com.example.ui.theme.StickerRed)
 
-        val strokeColor = NavyBackground.copy(alpha = 0.85f)
-        val strokeW = (size.minDimension * 0.045f).coerceAtLeast(1.5f)
-        drawPath(topFace, color = strokeColor, style = Stroke(width = strokeW))
-        drawPath(leftFace, color = strokeColor, style = Stroke(width = strokeW))
-        drawPath(rightFace, color = strokeColor, style = Stroke(width = strokeW))
+        val strokePx = (size.minDimension * 0.055f).coerceAtLeast(1.2f)
+        val borderStroke = Stroke(width = strokePx)
+        val lineColor = Color(0xFF0A0E17)
+        drawPath(topFace, color = lineColor, style = borderStroke)
+        drawPath(leftFace, color = lineColor, style = borderStroke)
+        drawPath(rightFace, color = lineColor, style = borderStroke)
     }
 }
+

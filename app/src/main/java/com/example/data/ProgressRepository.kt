@@ -63,10 +63,13 @@ enum class AppLanguage(
     }
 }
 
-enum class StepStatus(val labelPt: String) {
-    NOT_STARTED("Não iniciada"),
-    IN_PROGRESS("Em andamento"),
-    COMPLETED("Concluída")
+enum class StepStatus(val labelPt: String, val labelEn: String) {
+    NOT_STARTED("Não iniciada", "Not started"),
+    IN_PROGRESS("Em andamento", "In progress"),
+    COMPLETED("Concluída", "Completed");
+
+    fun localizedLabel(language: AppLanguage): String =
+        if (language == AppLanguage.EN_US) labelEn else labelPt
 }
 
 data class UserProgressState(

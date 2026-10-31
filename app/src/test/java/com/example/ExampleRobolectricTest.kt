@@ -3386,7 +3386,106 @@ class ExampleRobolectricTest {
             assertEquals(com.example.data.AppLanguage.EN_US, com.example.data.AppLanguage.fromTag("en-US"))
             assertEquals(com.example.data.AppLanguage.PT_BR, com.example.data.AppLanguage.fromTag("pt-BR"))
 
-            // 2. Simula primeira abertura (First Launch): Tela de Abertura -> Tela de Boas-Vindas e Escolha de Idioma
+            // 1b. Verifica que os 23 VectorDrawables integrados de design-assets/icons/material-symbols-rounded/android/
+            //     são carregados corretamente como recursos nativos Android
+            val designAssetDrawables = listOf(
+                com.example.R.drawable.ic_3d_rotation,
+                com.example.R.drawable.ic_arrow_back,
+                com.example.R.drawable.ic_arrow_forward,
+                com.example.R.drawable.ic_close,
+                com.example.R.drawable.ic_emoji_events,
+                com.example.R.drawable.ic_help,
+                com.example.R.drawable.ic_info,
+                com.example.R.drawable.ic_layers,
+                com.example.R.drawable.ic_refresh,
+                com.example.R.drawable.ic_star,
+                com.example.R.drawable.ic_swipe,
+                com.example.R.drawable.ic_undo,
+                com.example.R.drawable.ic_rounded_auto_awesome,
+                com.example.R.drawable.ic_rounded_check_circle,
+                com.example.R.drawable.ic_rounded_dark_mode,
+                com.example.R.drawable.ic_rounded_explore_3d,
+                com.example.R.drawable.ic_rounded_language,
+                com.example.R.drawable.ic_rounded_light_mode,
+                com.example.R.drawable.ic_rounded_notation_book,
+                com.example.R.drawable.ic_rounded_play,
+                com.example.R.drawable.ic_rounded_practice,
+                com.example.R.drawable.ic_rounded_school,
+                com.example.R.drawable.ic_rounded_settings
+            )
+            for (resId in designAssetDrawables) {
+                val drawable = androidx.core.content.ContextCompat.getDrawable(context, resId)
+                org.junit.Assert.assertNotNull("Drawable $resId de design-assets deve existir", drawable)
+                assertTrue("Drawable $resId deve ter largura intrínseca > 0", drawable!!.intrinsicWidth > 0)
+                assertTrue("Drawable $resId deve ter altura intrínseca > 0", drawable.intrinsicHeight > 0)
+            }
+
+            // 1c. Valida o Cubo 3D de Apresentação Sem Moldura e Não Interativo na OpeningScreen:
+            //     - transparentBackground = true e initialCameraDistance = 8.2f
+            //     - gesturesEnabled = false ignora 1 dedo (órbita/camada) e 2 dedos (pinça/torção)
+            //     - rotação automática contínua (advanceIdleAutoRotationIfEligible) permanece ativa
+            val openingRenderer = com.example.renderer.CubeGLRenderer()
+            openingRenderer.syncSceneState(
+                newCubeState = com.example.model.CubeState.createSolved(),
+                newAnimation = null,
+                newGuidedMove = null,
+                newHighlightMode = com.example.curriculum.HighlightMode.ALL_VIVID,
+                newHighlightEnabled = false,
+                newIsDarkBackground = true,
+                newAutoRotateIdle = true,
+                newCelebrationPulse = 0f,
+                newTransparentBackground = true,
+                newInitialCameraDistance = 8.2f
+            )
+            assertTrue("Renderer da abertura deve ter fundo transparente", openingRenderer.transparentBackground)
+            assertEquals(8.2f, openingRenderer.cameraDistance, 0.001f)
+
+            val initialYaw = openingRenderer.cameraYaw
+            val initialPitch = openingRenderer.cameraPitch
+            val initialRoll = openingRenderer.cameraRoll
+            val initialDist = openingRenderer.cameraDistance
+            var moveCallbackTriggered = false
+
+            val openingGlView = com.example.renderer.CubeTouchGLSurfaceView(
+                context = context,
+                cubeRenderer = openingRenderer,
+                allowFaceSwipeProvider = { false },
+                isAnimatingProvider = { false },
+                touchModeProvider = { com.example.renderer.TouchInteractionMode.MOVE_LAYERS },
+                gesturesEnabledProvider = { false },
+                transparentSurface = true,
+                onSwipeMove = { moveCallbackTriggered = true }
+            )
+
+            // Simula toque de 1 dedo e arrasto na OpeningScreen (deve ser 100% ignorado)
+            val down1 = android.view.MotionEvent.obtain(0L, 0L, android.view.MotionEvent.ACTION_DOWN, 180f, 180f, 0)
+            val move1 = android.view.MotionEvent.obtain(0L, 16L, android.view.MotionEvent.ACTION_MOVE, 260f, 240f, 0)
+            val up1 = android.view.MotionEvent.obtain(0L, 32L, android.view.MotionEvent.ACTION_UP, 260f, 240f, 0)
+            assertFalse("Toque DOWN na OpeningScreen não deve ser consumido", openingGlView.onTouchEvent(down1))
+            assertFalse("Arrasto MOVE na OpeningScreen não deve ser consumido", openingGlView.onTouchEvent(move1))
+            assertFalse("Toque UP na OpeningScreen não deve ser consumido", openingGlView.onTouchEvent(up1))
+            down1.recycle()
+            move1.recycle()
+            up1.recycle()
+
+            assertFalse("Cubo da abertura jamais deve entrar em estado isUserTouching", openingRenderer.isUserTouching)
+            assertFalse("Cubo da abertura jamais deve disparar movimento de camada", moveCallbackTriggered)
+            assertEquals("cameraYaw inalterado após toque na abertura", initialYaw, openingRenderer.cameraYaw, 0.0001f)
+            assertEquals("cameraPitch inalterado após toque na abertura", initialPitch, openingRenderer.cameraPitch, 0.0001f)
+            assertEquals("cameraRoll inalterado após toque na abertura", initialRoll, openingRenderer.cameraRoll, 0.0001f)
+            assertEquals("cameraDistance inalterado após toque na abertura", initialDist, openingRenderer.cameraDistance, 0.0001f)
+
+            // Confirma que a rotação automática contínua segue funcionando normalmente
+            assertTrue(
+                "Cubo da abertura deve continuar girando suavemente de forma automática",
+                openingRenderer.advanceIdleAutoRotationIfEligible()
+            )
+            assertTrue(
+                "cameraYaw deve avançar durante a rotação automática da abertura",
+                kotlin.math.abs(openingRenderer.cameraYaw - initialYaw) > 0.01f
+            )
+
+            // 2. Simula primeira abertura (First Launch): Tela de Abertura -> Tela de Boas-Vindas e Escolha de Idioma -> Menu Principal
             ProgressRepository.simulateFirstLaunchInHeadlessTest = true
             lateinit var vm: com.example.viewmodel.CuboMestreViewModel
             composeTestRule.activityRule.scenario.onActivity { act ->
@@ -3408,7 +3507,18 @@ class ExampleRobolectricTest {
             assertEquals("Cubo Mestre 3D", nodeCombinedText("opening_title"))
             assertEquals("Enter Experience", nodeCombinedText("opening_continue_button"))
 
-            // Avança da Tela de Abertura para a Tela de Boas-Vindas / Escolha de Idioma (pois hasCompletedOnboarding == false)
+            // Comprova que a Tela de Abertura NÃO avança automaticamente por temporizador (mesmo após > 5.000 ms)
+            composeTestRule.mainClock.advanceTimeBy(5000L)
+            composeTestRule.waitForIdle()
+            assertEquals(
+                "A Tela de Abertura deve permanecer aberta sem avanço automático até o toque no botão",
+                com.example.viewmodel.AppScreen.OPENING,
+                vm.currentScreen.value
+            )
+            composeTestRule.onNodeWithTag("opening_screen").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("opening_continue_button").assertIsDisplayed()
+
+            // Avança da Tela de Abertura para a Tela de Boas-Vindas / Escolha de Idioma imediatamente ao tocar no botão (pois hasCompletedOnboarding == false)
             composeTestRule.onNodeWithTag("opening_continue_button").performClick()
             composeTestRule.waitForIdle()
             ShadowTrace.reset()
@@ -3416,6 +3526,8 @@ class ExampleRobolectricTest {
             // B. Tela de Boas-Vindas e Escolha de Idioma na primeira execução
             assertEquals(com.example.viewmodel.AppScreen.WELCOME_LANGUAGE, vm.currentScreen.value)
             composeTestRule.onNodeWithTag("welcome_language_screen").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("welcome_badge").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("welcome_hero_card").assertIsDisplayed()
             composeTestRule.onNodeWithTag("language_option_en_us").assertIsDisplayed()
             composeTestRule.onNodeWithTag("language_option_pt_br").assertIsDisplayed()
             composeTestRule.onNodeWithTag("welcome_get_started_button").assertIsDisplayed()
@@ -3441,9 +3553,23 @@ class ExampleRobolectricTest {
             composeTestRule.waitForIdle()
             ShadowTrace.reset()
 
-            // C. Verifica abertura do Novo Menu Principal em en-US e persistência no DataStore
+            // C. Verifica abertura do Novo Menu Principal em en-US, Cabeçalho de 2 linhas e persistência no DataStore
             assertEquals(com.example.viewmodel.AppScreen.HOME, vm.currentScreen.value)
             composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("home_header_bar").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("home_header_brand_row").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("home_header_controls_row").assertIsDisplayed()
+            val brandBounds = composeTestRule.onNodeWithTag("home_header_brand_row").fetchSemanticsNode().boundsInRoot
+            val controlsBounds = composeTestRule.onNodeWithTag("home_header_controls_row").fetchSemanticsNode().boundsInRoot
+            assertFalse(
+                "Linha de identidade ($brandBounds) e linha de controles rápidos ($controlsBounds) não podem se sobrepor",
+                brandBounds.overlaps(controlsBounds)
+            )
+            assertTrue(
+                "Linha de controles rápidos deve ficar abaixo da linha de identidade do cabeçalho",
+                controlsBounds.top >= brandBounds.bottom - 0.5f
+            )
+
             val savedAfterEnOnboarding = repo.initialStateSnapshot()
             assertTrue("hasCompletedOnboarding deve ser salvo como true no DataStore", savedAfterEnOnboarding.hasCompletedOnboarding)
             assertEquals(com.example.data.AppLanguage.EN_US, savedAfterEnOnboarding.appLanguage)
@@ -3459,20 +3585,65 @@ class ExampleRobolectricTest {
             assertEquals("Solve with Camera", nodeCombinedText("solve_with_camera_preview_chip"))
             assertEquals("Solve Manually", nodeCombinedText("solve_manually_preview_chip"))
 
-            // D. Execuções seguintes: instancia novo ViewModel simulando reabertura do app e comprova que inicia
-            //    DIRETAMENTE no Menu Principal no idioma salvo (en-US), sem obrigar o usuário a repetir o onboarding!
+            // C2. Verifica consistência de idioma (en-US) nas telas ligadas ao Menu Principal:
+            //     NotationGuideModal, ExploreScreen e CourseScreen
+            composeTestRule.onNodeWithTag("notation_guide_button").performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("notation_guide_modal").assertIsDisplayed()
+            assertEquals("Tap any notation below to watch the move on the 3D cube.", nodeCombinedText("notation_orientation_text"))
+            assertEquals("Replay", nodeCombinedText("notation_repeat_move_button"))
+            composeTestRule.onNodeWithTag("close_notation_modal_button").performClick()
+            composeTestRule.waitForIdle()
+
+            composeTestRule.onNodeWithTag("explore_cube_button").performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("explore_screen").assertIsDisplayed()
+            assertEquals("Cube Solved • 0 moves", nodeCombinedText("explore_status_badge"))
+            assertEquals("Scramble", nodeCombinedText("scramble_cube_button"))
+            assertEquals("Undo", nodeCombinedText("undo_explore_button"))
+            composeTestRule.onNodeWithTag("explore_back_button").performClick()
+            composeTestRule.waitForIdle()
+
+            composeTestRule.onNodeWithTag("start_learning_button").performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("course_screen").assertIsDisplayed()
+            assertEquals("Learn", nodeCombinedText("step_1_learn_btn"))
+            assertEquals("Practice", nodeCombinedText("step_1_practice_btn"))
+            composeTestRule.onNodeWithTag("course_back_button").performClick()
+            composeTestRule.waitForIdle()
+            assertEquals(com.example.viewmodel.AppScreen.HOME, vm.currentScreen.value)
+            ShadowTrace.reset()
+
+            // D. Execuções seguintes (Cold Start): instancia novo ViewModel simulando inicialização do app e comprova:
+            //    1. Inicia na Tela de Abertura (OPENING) no idioma salvo (en-US)
+            //    2. Ao avançar da Tela de Abertura (completeOpeningScreen), vai DIRETAMENTE para o Menu Principal (HOME),
+            //       pulando a tela de escolha de idioma (WELCOME_LANGUAGE)!
+            //    3. Voltar do segundo plano (onAppBackgrounded / onAppForegrounded) NÃO repete a abertura.
             val nextLaunchVmEn = com.example.viewmodel.CuboMestreViewModel(
                 ApplicationProvider.getApplicationContext()
             )
             assertEquals(
-                "Execução seguinte deve abrir diretamente no Menu Principal (HOME)",
-                com.example.viewmodel.AppScreen.HOME,
+                "Inicialização seguinte deve exibir a Tela de Abertura (OPENING)",
+                com.example.viewmodel.AppScreen.OPENING,
                 nextLaunchVmEn.currentScreen.value
             )
             assertEquals(
                 "Idioma salvo (en-US) deve ser mantido na execução seguinte",
                 com.example.data.AppLanguage.EN_US,
                 nextLaunchVmEn.progressState.value.appLanguage
+            )
+            nextLaunchVmEn.completeOpeningScreen()
+            assertEquals(
+                "Após a abertura em execução seguinte, deve ir diretamente ao Menu Principal (HOME) sem repetir WELCOME_LANGUAGE",
+                com.example.viewmodel.AppScreen.HOME,
+                nextLaunchVmEn.currentScreen.value
+            )
+            nextLaunchVmEn.onAppBackgrounded()
+            nextLaunchVmEn.onAppForegrounded()
+            assertEquals(
+                "Retornar do segundo plano não deve repetir a Tela de Abertura",
+                com.example.viewmodel.AppScreen.HOME,
+                nextLaunchVmEn.currentScreen.value
             )
             composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
             assertEquals("Start learning", nodeCombinedText("start_learning_button"))
@@ -3511,13 +3682,42 @@ class ExampleRobolectricTest {
             assertEquals("Resolver com câmera", nodeCombinedText("solve_with_camera_preview_chip"))
             assertEquals("Resolver manualmente", nodeCombinedText("solve_manually_preview_chip"))
 
-            // Simula nova abertura do aplicativo para confirmar persistência de pt-BR nas execuções seguintes
+            // Simula nova abertura do aplicativo para confirmar fluxo OPENING -> Botão Entrar -> HOME em pt-BR nas execuções seguintes
             val nextLaunchVmPt = com.example.viewmodel.CuboMestreViewModel(
                 ApplicationProvider.getApplicationContext()
             )
-            assertEquals(com.example.viewmodel.AppScreen.HOME, nextLaunchVmPt.currentScreen.value)
+            assertEquals(com.example.viewmodel.AppScreen.OPENING, nextLaunchVmPt.currentScreen.value)
             assertEquals(com.example.data.AppLanguage.PT_BR, nextLaunchVmPt.progressState.value.appLanguage)
+            nextLaunchVmPt.completeOpeningScreen()
+            assertEquals(com.example.viewmodel.AppScreen.HOME, nextLaunchVmPt.currentScreen.value)
+
+            // Comprova também na UI real (com hasCompletedOnboarding == true) que a OpeningScreen em pt-BR:
+            // 1. Exibe "Entrar na Experiência"
+            // 2. Permanece aberta sem avanço automático após > 5.000 ms
+            // 3. Ao tocar no botão, vai diretamente para o Menu Principal (HOME) sem repetir WELCOME_LANGUAGE
+            composeTestRule.runOnUiThread {
+                vm.openOpeningScreen()
+            }
+            composeTestRule.waitForIdle()
+            assertEquals(com.example.viewmodel.AppScreen.OPENING, vm.currentScreen.value)
+            composeTestRule.onNodeWithTag("opening_screen").assertIsDisplayed()
+            assertEquals("Entrar na Experiência", nodeCombinedText("opening_continue_button"))
+            composeTestRule.mainClock.advanceTimeBy(5000L)
+            composeTestRule.waitForIdle()
+            assertEquals(
+                "A Tela de Abertura em execução seguinte também não deve avançar sozinha por temporizador",
+                com.example.viewmodel.AppScreen.OPENING,
+                vm.currentScreen.value
+            )
+            composeTestRule.onNodeWithTag("opening_continue_button").performClick()
+            composeTestRule.waitForIdle()
+            assertEquals(
+                "Em execução seguinte, o toque no botão de entrada deve levar diretamente ao Menu Principal (HOME)",
+                com.example.viewmodel.AppScreen.HOME,
+                vm.currentScreen.value
+            )
             assertEquals("Começar a aprender", nodeCombinedText("start_learning_button"))
+            ShadowTrace.reset()
 
             // G. Testa botão rápido "Praticar" do Menu Principal
             composeTestRule.onNodeWithTag("home_practice_button").performClick()
@@ -3526,9 +3726,169 @@ class ExampleRobolectricTest {
             assertEquals(com.example.viewmodel.LearningMode.PRACTICE, vm.lessonState.value.mode)
         } finally {
             ProgressRepository.simulateFirstLaunchInHeadlessTest = false
+            java.util.Locale.setDefault(com.example.data.AppLanguage.PT_BR.toLocale())
             repo.applyOnboardingImmediate(com.example.data.AppLanguage.PT_BR, completed = true)
-            ProgressRepository.resetInMemoryCacheForTest()
+            runBlocking {
+                repo.completeOnboardingWithLanguage(com.example.data.AppLanguage.PT_BR)
+            }
+            ShadowTrace.reset()
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h780dp-xhdpi")
+    fun testCompleteInternationalizationEnUsAndPtBrAcrossAllLessonAndPedagogicalScreens() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val repo = ProgressRepository(context)
+
+        fun nodeCombinedText(tag: String): String {
+            return composeTestRule.onNodeWithTag(tag, useUnmergedTree = true)
+                .fetchSemanticsNode()
+                .let { root ->
+                    val texts = mutableListOf<String>()
+                    fun walk(n: androidx.compose.ui.semantics.SemanticsNode) {
+                        n.config.getOrElse(androidx.compose.ui.semantics.SemanticsProperties.Text) { emptyList() }
+                            .forEach { texts.add(it.text) }
+                        n.children.forEach { walk(it) }
+                    }
+                    walk(root)
+                    texts.joinToString(" ")
+                }
+        }
+
+        try {
+            lateinit var vm: com.example.viewmodel.CuboMestreViewModel
+            composeTestRule.activityRule.scenario.onActivity { act ->
+                vm = androidx.lifecycle.ViewModelProvider(act)[com.example.viewmodel.CuboMestreViewModel::class.java]
+            }
+            composeTestRule.waitForIdle()
+            ShadowTrace.reset()
+
+            // 1. Seleciona English (United States)
+            composeTestRule.runOnUiThread {
+                vm.selectAppLanguage(com.example.data.AppLanguage.EN_US)
+                vm.openLesson(stepNumber = 6, caseIndex = 0, mode = com.example.viewmodel.LearningMode.LEARN)
+            }
+            composeTestRule.waitForIdle()
+            ShadowTrace.reset()
+
+            // 2. Verifica todos os elementos visíveis de LessonScreen (Etapa 6, Caso 1) em Inglês (en-US)
+            assertEquals("Position the Final Corners", nodeCombinedText("lesson_step_title"))
+            assertEquals("Learn", nodeCombinedText("mode_learn_tab"))
+            assertEquals("Practice", nodeCombinedText("mode_practice_tab"))
+            assertEquals("Case 1 of 2", nodeCombinedText("case_selector_header"))
+            assertEquals("Two corners with matching side color (Place at Back)", nodeCombinedText("case_full_title_text"))
+            assertEquals("Understand case", nodeCombinedText("open_case_detail_button"))
+            assertEquals("Case 1", nodeCombinedText("case_chip_0"))
+            assertEquals("Case 2", nodeCombinedText("case_chip_1"))
+            assertEquals(
+                "Choose a case to study and tap 'Understand case' for the full theory.",
+                nodeCombinedText("case_orientation_tip_banner")
+            )
+            assertTrue(nodeCombinedText("case_short_description").contains("Matching corner pair ('headlights') at the back (B)"))
+            assertTrue(nodeCombinedText("stage6_corner_pair_text").contains("Orange pair on Back (B)"))
+            assertEquals("Play", nodeCombinedText("play_pause_button"))
+            assertEquals("Goal: align the final corners.", nodeCombinedText("collapsed_goal_text"))
+            assertEquals("Collapsed", nodeCombinedText("panel_state_COLLAPSED"))
+            assertEquals("Summary", nodeCombinedText("panel_state_INTERMEDIATE"))
+            assertEquals("Full", nodeCombinedText("panel_state_EXPANDED"))
+            assertEquals("Previous", nodeCombinedText("prev_step_button"))
+            assertEquals("Complete", nodeCombinedText("complete_step_button"))
+            assertEquals("Next", nodeCombinedText("next_step_button"))
+
+            // 3. Verifica painel inferior expansível nos estados Summary e Full em Inglês
+            composeTestRule.onNodeWithTag("panel_state_INTERMEDIATE").performClick()
+            composeTestRule.waitForIdle()
+            val intermediateTextEn = nodeCombinedText("intermediate_scroll_container")
+            assertTrue(intermediateTextEn.contains("Step goal: Permute the top corners so both upper corners on each side share the same color ('headlights')"))
+            assertTrue(intermediateTextEn.contains("Tip: Why do the two back corners form a pair"))
+
+            composeTestRule.onNodeWithTag("panel_state_EXPANDED").performClick()
+            composeTestRule.waitForIdle()
+            val expandedTextEn = nodeCombinedText("explanation_scroll_container")
+            assertTrue(expandedTextEn.contains("Step 6: Position the Final Corners"))
+            assertTrue(expandedTextEn.contains("Teacher's Tip:"))
+
+            // 4. Abre o modal "Understand case" na Etapa 6 e verifica tradução integral + Guia Visual de Headlights
+            composeTestRule.onNodeWithTag("open_case_detail_button").performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("case_detail_modal").assertIsDisplayed()
+            assertEquals(
+                "Case 1 of 2 — Two corners with matching side color (Place at Back)",
+                nodeCombinedText("case_detail_full_title")
+            )
+            assertTrue(nodeCombinedText("case_detail_full_description").contains("headlights"))
+            assertEquals(
+                "How to identify a pair ('headlights') in Step 6",
+                nodeCombinedText("stage6_headlights_guide_title")
+            )
+            assertTrue(nodeCombinedText("stage6_headlights_rule_1").contains("Each corner piece has three colors"))
+            assertTrue(nodeCombinedText("stage6_headlights_example_box").contains("In Case 1, the two top corners on the back face have orange stickers"))
+            assertEquals("Return to 3D cube", nodeCombinedText("return_to_cube_from_detail_button"))
+
+            composeTestRule.onNodeWithTag("return_to_cube_from_detail_button").performClick()
+            composeTestRule.waitForIdle()
+
+            // 5. Verifica fases pedagógicas traduzidas na Etapa 4 Caso 2 e Etapa 6 Caso 2
+            composeTestRule.runOnUiThread {
+                vm.openLesson(stepNumber = 4, caseIndex = 1, mode = com.example.viewmodel.LearningMode.LEARN)
+            }
+            composeTestRule.waitForIdle()
+            assertEquals("Phase 1 — Turn the Line into an L-Shape", nodeCombinedText("active_phase_title_text"))
+            assertEquals("▶ Phase 1 (Line→L)", nodeCombinedText("play_phase_1_button"))
+            assertEquals("▶ Phase 2 (L→Cross)", nodeCombinedText("play_phase_2_button"))
+            assertEquals("▶ 2 Phases", nodeCombinedText("play_full_phases_button"))
+
+            // 6. Verifica Modo Praticar em Inglês e troca dinâmica de idioma (EN-US <-> PT-BR) preservando estado e progresso
+            composeTestRule.runOnUiThread {
+                vm.openLesson(stepNumber = 6, caseIndex = 0, mode = com.example.viewmodel.LearningMode.PRACTICE)
+            }
+            composeTestRule.waitForIdle()
+            assertTrue(nodeCombinedText("practice_interactive_card").contains("Family R"))
+            assertTrue(nodeCombinedText("toggle_practice_moves_button").contains("Keyboard"))
+
+            // Executa um movimento no Modo Praticar e verifica que o cubo mudou e o feedback apareceu em Inglês
+            composeTestRule.onNodeWithTag("practice_family_action_R").performClick()
+            composeTestRule.waitForIdle()
+            val cubeStateAfterMove = vm.lessonState.value.cubeState
+            assertEquals("Move executed: R", vm.lessonState.value.feedbackMessage)
+
+            // Alterna idioma para PT-BR em tempo real sem sair da aula e verifica preservação do estado do cubo + tradução imediata
+            composeTestRule.runOnUiThread {
+                vm.selectAppLanguage(com.example.data.AppLanguage.PT_BR)
+            }
+            composeTestRule.waitForIdle()
+            assertEquals("Trocar idioma não deve alterar o estado do cubo 3D", cubeStateAfterMove, vm.lessonState.value.cubeState)
+            assertEquals("Movimento executado: R", vm.lessonState.value.feedbackMessage)
+            assertEquals("Posicionar os Cantos Finais", nodeCombinedText("lesson_step_title"))
+            assertEquals("Caso 1 de 2", nodeCombinedText("case_selector_header"))
+            assertEquals("Entender o caso", nodeCombinedText("open_case_detail_button"))
+            assertTrue(nodeCombinedText("practice_interactive_card").contains("Família R"))
+
+            // Alterna novamente para EN-US e confirma re-tradução imediata do feedback e da UI
+            composeTestRule.runOnUiThread {
+                vm.selectAppLanguage(com.example.data.AppLanguage.EN_US)
+            }
+            composeTestRule.waitForIdle()
+            assertEquals(cubeStateAfterMove, vm.lessonState.value.cubeState)
+            assertEquals("Move executed: R", vm.lessonState.value.feedbackMessage)
+            assertEquals("Position the Final Corners", nodeCombinedText("lesson_step_title"))
+            assertEquals("Case 1 of 2", nodeCombinedText("case_selector_header"))
+            assertEquals("Understand case", nodeCombinedText("open_case_detail_button"))
+
+            // Restaura PT-BR no ViewModel ativo antes de encerrar
+            composeTestRule.runOnUiThread {
+                vm.selectAppLanguage(com.example.data.AppLanguage.PT_BR)
+            }
+            composeTestRule.waitForIdle()
+        } finally {
+            java.util.Locale.setDefault(com.example.data.AppLanguage.PT_BR.toLocale())
+            repo.applyOnboardingImmediate(com.example.data.AppLanguage.PT_BR, completed = true)
+            runBlocking {
+                repo.completeOnboardingWithLanguage(com.example.data.AppLanguage.PT_BR)
+            }
             ShadowTrace.reset()
         }
     }
 }
+

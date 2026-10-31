@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,9 +25,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -66,6 +64,7 @@ import com.example.renderer.ActiveLayerAnimation
 import com.example.renderer.ActiveMoveIndicatorBanner
 import com.example.renderer.InteractiveCube3DView
 import com.example.ui.theme.CuboMestreTheme
+import com.example.ui.theme.StickerBlue
 import com.example.ui.theme.SuccessEmerald
 import com.example.ui.theme.TurquoisePrimary
 import com.example.ui.theme.VioletAccent
@@ -239,67 +238,88 @@ private fun HomeHeaderBar(
     val themeColors = CuboMestreTheme.colors
     val strings = CuboMestreTheme.strings
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("home_header_bar"),
+        verticalArrangement = Arrangement.spacedBy(if (isCompact) 6.dp else 8.dp)
     ) {
+        // Linha 1: Identidade do aplicativo com largura total para o título "Cubo Mestre 3D" e subtítulo sem aperto
         Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier
-                .weight(1f)
-                .padding(end = 6.dp)
+                .fillMaxWidth()
+                .testTag("home_header_brand_row"),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // Emblema 3D isométrico com moldura luminosa turquesa/violeta
             Box(
                 modifier = Modifier
-                    .size(if (isCompact) 36.dp else 40.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .size(if (isCompact) 40.dp else 44.dp)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.surfaceVariant,
+                                MaterialTheme.colorScheme.surfaceContainerHigh
+                            )
+                        )
+                    )
                     .border(
-                        width = 1.dp,
+                        width = 1.2.dp,
                         brush = Brush.linearGradient(
-                            listOf(themeColors.turquoiseAccent, themeColors.violetAccent)
+                            listOf(themeColors.turquoiseAccent, StickerBlue, themeColors.violetAccent)
                         ),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(13.dp)
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                VibrantCubeEmblemCanvas(modifier = Modifier.size(if (isCompact) 20.dp else 22.dp))
+                IsometricCubeHeroIllustration(
+                    modifier = Modifier.size(if (isCompact) 26.dp else 30.dp)
+                )
             }
 
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(1.dp)
+            ) {
                 Text(
                     text = strings.appName,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = if (isCompact) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onBackground,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag("home_header_title")
                 )
                 Text(
                     text = strings.homeSubtitle,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag("home_header_subtitle")
                 )
             }
         }
 
+        // Linha 2: Barra de controles rápidos bem espaçada (Idioma, Tema e Configurações)
         Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("home_header_controls_row"),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Seletor rápido de idioma (PT / EN)
+            // 1. Pílula de Idioma (PT-BR / EN-US) com ícone ic_rounded_language de design-assets
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(50),
                 modifier = Modifier
-                    .height(36.dp)
+                    .height(34.dp)
                     .border(
                         width = 1.dp,
-                        color = themeColors.turquoiseAccent.copy(alpha = 0.45f),
+                        color = themeColors.turquoiseAccent.copy(alpha = 0.50f),
                         shape = RoundedCornerShape(50)
                     )
                     .clickable { onToggleLanguage() }
@@ -307,8 +327,8 @@ private fun HomeHeaderBar(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.padding(horizontal = 9.dp)
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    modifier = Modifier.padding(horizontal = 11.dp)
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_rounded_language),
@@ -325,40 +345,79 @@ private fun HomeHeaderBar(
                 }
             }
 
-            // Acesso rápido a Configurações
-            IconButton(
-                onClick = onOpenSettings,
+            // 2. Pílula de Tema Claro / Escuro com ícones ic_rounded_light_mode / ic_rounded_dark_mode de design-assets
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = RoundedCornerShape(50),
                 modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .testTag("home_settings_button")
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_rounded_settings),
-                    contentDescription = strings.settingsButton,
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
-            // Alternador rápido de Tema Claro / Escuro
-            IconButton(
-                onClick = onToggleTheme,
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .height(34.dp)
+                    .border(
+                        width = 1.dp,
+                        color = themeColors.turquoiseAccent.copy(alpha = 0.45f),
+                        shape = RoundedCornerShape(50)
+                    )
+                    .clickable { onToggleTheme() }
                     .testTag("theme_toggle_button")
             ) {
-                Icon(
-                    painter = painterResource(
-                        id = if (isDarkTheme) R.drawable.ic_rounded_light_mode else R.drawable.ic_rounded_dark_mode
-                    ),
-                    contentDescription = "Alternar tema claro/escuro",
-                    tint = themeColors.turquoiseAccent,
-                    modifier = Modifier.size(18.dp)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    modifier = Modifier.padding(horizontal = 11.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(
+                            id = if (isDarkTheme) R.drawable.ic_rounded_light_mode else R.drawable.ic_rounded_dark_mode
+                        ),
+                        contentDescription = strings.settingsThemeSectionTitle,
+                        tint = themeColors.turquoiseAccent,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = if (isDarkTheme) strings.settingsThemeDarkLabel else strings.settingsThemeLightLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // 3. Botão de Configurações com ícone ic_rounded_settings de design-assets
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = RoundedCornerShape(50),
+                modifier = Modifier
+                    .height(34.dp)
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+                        shape = RoundedCornerShape(50)
+                    )
+                    .clickable { onOpenSettings() }
+                    .testTag("home_settings_button")
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    modifier = Modifier.padding(horizontal = 11.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_rounded_settings),
+                        contentDescription = strings.settingsButton,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = strings.settingsButton,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1
+                    )
+                }
             }
         }
     }
@@ -389,8 +448,14 @@ private fun HomeHeroCubeViewport(
             modifier = Modifier
                 .fillMaxSize()
                 .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                    width = 1.4.dp,
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            TurquoisePrimary.copy(alpha = if (isDarkTheme) 0.58f else 0.42f),
+                            StickerBlue.copy(alpha = if (isDarkTheme) 0.45f else 0.32f),
+                            VioletAccent.copy(alpha = if (isDarkTheme) 0.58f else 0.42f)
+                        )
+                    ),
                     shape = RoundedCornerShape(24.dp)
                 )
         ) {
@@ -435,11 +500,16 @@ private fun HomeHeroCubeViewport(
                 ) {
                     // Selo compacto no canto superior esquerdo
                     Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.88f),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.90f),
                         shape = RoundedCornerShape(50),
                         modifier = Modifier
                             .weight(1f, fill = false)
                             .padding(end = 8.dp)
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+                                shape = RoundedCornerShape(50)
+                            )
                             .testTag("home_interactive_cube_badge")
                     ) {
                         Row(
@@ -466,14 +536,14 @@ private fun HomeHeroCubeViewport(
                         }
                     }
 
-                    // Botão discreto para restaurar o cubo da Home ao estado resolvido
+                    // Botão discreto para restaurar o cubo da Home ao estado resolvido (usando ic_refresh de design-assets)
                     Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.88f),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.90f),
                         shape = RoundedCornerShape(50),
                         modifier = Modifier
                             .border(
                                 width = 1.dp,
-                                color = themeColors.turquoiseAccent.copy(alpha = 0.55f),
+                                color = themeColors.turquoiseAccent.copy(alpha = 0.58f),
                                 shape = RoundedCornerShape(50)
                             )
                             .clickable { onRestoreCube() }
@@ -485,7 +555,7 @@ private fun HomeHeroCubeViewport(
                             modifier = Modifier.padding(horizontal = pillHorizontalPad, vertical = 5.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Refresh,
+                                painter = painterResource(id = R.drawable.ic_refresh),
                                 contentDescription = strings.restoreCubeButton,
                                 tint = themeColors.turquoiseAccent,
                                 modifier = Modifier.size(if (isCompactViewport) 13.dp else 14.dp)
@@ -522,9 +592,11 @@ private fun HomeHeroCubeViewport(
 }
 
 /**
- * 8.2 Cartão Principal em Destaque — "Resolver meu cubo / Solve My Cube" (Etapa 3).
- * Apresenta visualmente as duas modalidades planejadas (Resolver com câmera / Resolver manualmente),
- * claramente identificadas como recurso da Etapa 3.
+ * Cartão Principal em Destaque — "Resolver meu cubo / Solve My Cube" (Etapa 3).
+ * Comunica visualmente as duas modalidades planejadas:
+ * 1. Resolver com câmera / Solve with Camera
+ * 2. Resolver manualmente / Solve Manually
+ * mantendo a indicação clara de disponibilidade na Etapa 3.
  */
 @Composable
 private fun SolveMyCubeHeroCard(
@@ -539,14 +611,16 @@ private fun SolveMyCubeHeroCard(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
         shape = RoundedCornerShape(18.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         modifier = Modifier
             .fillMaxWidth()
             .border(
-                width = 1.2.dp,
+                width = 1.4.dp,
                 brush = Brush.horizontalGradient(
                     colors = listOf(
-                        TurquoisePrimary.copy(alpha = 0.65f),
-                        VioletAccent.copy(alpha = 0.65f)
+                        TurquoisePrimary.copy(alpha = 0.78f),
+                        StickerBlue.copy(alpha = 0.65f),
+                        VioletAccent.copy(alpha = 0.78f)
                     )
                 ),
                 shape = RoundedCornerShape(18.dp)
@@ -557,6 +631,14 @@ private fun SolveMyCubeHeroCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            TurquoisePrimary.copy(alpha = 0.08f),
+                            VioletAccent.copy(alpha = 0.08f)
+                        )
+                    )
+                )
                 .padding(horizontal = 12.dp, vertical = if (isCompact) 6.dp else 8.dp),
             verticalArrangement = Arrangement.spacedBy(if (isCompact) 5.dp else 6.dp)
         ) {
@@ -570,12 +652,20 @@ private fun SolveMyCubeHeroCard(
                     horizontalArrangement = Arrangement.spacedBy(7.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_rounded_auto_awesome),
-                        contentDescription = null,
-                        tint = themeColors.turquoiseAccent,
-                        modifier = Modifier.size(16.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(RoundedCornerShape(7.dp))
+                            .background(themeColors.turquoiseAccent.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_rounded_auto_awesome),
+                            contentDescription = null,
+                            tint = themeColors.turquoiseAccent,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
                     Text(
                         text = strings.solveMyCubeTitle,
                         style = MaterialTheme.typography.titleSmall,
@@ -589,17 +679,34 @@ private fun SolveMyCubeHeroCard(
                 Surface(
                     color = themeColors.violetAccent.copy(alpha = 0.18f),
                     shape = RoundedCornerShape(50),
-                    modifier = Modifier.testTag("solve_my_cube_stage3_badge")
+                    modifier = Modifier
+                        .border(
+                            width = 1.dp,
+                            color = themeColors.violetAccent.copy(alpha = 0.42f),
+                            shape = RoundedCornerShape(50)
+                        )
+                        .testTag("solve_my_cube_stage3_badge")
                 ) {
-                    Text(
-                        text = strings.solveMyCubeStage3Badge,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = themeColors.violetText,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                    )
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_layers),
+                            contentDescription = null,
+                            tint = themeColors.violetText,
+                            modifier = Modifier.size(11.dp)
+                        )
+                        Text(
+                            text = strings.solveMyCubeStage3Badge,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = themeColors.violetText,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
 
@@ -639,35 +746,44 @@ private fun SolveModalityPreviewChip(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+        shape = RoundedCornerShape(11.dp),
         modifier = modifier
             .border(
                 width = 1.dp,
-                color = accentColor.copy(alpha = 0.35f),
-                shape = RoundedCornerShape(10.dp)
+                color = accentColor.copy(alpha = 0.45f),
+                shape = RoundedCornerShape(11.dp)
             )
             .clickable { onClick() }
             .testTag(testTag)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
         ) {
-            Icon(
-                painter = painterResource(id = iconRes),
-                contentDescription = null,
-                tint = accentColor,
-                modifier = Modifier.size(14.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(accentColor.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = iconRes),
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(13.dp)
+                )
+            }
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
             )
         }
     }
@@ -694,8 +810,14 @@ private fun StudentProgressBannerCard(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
         shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier
             .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+                shape = RoundedCornerShape(16.dp)
+            )
             .clickable { onContinueLessonClick() }
             .testTag("student_progress_card")
     ) {
@@ -744,16 +866,30 @@ private fun StudentProgressBannerCard(
                     }
 
                     Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_emoji_events),
+                                contentDescription = null,
+                                tint = themeColors.turquoiseAccent,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = strings.stagesCompletedFormat(completedCount),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                         Text(
-                            text = strings.stagesCompletedFormat(completedCount),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = strings.continueStageFormat(lastStep.number, lastStep.title),
+                            text = strings.continueStageFormat(
+                                lastStep.number,
+                                lastStep.localizedTitle(progressState.appLanguage)
+                            ),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -766,11 +902,16 @@ private fun StudentProgressBannerCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    // Botão rápido de Praticar (Etapa 1 Hub)
+                    // Botão rápido de Praticar (Etapa 1 Hub) com ícone ic_touch_app de design-assets
                     Surface(
                         color = themeColors.violetAccent.copy(alpha = 0.16f),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier
+                            .border(
+                                width = 1.dp,
+                                color = themeColors.violetAccent.copy(alpha = 0.38f),
+                                shape = RoundedCornerShape(10.dp)
+                            )
                             .clickable { onPracticeClick() }
                             .testTag("home_practice_button")
                     ) {
@@ -796,11 +937,17 @@ private fun StudentProgressBannerCard(
                         }
                     }
 
-                    // Chip Continuar aula
+                    // Chip Continuar aula com ícone ic_play_arrow de design-assets
                     Surface(
-                        color = themeColors.turquoiseAccent.copy(alpha = 0.14f),
+                        color = themeColors.turquoiseAccent.copy(alpha = 0.16f),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.testTag("continue_lesson_chip")
+                        modifier = Modifier
+                            .border(
+                                width = 1.dp,
+                                color = themeColors.turquoiseAccent.copy(alpha = 0.38f),
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                            .testTag("continue_lesson_chip")
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -868,6 +1015,11 @@ private fun HomePrimaryActionsSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(if (compactVertical) 42.dp else 46.dp)
+                    .border(
+                        width = 1.dp,
+                        color = Color.White.copy(alpha = 0.25f),
+                        shape = RoundedCornerShape(16.dp)
+                    )
                     .testTag("start_learning_button"),
                 shape = RoundedCornerShape(16.dp),
                 contentPadding = PaddingValues(
@@ -877,7 +1029,8 @@ private fun HomePrimaryActionsSection(
                 colors = ButtonDefaults.buttonColors(
                     containerColor = themeColors.turquoiseAccent,
                     contentColor = themeColors.onTurquoiseAccent
-                )
+                ),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.ic_rounded_school),
@@ -898,7 +1051,7 @@ private fun HomePrimaryActionsSection(
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    painter = painterResource(id = R.drawable.ic_arrow_forward),
                     contentDescription = null,
                     modifier = Modifier.size(if (compactVertical) 16.dp else 18.dp)
                 )
@@ -914,6 +1067,10 @@ private fun HomePrimaryActionsSection(
                         .height(38.dp)
                         .testTag("explore_cube_button"),
                     shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, themeColors.turquoiseAccent.copy(alpha = 0.50f)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                    ),
                     contentPadding = PaddingValues(
                         horizontal = 12.dp,
                         vertical = 0.dp
@@ -943,6 +1100,10 @@ private fun HomePrimaryActionsSection(
                         .height(38.dp)
                         .testTag("notation_guide_button"),
                     shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, themeColors.violetAccent.copy(alpha = 0.50f)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                    ),
                     contentPadding = PaddingValues(
                         horizontal = 12.dp,
                         vertical = 0.dp
@@ -951,7 +1112,7 @@ private fun HomePrimaryActionsSection(
                     Icon(
                         painter = painterResource(id = R.drawable.ic_rounded_notation_book),
                         contentDescription = null,
-                        tint = themeColors.violetAccent,
+                        tint = themeColors.violetText,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -978,6 +1139,10 @@ private fun HomePrimaryActionsSection(
                             .height(44.dp)
                             .testTag("explore_cube_button"),
                         shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, themeColors.turquoiseAccent.copy(alpha = 0.50f)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                        ),
                         contentPadding = PaddingValues(
                             horizontal = 10.dp,
                             vertical = 0.dp
@@ -1007,6 +1172,10 @@ private fun HomePrimaryActionsSection(
                             .height(44.dp)
                             .testTag("notation_guide_button"),
                         shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, themeColors.violetAccent.copy(alpha = 0.50f)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                        ),
                         contentPadding = PaddingValues(
                             horizontal = 10.dp,
                             vertical = 0.dp
@@ -1015,7 +1184,7 @@ private fun HomePrimaryActionsSection(
                         Icon(
                             painter = painterResource(id = R.drawable.ic_rounded_notation_book),
                             contentDescription = null,
-                            tint = themeColors.violetAccent,
+                            tint = themeColors.violetText,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))

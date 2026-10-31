@@ -23,13 +23,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.HelpOutline
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -56,8 +49,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.R
 import com.example.curriculum.CurriculumRepository
 import com.example.curriculum.CurriculumStep
 import com.example.data.StepStatus
@@ -83,6 +78,7 @@ fun CourseScreen(
     BackHandler(onBack = onBackToHome)
 
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
     var showStudyFlowGuide by rememberSaveable { mutableStateOf(true) }
 
     Box(
@@ -118,20 +114,20 @@ fun CourseScreen(
                             .testTag("course_back_button")
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Voltar para a tela inicial",
+                            painter = painterResource(id = R.drawable.ic_arrow_back),
+                            contentDescription = strings.courseBackContentDesc,
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
 
                     Column {
                         Text(
-                            text = "Método de Camadas",
+                            text = strings.courseTitle,
                             style = MaterialTheme.typography.headlineMedium,
                             color = MaterialTheme.colorScheme.onBackground
                         )
                         Text(
-                            text = "As 7 etapas oficiais para resolver o 3×3",
+                            text = strings.courseSubtitle,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -157,8 +153,8 @@ fun CourseScreen(
                             .testTag("toggle_study_flow_button")
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.HelpOutline,
-                            contentDescription = "Como estudar o curso",
+                            painter = painterResource(id = R.drawable.ic_help),
+                            contentDescription = strings.courseStudyFlowContentDesc,
                             tint = themeColors.turquoiseAccent
                         )
                     }
@@ -172,8 +168,8 @@ fun CourseScreen(
                             .testTag("course_notation_button")
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.MenuBook,
-                            contentDescription = "Abrir Guia de Notação",
+                            painter = painterResource(id = R.drawable.ic_rounded_notation_book),
+                            contentDescription = strings.courseNotationContentDesc,
                             tint = themeColors.turquoiseAccent
                         )
                     }
@@ -200,7 +196,7 @@ fun CourseScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Seu Progresso: $completedCount / 7 Etapas",
+                            text = strings.courseProgressFormat(completedCount),
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -249,7 +245,7 @@ fun CourseScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Fluxo recomendado de estudo",
+                                text = strings.courseStudyFlowTitle,
                                 style = MaterialTheme.typography.titleSmall,
                                 color = themeColors.turquoiseAccent,
                                 fontWeight = FontWeight.Bold
@@ -263,8 +259,8 @@ fun CourseScreen(
                                     .testTag("dismiss_study_flow_button")
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Fechar orientação de estudo",
+                                    painter = painterResource(id = R.drawable.ic_close),
+                                    contentDescription = strings.courseStudyFlowDismissDesc,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(15.dp)
                                 )
@@ -274,9 +270,7 @@ fun CourseScreen(
                         Spacer(modifier = Modifier.height(3.dp))
 
                         Text(
-                            text = "1. Escolha uma etapa • 2. Observe os casos no modo Aprender • " +
-                                "3. Reproduza os movimentos no cubo virtual • 4. Experimente no modo Praticar • " +
-                                "5. Marque a etapa como concluída quando compreender ou completar o objetivo.",
+                            text = strings.courseStudyFlowBody,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -321,6 +315,7 @@ private fun StepCourseCard(
     onRepeatClick: () -> Unit
 ) {
     val themeColors = CuboMestreTheme.colors
+    val strings = CuboMestreTheme.strings
     val statusColor = when (status) {
         StepStatus.COMPLETED -> themeColors.successText
         StepStatus.IN_PROGRESS -> themeColors.turquoiseAccent
@@ -365,7 +360,7 @@ private fun StepCourseCard(
                             shape = RoundedCornerShape(50)
                         ) {
                             Text(
-                                text = "ETAPA ${step.number}/7 • ${step.cases.size} ${if (step.cases.size == 1) "caso" else "casos"}",
+                                text = strings.courseStepBadgeFormat(step.number, step.cases.size),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = themeColors.violetText,
                                 fontWeight = FontWeight.Bold,
@@ -385,14 +380,14 @@ private fun StepCourseCard(
                             ) {
                                 if (status == StepStatus.COMPLETED) {
                                     Icon(
-                                        imageVector = Icons.Default.CheckCircle,
+                                        painter = painterResource(id = R.drawable.ic_rounded_check_circle),
                                         contentDescription = null,
                                         tint = statusColor,
                                         modifier = Modifier.size(13.dp)
                                     )
                                 }
                                 Text(
-                                    text = status.labelPt,
+                                    text = status.localizedLabel(strings.language),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = statusColor,
                                     fontWeight = FontWeight.SemiBold,
@@ -405,7 +400,7 @@ private fun StepCourseCard(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = step.title,
+                        text = step.localizedTitle(strings.language),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold,
@@ -413,7 +408,7 @@ private fun StepCourseCard(
                     )
 
                     Text(
-                        text = step.goalSimple,
+                        text = step.localizedGoalSimple(strings.language),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2
@@ -443,13 +438,13 @@ private fun StepCourseCard(
                         .testTag("step_${step.number}_learn_btn")
                 ) {
                     Icon(
-                        imageVector = Icons.Default.PlayArrow,
+                        painter = painterResource(id = R.drawable.ic_rounded_play),
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Aprender",
+                        text = strings.courseLearnButton,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1
@@ -473,7 +468,7 @@ private fun StepCourseCard(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Praticar",
+                        text = strings.coursePracticeButton,
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1
@@ -490,8 +485,8 @@ private fun StepCourseCard(
                             .testTag("step_${step.number}_repeat_btn")
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Repetir etapa concluída",
+                            painter = painterResource(id = R.drawable.ic_refresh),
+                            contentDescription = strings.courseRepeatStepDesc,
                             tint = themeColors.warningText
                         )
                     }

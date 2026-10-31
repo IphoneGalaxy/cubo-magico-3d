@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.data.AppLanguage
 import kotlin.math.abs
 import kotlin.random.Random
 
@@ -7,13 +8,22 @@ import kotlin.random.Random
  * As seis faces ortogonais do cubo mágico 3x3 em coordenadas 3D (mão direita):
  * +X = RIGHT (R), -X = LEFT (L), +Y = UP (U), -Y = DOWN (D), +Z = FRONT (F), -Z = BACK (B)
  */
-enum class CubeFace(val nx: Int, val ny: Int, val nz: Int, val labelPt: String) {
-    UP(0, 1, 0, "Cima (U)"),
-    DOWN(0, -1, 0, "Baixo (D)"),
-    FRONT(0, 0, 1, "Frente (F)"),
-    BACK(0, 0, -1, "Trás (B)"),
-    RIGHT(1, 0, 0, "Direita (R)"),
-    LEFT(-1, 0, 0, "Esquerda (L)");
+enum class CubeFace(
+    val nx: Int,
+    val ny: Int,
+    val nz: Int,
+    val labelPt: String,
+    val labelEn: String
+) {
+    UP(0, 1, 0, "Cima (U)", "Up (U)"),
+    DOWN(0, -1, 0, "Baixo (D)", "Down (D)"),
+    FRONT(0, 0, 1, "Frente (F)", "Front (F)"),
+    BACK(0, 0, -1, "Trás (B)", "Back (B)"),
+    RIGHT(1, 0, 0, "Direita (R)", "Right (R)"),
+    LEFT(-1, 0, 0, "Esquerda (L)", "Left (L)");
+
+    fun localizedLabel(language: AppLanguage): String =
+        if (language == AppLanguage.EN_US) labelEn else labelPt
 
     companion object {
         fun fromNormal(nx: Int, ny: Int, nz: Int): CubeFace? =
@@ -24,13 +34,20 @@ enum class CubeFace(val nx: Int, val ny: Int, val nz: Int, val labelPt: String) 
 /**
  * As seis cores tradicionais do cubo mágico 3x3.
  */
-enum class CubeColor(val labelPt: String, val rgbFloat: FloatArray) {
-    WHITE("Branco", floatArrayOf(0.97f, 0.98f, 0.99f)),
-    YELLOW("Amarelo", floatArrayOf(1.00f, 0.84f, 0.00f)),
-    BLUE("Azul", floatArrayOf(0.00f, 0.42f, 1.00f)),
-    GREEN("Verde", floatArrayOf(0.00f, 0.78f, 0.33f)),
-    RED("Vermelho", floatArrayOf(1.00f, 0.12f, 0.27f)),
-    ORANGE("Laranja", floatArrayOf(1.00f, 0.43f, 0.00f))
+enum class CubeColor(
+    val labelPt: String,
+    val rgbFloat: FloatArray,
+    val labelEn: String
+) {
+    WHITE("Branco", floatArrayOf(0.97f, 0.98f, 0.99f), "White"),
+    YELLOW("Amarelo", floatArrayOf(1.00f, 0.84f, 0.00f), "Yellow"),
+    BLUE("Azul", floatArrayOf(0.00f, 0.42f, 1.00f), "Blue"),
+    GREEN("Verde", floatArrayOf(0.00f, 0.78f, 0.33f), "Green"),
+    RED("Vermelho", floatArrayOf(1.00f, 0.12f, 0.27f), "Red"),
+    ORANGE("Laranja", floatArrayOf(1.00f, 0.43f, 0.00f), "Orange");
+
+    fun localizedLabel(language: AppLanguage): String =
+        if (language == AppLanguage.EN_US) labelEn else labelPt
 }
 
 /**
@@ -48,43 +65,51 @@ enum class CubeMove(
     val glAngleDegrees: Float, // Ângulo de rotação física no OpenGL (regra da mão direita)
     val baseFamily: String,
     val titlePt: String,
-    val explanationPt: String
+    val explanationPt: String,
+    val titleEn: String,
+    val explanationEn: String
 ) {
-    F("F", RotationAxis.Z, 1, -90f, "F", "Frente Horário", "Gira a face da FRENTE 90° no sentido horário."),
-    F_PRIME("F'", RotationAxis.Z, 1, 90f, "F", "Frente Anti-horário", "Gira a face da FRENTE 90° no sentido anti-horário (inverso)."),
-    F2("F2", RotationAxis.Z, 1, -180f, "F", "Frente Meia-volta", "Gira a face da FRENTE 180° (meia-volta)."),
+    F("F", RotationAxis.Z, 1, -90f, "F", "Frente Horário", "Gira a face da FRENTE 90° no sentido horário.", "Front Clockwise", "Rotates the FRONT face 90° clockwise."),
+    F_PRIME("F'", RotationAxis.Z, 1, 90f, "F", "Frente Anti-horário", "Gira a face da FRENTE 90° no sentido anti-horário (inverso).", "Front Counter-CW", "Rotates the FRONT face 90° counter-clockwise (inverse)."),
+    F2("F2", RotationAxis.Z, 1, -180f, "F", "Frente Meia-volta", "Gira a face da FRENTE 180° (meia-volta).", "Front Double Turn", "Rotates the FRONT face 180° (half turn)."),
 
-    R("R", RotationAxis.X, 1, -90f, "R", "Direita Subindo", "Gira a face da DIREITA 90° no sentido horário (subindo pela frente)."),
-    R_PRIME("R'", RotationAxis.X, 1, 90f, "R", "Direita Descendo", "Gira a face da DIREITA 90° no sentido anti-horário (descendo pela frente)."),
-    R2("R2", RotationAxis.X, 1, -180f, "R", "Direita Meia-volta", "Gira a face da DIREITA 180° (meia-volta)."),
+    R("R", RotationAxis.X, 1, -90f, "R", "Direita Subindo", "Gira a face da DIREITA 90° no sentido horário (subindo pela frente).", "Right Upward", "Rotates the RIGHT face 90° clockwise (upward on the front)."),
+    R_PRIME("R'", RotationAxis.X, 1, 90f, "R", "Direita Descendo", "Gira a face da DIREITA 90° no sentido anti-horário (descendo pela frente).", "Right Downward", "Rotates the RIGHT face 90° counter-clockwise (downward on the front)."),
+    R2("R2", RotationAxis.X, 1, -180f, "R", "Direita Meia-volta", "Gira a face da DIREITA 180° (meia-volta).", "Right Double Turn", "Rotates the RIGHT face 180° (half turn)."),
 
-    U("U", RotationAxis.Y, 1, -90f, "U", "Cima Horário", "Gira a camada de CIMA 90° no sentido horário (da direita para a esquerda na frente)."),
-    U_PRIME("U'", RotationAxis.Y, 1, 90f, "U", "Cima Anti-horário", "Gira a camada de CIMA 90° no sentido anti-horário (da esquerda para a direita na frente)."),
-    U2("U2", RotationAxis.Y, 1, -180f, "U", "Cima Meia-volta", "Gira a camada de CIMA 180° (meia-volta)."),
+    U("U", RotationAxis.Y, 1, -90f, "U", "Cima Horário", "Gira a camada de CIMA 90° no sentido horário (da direita para a esquerda na frente).", "Up Clockwise", "Rotates the UP layer 90° clockwise (right to left across the front)."),
+    U_PRIME("U'", RotationAxis.Y, 1, 90f, "U", "Cima Anti-horário", "Gira a camada de CIMA 90° no sentido anti-horário (da esquerda para a direita na frente).", "Up Counter-CW", "Rotates the UP layer 90° counter-clockwise (left to right across the front)."),
+    U2("U2", RotationAxis.Y, 1, -180f, "U", "Cima Meia-volta", "Gira a camada de CIMA 180° (meia-volta).", "Up Double Turn", "Rotates the UP layer 180° (half turn)."),
 
-    L("L", RotationAxis.X, -1, 90f, "L", "Esquerda Descendo", "Gira a face da ESQUERDA 90° no sentido horário (descendo pela frente)."),
-    L_PRIME("L'", RotationAxis.X, -1, -90f, "L", "Esquerda Subindo", "Gira a face da ESQUERDA 90° no sentido anti-horário (subindo pela frente)."),
-    L2("L2", RotationAxis.X, -1, 180f, "L", "Esquerda Meia-volta", "Gira a face da ESQUERDA 180° (meia-volta)."),
+    L("L", RotationAxis.X, -1, 90f, "L", "Esquerda Descendo", "Gira a face da ESQUERDA 90° no sentido horário (descendo pela frente).", "Left Downward", "Rotates the LEFT face 90° clockwise (downward on the front)."),
+    L_PRIME("L'", RotationAxis.X, -1, -90f, "L", "Esquerda Subindo", "Gira a face da ESQUERDA 90° no sentido anti-horário (subindo pela frente).", "Left Upward", "Rotates the LEFT face 90° counter-clockwise (upward on the front)."),
+    L2("L2", RotationAxis.X, -1, 180f, "L", "Esquerda Meia-volta", "Gira a face da ESQUERDA 180° (meia-volta).", "Left Double Turn", "Rotates the LEFT face 180° (half turn)."),
 
-    D("D", RotationAxis.Y, -1, 90f, "D", "Baixo Horário", "Gira a camada de BAIXO 90° no sentido horário (olhando por baixo)."),
-    D_PRIME("D'", RotationAxis.Y, -1, -90f, "D", "Baixo Anti-horário", "Gira a camada de BAIXO 90° no sentido anti-horário (olhando por baixo)."),
-    D2("D2", RotationAxis.Y, -1, 180f, "D", "Baixo Meia-volta", "Gira a camada de BAIXO 180° (meia-volta)."),
+    D("D", RotationAxis.Y, -1, 90f, "D", "Baixo Horário", "Gira a camada de BAIXO 90° no sentido horário (olhando por baixo).", "Down Clockwise", "Rotates the DOWN layer 90° clockwise (looking from below)."),
+    D_PRIME("D'", RotationAxis.Y, -1, -90f, "D", "Baixo Anti-horário", "Gira a camada de BAIXO 90° no sentido anti-horário (olhando por baixo).", "Down Counter-CW", "Rotates the DOWN layer 90° counter-clockwise (looking from below)."),
+    D2("D2", RotationAxis.Y, -1, 180f, "D", "Baixo Meia-volta", "Gira a camada de BAIXO 180° (meia-volta).", "Down Double Turn", "Rotates the DOWN layer 180° (half turn)."),
 
-    B("B", RotationAxis.Z, -1, 90f, "B", "Trás Horário", "Gira a face de TRÁS 90° no sentido horário (olhando por trás)."),
-    B_PRIME("B'", RotationAxis.Z, -1, -90f, "B", "Trás Anti-horário", "Gira a face de TRÁS 90° no sentido anti-horário (olhando por trás)."),
-    B2("B2", RotationAxis.Z, -1, 180f, "B", "Trás Meia-volta", "Gira a face de TRÁS 180° (meia-volta)."),
+    B("B", RotationAxis.Z, -1, 90f, "B", "Trás Horário", "Gira a face de TRÁS 90° no sentido horário (olhando por trás).", "Back Clockwise", "Rotates the BACK face 90° clockwise (looking from the back)."),
+    B_PRIME("B'", RotationAxis.Z, -1, -90f, "B", "Trás Anti-horário", "Gira a face de TRÁS 90° no sentido anti-horário (olhando por trás).", "Back Counter-CW", "Rotates the BACK face 90° counter-clockwise (looking from the back)."),
+    B2("B2", RotationAxis.Z, -1, 180f, "B", "Trás Meia-volta", "Gira a face de TRÁS 180° (meia-volta).", "Back Double Turn", "Rotates the BACK face 180° (half turn)."),
 
-    M("M", RotationAxis.X, 0, 90f, "M", "Meio Descendo", "Gira a camada vertical do MEIO para baixo na frente (mesmo sentido de L)."),
-    M_PRIME("M'", RotationAxis.X, 0, -90f, "M", "Meio Subindo", "Gira a camada vertical do MEIO para cima na frente (mesmo sentido de R)."),
-    M2("M2", RotationAxis.X, 0, 180f, "M", "Meio Meia-volta", "Gira a camada vertical do MEIO 180° (meia-volta)."),
+    M("M", RotationAxis.X, 0, 90f, "M", "Meio Descendo", "Gira a camada vertical do MEIO para baixo na frente (mesmo sentido de L).", "Middle Slice Down", "Rotates the vertical MIDDLE slice downward on the front (same direction as L)."),
+    M_PRIME("M'", RotationAxis.X, 0, -90f, "M", "Meio Subindo", "Gira a camada vertical do MEIO para cima na frente (mesmo sentido de R).", "Middle Slice Up", "Rotates the vertical MIDDLE slice upward on the front (same direction as R)."),
+    M2("M2", RotationAxis.X, 0, 180f, "M", "Meio Meia-volta", "Gira a camada vertical do MEIO 180° (meia-volta).", "Middle Slice Double", "Rotates the vertical MIDDLE slice 180° (half turn)."),
 
-    E("E", RotationAxis.Y, 0, 90f, "E", "Meio Horiz. Direita", "Gira a camada horizontal do MEIO para a direita na frente (mesmo sentido de D)."),
-    E_PRIME("E'", RotationAxis.Y, 0, -90f, "E", "Meio Horiz. Esquerda", "Gira a camada horizontal do MEIO para a esquerda na frente (mesmo sentido de U)."),
-    E2("E2", RotationAxis.Y, 0, 180f, "E", "Meio Horiz. Meia-volta", "Gira a camada horizontal do MEIO 180° (meia-volta)."),
+    E("E", RotationAxis.Y, 0, 90f, "E", "Meio Horiz. Direita", "Gira a camada horizontal do MEIO para a direita na frente (mesmo sentido de D).", "Equatorial Slice Right", "Rotates the horizontal MIDDLE slice to the right on the front (same direction as D)."),
+    E_PRIME("E'", RotationAxis.Y, 0, -90f, "E", "Meio Horiz. Esquerda", "Gira a camada horizontal do MEIO para a esquerda na frente (mesmo sentido de U).", "Equatorial Slice Left", "Rotates the horizontal MIDDLE slice to the left on the front (same direction as U)."),
+    E2("E2", RotationAxis.Y, 0, 180f, "E", "Meio Horiz. Meia-volta", "Gira a camada horizontal do MEIO 180° (meia-volta).", "Equatorial Slice Double", "Rotates the horizontal MIDDLE slice 180° (half turn)."),
 
-    S("S", RotationAxis.Z, 0, -90f, "S", "Meio Lateral Horário", "Gira a fatia central entre Frente e Trás 90° no sentido horário (mesmo sentido de F)."),
-    S_PRIME("S'", RotationAxis.Z, 0, 90f, "S", "Meio Lateral Anti-horário", "Gira a fatia central entre Frente e Trás 90° no sentido anti-horário (mesmo sentido de F')."),
-    S2("S2", RotationAxis.Z, 0, -180f, "S", "Meio Lateral Meia-volta", "Gira a fatia central entre Frente e Trás 180° (meia-volta).");
+    S("S", RotationAxis.Z, 0, -90f, "S", "Meio Lateral Horário", "Gira a fatia central entre Frente e Trás 90° no sentido horário (mesmo sentido de F).", "Standing Slice CW", "Rotates the middle slice between Front and Back 90° clockwise (same direction as F)."),
+    S_PRIME("S'", RotationAxis.Z, 0, 90f, "S", "Meio Lateral Anti-horário", "Gira a fatia central entre Frente e Trás 90° no sentido anti-horário (mesmo sentido de F').", "Standing Slice CCW", "Rotates the middle slice between Front and Back 90° counter-clockwise (same direction as F')."),
+    S2("S2", RotationAxis.Z, 0, -180f, "S", "Meio Lateral Meia-volta", "Gira a fatia central entre Frente e Trás 180° (meia-volta).", "Standing Slice Double", "Rotates the middle slice between Front and Back 180° (half turn).");
+
+    fun localizedTitle(language: AppLanguage): String =
+        if (language == AppLanguage.EN_US) titleEn else titlePt
+
+    fun localizedExplanation(language: AppLanguage): String =
+        if (language == AppLanguage.EN_US) explanationEn else explanationPt
 
     fun inverse(): CubeMove = when (this) {
         F -> F_PRIME
@@ -180,7 +205,14 @@ class InvalidCubeNotationException(
     val rawSequence: String
 ) : IllegalArgumentException(
     "Token de movimento inválido '$invalidToken' na posição $tokenIndex (1-based: ${tokenIndex + 1}) da sequência \"$rawSequence\"."
-)
+) {
+    fun localizedMessage(language: AppLanguage): String =
+        if (language == AppLanguage.EN_US) {
+            "Invalid move token '$invalidToken' at position $tokenIndex (1-based: ${tokenIndex + 1}) in sequence \"$rawSequence\"."
+        } else {
+            message ?: "Token de movimento inválido '$invalidToken'."
+        }
+}
 
 /**
  * Tipo estrutural de peça do cubo 3x3.

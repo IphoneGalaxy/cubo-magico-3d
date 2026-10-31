@@ -55,6 +55,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.curriculum.HighlightMode
+import com.example.data.AppLanguage
 import com.example.model.CubeMove
 import com.example.model.CubeState
 import com.example.ui.theme.CuboMestreTheme
@@ -82,9 +83,15 @@ enum class GestureInteractionState {
  * - [MOVE_LAYERS]: Gestos de 1 dedo manipulam EXCLUSIVAMENTE as camadas do cubo (a câmera fica 100% travada).
  * - [ROTATE_CAMERA]: Gestos de 1 dedo orbitam EXCLUSIVAMENTE a câmera sem mover peças.
  */
-enum class TouchInteractionMode(val labelPt: String) {
-    MOVE_LAYERS("Mover camadas"),
-    ROTATE_CAMERA("Girar câmera")
+enum class TouchInteractionMode(
+    val labelPt: String,
+    val labelEn: String
+) {
+    MOVE_LAYERS("Mover camadas", "Move layers"),
+    ROTATE_CAMERA("Girar câmera", "Rotate camera");
+
+    fun localizedLabel(language: AppLanguage): String =
+        if (language == AppLanguage.EN_US) labelEn else labelPt
 }
 
 /**
@@ -104,6 +111,7 @@ class CubeGestureArbiter(
     var allowFaceSwipeProvider: () -> Boolean = { true },
     var isAnimatingProvider: () -> Boolean = { false },
     var touchModeProvider: () -> TouchInteractionMode = { TouchInteractionMode.MOVE_LAYERS },
+    var gesturesEnabledProvider: () -> Boolean = { true },
     var onLayerMoveResolved: (CubeMove) -> Unit = {},
     var onCameraUpdated: () -> Unit = {}
 ) {
@@ -215,6 +223,7 @@ class CubeGestureArbiter(
     }
 
     fun onTwoFingerTwist(deltaAngleDegrees: Float) {
+        if (!gesturesEnabledProvider()) return
         if (activePointerCount == 1 && transitionedFromMultiTouch) {
             return
         }
@@ -240,6 +249,10 @@ class CubeGestureArbiter(
         x2: Float,
         y2: Float
     ) {
+        if (!gesturesEnabledProvider()) {
+            clearTwoFingerTwistAnchor()
+            return
+        }
         if (activePointerCount != 2 || (activePointerCount == 1 && transitionedFromMultiTouch)) {
             clearTwoFingerTwistAnchor()
             return
@@ -278,6 +291,15 @@ class CubeGestureArbiter(
     }
 
     fun onDown(x: Float, y: Float, pointerId: Int = 0) {
+        if (!gesturesEnabledProvider()) {
+            state = GestureInteractionState.IDLE
+            activePointerId = MotionEvent.INVALID_POINTER_ID
+            activePointerCount = 0
+            initialHit = null
+            lockedToLayerIntent = false
+            moveDispatchedInGesture = false
+            return
+        }
         renderer.onUserTouchStart()
         activePointerId = pointerId
         activePointerCount = 1
@@ -321,6 +343,10 @@ class CubeGestureArbiter(
         activeY: Float = lastY,
         primaryPointerId: Int = activePointerId
     ) {
+        if (!gesturesEnabledProvider()) {
+            state = GestureInteractionState.IDLE
+            return
+        }
         renderer.onUserTouchStart()
         activePointerCount = pointerCount.coerceAtLeast(2)
         activePointerId = primaryPointerId
@@ -348,6 +374,7 @@ class CubeGestureArbiter(
     }
 
     fun onPinchScale(scaleFactor: Float) {
+        if (!gesturesEnabledProvider()) return
         // Impede que callbacks residuais de escala reativem PINCH_ZOOM quando apenas 1 dedo permaneceu na tela
         if (activePointerCount == 1 && transitionedFromMultiTouch) {
             return
@@ -453,6 +480,7 @@ class CubeGestureArbiter(
     }
 
     fun onMove(x: Float, y: Float) {
+        if (!gesturesEnabledProvider()) return
         // Se o gesto estiver em PINCH_ZOOM (2+ dedos) ou IDLE (sem toque), ignora movimentos de 1 dedo
         if (state == GestureInteractionState.PINCH_ZOOM || state == GestureInteractionState.IDLE) {
             lastX = x
@@ -575,7 +603,9 @@ class CubeGestureArbiter(
     }
 
     fun onUpOrCancel() {
-        renderer.onUserTouchEnd()
+        if (gesturesEnabledProvider()) {
+            renderer.onUserTouchEnd()
+        }
         val hadPreview = renderer.previewTouchHit != null || renderer.previewTouchMove != null
         state = GestureInteractionState.IDLE
         activePointerId = MotionEvent.INVALID_POINTER_ID
@@ -607,12 +637,16 @@ fun InteractiveCube3DView(
     isDarkTheme: Boolean = true,
     autoRotateIdle: Boolean = false,
     allowFaceSwipeMoves: Boolean = true,
+    gesturesEnabled: Boolean = true,
+    transparentBackground: Boolean = false,
+    initialCameraDistance: Float = CubeGLRenderer.DEFAULT_DISTANCE,
     celebrationPulse: Float = 0f,
     cameraResetTrigger: Int = 0,
     showCameraControlsOverlay: Boolean = true,
     showActiveMoveBanner: Boolean = true,
     onMoveSwiped: (CubeMove) -> Unit = {}
 ) {
+    val strings = CuboMestreTheme.strings
     val isRobolectric = remember {
         Build.FINGERPRINT.equals("robolectric", ignoreCase = true)
     }
@@ -628,6 +662,7 @@ fun InteractiveCube3DView(
     var touchInteractionMode by remember { mutableStateOf(TouchInteractionMode.MOVE_LAYERS) }
 
     val currentAllowFaceSwipe by rememberUpdatedState(allowFaceSwipeMoves)
+    val currentGesturesEnabled by rememberUpdatedState(gesturesEnabled)
     val currentIsAnimating by rememberUpdatedState(activeAnimation != null)
     val currentTouchMode by rememberUpdatedState(touchInteractionMode)
     val currentOnMoveSwiped by rememberUpdatedState(onMoveSwiped)
@@ -643,10 +678,14 @@ fun InteractiveCube3DView(
             newHighlightEnabled = highlightEnabled,
             newIsDarkBackground = isDarkTheme,
             newAutoRotateIdle = autoRotateIdle && isLifecycleResumed,
-            newCelebrationPulse = celebrationPulse
+            newCelebrationPulse = celebrationPulse,
+            newTransparentBackground = transparentBackground,
+            newInitialCameraDistance = initialCameraDistance
         )
         Cube3DViewAuditHolder.lastActiveRenderer = renderer
         glSurfaceViewRef?.let { glView ->
+            glView.gesturesEnabledProvider = { currentGesturesEnabled }
+            glView.arbiter.gesturesEnabledProvider = { currentGesturesEnabled }
             val desiredMode = if (isLifecycleResumed && (autoRotateIdle || activeAnimation != null || celebrationPulse > 0f)) {
                 GLSurfaceView.RENDERMODE_CONTINUOUSLY
             } else {
@@ -668,25 +707,29 @@ fun InteractiveCube3DView(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(22.dp))
+            .let { base ->
+                if (transparentBackground) base else base.clip(RoundedCornerShape(22.dp))
+            }
             .testTag("cube_3d_viewport")
     ) {
-        // Halo de iluminação de estúdio sutil ao fundo
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val radius = size.minDimension * 0.56f
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        TurquoisePrimary.copy(alpha = if (isDarkTheme) 0.13f else 0.08f),
-                        VioletAccent.copy(alpha = if (isDarkTheme) 0.06f else 0.04f),
-                        Color.Transparent
+        if (!transparentBackground) {
+            // Halo de iluminação de estúdio sutil ao fundo
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val radius = size.minDimension * 0.56f
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            TurquoisePrimary.copy(alpha = if (isDarkTheme) 0.13f else 0.08f),
+                            VioletAccent.copy(alpha = if (isDarkTheme) 0.06f else 0.04f),
+                            Color.Transparent
+                        ),
+                        center = center,
+                        radius = radius.coerceAtLeast(10f)
                     ),
-                    center = center,
-                    radius = radius.coerceAtLeast(10f)
-                ),
-                radius = radius.coerceAtLeast(10f),
-                center = center
-            )
+                    radius = radius.coerceAtLeast(10f),
+                    center = center
+                )
+            }
         }
 
         if (!isRobolectric) {
@@ -700,7 +743,9 @@ fun InteractiveCube3DView(
                         newHighlightEnabled = highlightEnabled,
                         newIsDarkBackground = isDarkTheme,
                         newAutoRotateIdle = autoRotateIdle && isLifecycleResumed,
-                        newCelebrationPulse = celebrationPulse
+                        newCelebrationPulse = celebrationPulse,
+                        newTransparentBackground = transparentBackground,
+                        newInitialCameraDistance = initialCameraDistance
                     )
                     CubeTouchGLSurfaceView(
                         context = ctx,
@@ -708,6 +753,8 @@ fun InteractiveCube3DView(
                         allowFaceSwipeProvider = { currentAllowFaceSwipe },
                         isAnimatingProvider = { currentIsAnimating },
                         touchModeProvider = { currentTouchMode },
+                        gesturesEnabledProvider = { currentGesturesEnabled },
+                        transparentSurface = transparentBackground,
                         onSwipeMove = { move -> currentOnMoveSwiped(move) }
                     ).also { glView ->
                         val initialDesiredMode = if (autoRotateIdle || activeAnimation != null || celebrationPulse > 0f) {
@@ -723,6 +770,8 @@ fun InteractiveCube3DView(
                     }
                 },
                 update = { glView ->
+                    glView.gesturesEnabledProvider = { currentGesturesEnabled }
+                    glView.arbiter.gesturesEnabledProvider = { currentGesturesEnabled }
                     glView.arbiter.allowFaceSwipeProvider = { currentAllowFaceSwipe }
                     glView.arbiter.isAnimatingProvider = { currentIsAnimating }
                     glView.arbiter.touchModeProvider = { currentTouchMode }
@@ -734,11 +783,11 @@ fun InteractiveCube3DView(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surface),
+                    .background(if (transparentBackground) Color.Transparent else MaterialTheme.colorScheme.surface),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Cubo 3D (${cubeState.cubies.size} peças)",
+                    text = strings.cubeViewportAccessibilityDesc(cubeState.cubies.size),
                     style = MaterialTheme.typography.labelLarge
                 )
             }
@@ -761,7 +810,9 @@ fun InteractiveCube3DView(
                             newHighlightEnabled = renderer.highlightEnabled,
                             newIsDarkBackground = renderer.isDarkBackground,
                             newAutoRotateIdle = false,
-                            newCelebrationPulse = 0f
+                            newCelebrationPulse = 0f,
+                            newTransparentBackground = renderer.transparentBackground,
+                            newInitialCameraDistance = renderer.initialCameraDistance
                         )
                         glSurfaceViewRef?.handleLifecyclePause()
                     }
@@ -802,7 +853,7 @@ fun InteractiveCube3DView(
         }
 
         // Controles inferiores do viewport 3D: Seletor explícito (Mover camadas | Girar câmera) + Recentralizar câmera
-        if (showCameraControlsOverlay) {
+        if (showCameraControlsOverlay && gesturesEnabled) {
             if (allowFaceSwipeMoves) {
                 Surface(
                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
@@ -842,7 +893,7 @@ fun InteractiveCube3DView(
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Text(
-                                    text = "Camadas",
+                                    text = strings.viewportTouchModeLayers,
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isMoveLayers) themeColors.onTurquoiseAccent else MaterialTheme.colorScheme.onSurfaceVariant
@@ -870,7 +921,7 @@ fun InteractiveCube3DView(
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Text(
-                                    text = "Câmera",
+                                    text = strings.viewportTouchModeCamera,
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = if (!isMoveLayers) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
@@ -904,7 +955,7 @@ fun InteractiveCube3DView(
                             modifier = Modifier.size(14.dp)
                         )
                         Text(
-                            text = "Arraste p/ girar câmera • Pinça p/ zoom",
+                            text = strings.viewportCameraHint,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -929,7 +980,7 @@ fun InteractiveCube3DView(
             ) {
                 Icon(
                     imageVector = Icons.Outlined.CenterFocusStrong,
-                    contentDescription = "Recentralizar câmera",
+                    contentDescription = strings.viewportRecenterCameraDescription,
                     tint = themeColors.turquoiseAccent
                 )
             }
@@ -947,10 +998,12 @@ fun ActiveMoveIndicatorBanner(
     move: CubeMove,
     modifier: Modifier = Modifier
 ) {
+    val strings = CuboMestreTheme.strings
     val themeColors = CuboMestreTheme.colors
     val density = LocalDensity.current
     val fontScale = density.fontScale
-    val titleLength = move.titlePt.length
+    val localizedTitle = move.localizedTitle(strings.language)
+    val titleLength = localizedTitle.length
     val effectiveScale = when {
         titleLength >= 22 -> fontScale.coerceAtMost(1.06f)
         titleLength >= 16 -> fontScale.coerceAtMost(1.14f)
@@ -986,7 +1039,7 @@ fun ActiveMoveIndicatorBanner(
                 softWrap = false
             )
             Text(
-                text = move.titlePt,
+                text = localizedTitle,
                 color = MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = titleFontSize,
@@ -1020,6 +1073,8 @@ class CubeTouchGLSurfaceView(
     allowFaceSwipeProvider: () -> Boolean = { true },
     isAnimatingProvider: () -> Boolean = { false },
     touchModeProvider: () -> TouchInteractionMode = { TouchInteractionMode.MOVE_LAYERS },
+    var gesturesEnabledProvider: () -> Boolean = { true },
+    transparentSurface: Boolean = false,
     onSwipeMove: (CubeMove) -> Unit = {}
 ) : GLSurfaceView(context) {
 
@@ -1043,6 +1098,7 @@ class CubeTouchGLSurfaceView(
         allowFaceSwipeProvider = allowFaceSwipeProvider,
         isAnimatingProvider = isAnimatingProvider,
         touchModeProvider = touchModeProvider,
+        gesturesEnabledProvider = gesturesEnabledProvider,
         onLayerMoveResolved = { move ->
             if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
                 onSwipeMove(move)
@@ -1059,7 +1115,7 @@ class CubeTouchGLSurfaceView(
         context,
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-                if (effectivePointersInCurrentEvent < 2) return false
+                if (!gesturesEnabledProvider() || effectivePointersInCurrentEvent < 2) return false
                 if (initialPinchSpan <= 0f) {
                     initialPinchSpan = detector.currentSpan
                 }
@@ -1073,7 +1129,7 @@ class CubeTouchGLSurfaceView(
             }
 
             override fun onScale(detector: ScaleGestureDetector): Boolean {
-                if (effectivePointersInCurrentEvent < 2) return false
+                if (!gesturesEnabledProvider() || effectivePointersInCurrentEvent < 2) return false
                 val refSpan = if (initialPinchSpan > 0f) initialPinchSpan else detector.currentSpan
                 if (!pinchInProgress && kotlin.math.abs(detector.currentSpan - refSpan) < arbiter.pinchTouchSlopPx) {
                     return true
@@ -1110,6 +1166,10 @@ class CubeTouchGLSurfaceView(
         if (!isRobolectricEnv) {
             setEGLContextClientVersion(2)
             setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+            if (transparentSurface) {
+                setZOrderOnTop(true)
+                holder.setFormat(android.graphics.PixelFormat.TRANSLUCENT)
+            }
             preserveEGLContextOnPause = true
             setRenderer(cubeRenderer)
             renderMode = RENDERMODE_WHEN_DIRTY
@@ -1209,6 +1269,9 @@ class CubeTouchGLSurfaceView(
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (!gesturesEnabledProvider()) {
+            return false
+        }
         // Impede que qualquer container pai do Compose intercepte o toque para rolar a página
         parent?.requestDisallowInterceptTouchEvent(true)
         arbiter.screenDensity = context.resources.displayMetrics.density.coerceAtLeast(1f)
