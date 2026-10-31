@@ -1273,6 +1273,217 @@ class FinalAuditParserMathCurriculumTest {
         assertTrue(CurriculumRepository.describeStage6CornerState(s6c2AfterPhase1, en).contains("Green pair on Left (L)"))
         assertTrue(CurriculumRepository.describeStage6CornerState(s6c2AfterPhase1, pt).contains("Par Verde na Esquerda (L)"))
     }
+
+    /**
+     * SEÇÃO 10 — VERIFICAÇÃO DEFINITIVA DE NÃO-INVERSÃO ENTRE s6_c1 E s6_c2 DA ETAPA 6 (PT-BR E EN-US):
+     * Comprova matematicamente e textualmente nos dois idiomas (`pt-BR` e `en-US`) que:
+     * - `s6_c1` (Caso 1, índice 0): possui inicialmente 1 par de cantos iguais ("faróis" / "headlights")
+     *   de cor Laranja posicionado na face Traseira (`CubeFace.BACK`), 9 movimentos (`R' F R' B2 R F' R' B2 R2`),
+     *   0 fases intermediárias, e seus títulos, resumos, descrições, notas pedagógicas, dicas de orientação,
+     *   guia visual e diagnóstico em tempo real descrevem exatamente o Caso 1 (1 par de faróis atrás).
+     * - `s6_c2` (Caso 2, índice 1): possui inicialmente 0 pares de cantos iguais nas 4 faces laterais
+     *   (`findSidesWithCornerPairs().isEmpty()`), 20 movimentos (`R' F R' B2 R F' R' B2 R2 U R' F R' B2 R F' R' B2 R2 U'`)
+     *   divididos em 4 fases pedagógicas (Fase 1 cria par Verde na Esquerda -> Fase 2 gira U levando o par para Trás ->
+     *   Fase 3 posiciona os 4 cantos -> Fase 4 gira U' alinhando aos centros), e seus títulos, resumos, descrições,
+     *   notas, 4 fases, guia visual e diagnósticos descrevem exatamente o Caso 2 (nenhum par inicial / permutação diagonal).
+     */
+    @Test
+    fun testStage6S6C1AndS6C2NonInversionMathematicalAndBilingualProof() {
+        val pt = com.example.data.AppLanguage.PT_BR
+        val en = com.example.data.AppLanguage.EN_US
+        val stringsPt = com.example.ui.i18n.stringsForLanguage(pt)
+        val stringsEn = com.example.ui.i18n.stringsForLanguage(en)
+
+        val step6 = CurriculumRepository.getStep(6)
+        assertEquals(6, step6.number)
+        assertEquals("Posicionar os Cantos Finais", step6.localizedTitle(pt))
+        assertEquals("Position the Final Corners", step6.localizedTitle(en))
+        assertEquals(2, step6.cases.size)
+
+        val s6c1 = step6.cases[0]
+        val s6c2 = step6.cases[1]
+        assertEquals("s6_c1", s6c1.id)
+        assertEquals("s6_c2", s6c2.id)
+
+        // =========================================================================
+        // 1. AUDITORIA COMPLETA DE s6_c1 (CASO 1: 1 PAR DE FARÓIS ATRÁS)
+        // =========================================================================
+        val s6c1Init = s6c1.createInitialState()
+        assertEquals("R2 B2 R F R' B2 R F' R", s6c1.setupMovesFromSolved)
+        assertEquals("R' F R' B2 R F' R' B2 R2", s6c1.primaryAlgorithm)
+        assertEquals("R' F R' B2 R F' R' B2 R2", s6c1.fullResolutionAlgorithm)
+        assertEquals(9, s6c1.fullMoveList.size)
+        assertTrue("s6_c1 não deve possuir fases intermediárias (execução direta de 9 mov.)", s6c1.pedagogicalPhases.isEmpty())
+
+        // Estado matemático real de s6_c1: exatamente 1 par (Laranja) na face Traseira (BACK)
+        assertEquals(listOf(CubeFace.BACK), s6c1Init.findSidesWithCornerPairs())
+        assertEquals(CubeColor.ORANGE, s6c1Init.cornerPairColorOnSide(CubeFace.BACK))
+        assertEquals(HighlightMode.YELLOW_CORNERS_PAIR_BACK, CurriculumRepository.resolveStage6DynamicHighlightMode(s6c1Init))
+
+        // Títulos, resumos, descrições e notas em PT-BR e EN-US para s6_c1
+        assertEquals("Caso 1: Dois cantos com cor igual (Colocar para Trás)", s6c1.localizedCaseTitle(pt))
+        assertEquals("Case 1: Two corners with matching side color (Place at Back)", s6c1.localizedCaseTitle(en))
+        assertEquals("Dois cantos com cor igual (Colocar para Trás)", s6c1.localizedSituationTitle(pt))
+        assertEquals("Two corners with matching side color (Place at Back)", s6c1.localizedSituationTitle(en))
+
+        assertEquals(
+            "Par de cantos iguais ('faróis') atrás (B): execute R' F R' B2 R F' R' B2 R2.",
+            s6c1.localizedCompactSummary(pt)
+        )
+        assertEquals(
+            "Matching corner pair ('headlights') at the back (B): execute R' F R' B2 R F' R' B2 R2.",
+            s6c1.localizedCompactSummary(en)
+        )
+
+        // Garante que s6_c1 NÃO contém textos de "Nenhum par" / "No matching corner pairs" no título ou resumo
+        assertFalse(s6c1.localizedCaseTitle(pt).lowercase().contains("nenhum par"))
+        assertFalse(s6c1.localizedCaseTitle(en).lowercase().contains("no matching"))
+        assertFalse(s6c1.localizedCompactSummary(pt).lowercase().contains("sem par"))
+        assertFalse(s6c1.localizedCompactSummary(en).lowercase().contains("no matching pair"))
+
+        assertTrue(s6c1.localizedDescription(pt).contains("Exemplo neste Caso 1: na face de TRÁS (B)"))
+        assertTrue(s6c1.localizedDescription(pt).contains("os dois cantos superiores possuem adesivos laranja"))
+        assertTrue(s6c1.localizedDescription(en).contains("Example in Case 1: on the BACK face (B)"))
+        assertTrue(s6c1.localizedDescription(en).contains("both upper corners show orange stickers"))
+
+        assertTrue(s6c1.localizedPedagogicalNote(pt).contains("Por que os dois cantos de trás formam um par"))
+        assertTrue(s6c1.localizedPedagogicalNote(en).contains("Why do the two back corners form a pair"))
+
+        assertTrue(s6c1.localizedPdfValidationNote(pt)!!.contains("Passo a passo no cubo físico (Caso 1)"))
+        assertTrue(s6c1.localizedPdfValidationNote(pt)!!.contains("deixe esse par na face de TRÁS (B)"))
+        assertTrue(s6c1.localizedPdfValidationNote(en)!!.contains("Step-by-step on a physical cube (Case 1)"))
+        assertTrue(s6c1.localizedPdfValidationNote(en)!!.contains("place that pair at the BACK (B)"))
+
+        assertEquals("Par Laranja em Trás (B) • Pronto p/ os 9 mov.", CurriculumRepository.describeStage6CornerState(s6c1Init, pt))
+        assertEquals("Orange pair on Back (B) • Ready for 9 moves", CurriculumRepository.describeStage6CornerState(s6c1Init, en))
+
+        // Guia visual do modal "Entender o caso" para Caso 1 (caseIndex = 0)
+        assertEquals("Face Traseira (B) no Caso 1: par Laranja", stringsPt.stage6HeadlightsCase1FaceTitle)
+        assertEquals("Back Face (B) in Case 1: Orange pair", stringsEn.stage6HeadlightsCase1FaceTitle)
+        assertTrue(stringsPt.stage6HeadlightsExampleCase1.contains("No Caso 1, os dois cantos superiores da face traseira têm adesivos laranja"))
+        assertTrue(stringsEn.stage6HeadlightsExampleCase1.contains("In Case 1, the two top corners on the back face have orange stickers"))
+
+        // =========================================================================
+        // 2. AUDITORIA COMPLETA DE s6_c2 (CASO 2: NENHUM PAR INICIAL / 4 FASES)
+        // =========================================================================
+        val s6c2Init = s6c2.createInitialState()
+        assertEquals("U R2 B2 R F R' B2 R F' R U' R2 B2 R F R' B2 R F' R", s6c2.setupMovesFromSolved)
+        assertEquals("R' F R' B2 R F' R' B2 R2", s6c2.primaryAlgorithm)
+        assertEquals("R' F R' B2 R F' R' B2 R2 U R' F R' B2 R F' R' B2 R2 U'", s6c2.fullResolutionAlgorithm)
+        assertEquals(20, s6c2.fullMoveList.size)
+        assertEquals(4, s6c2.pedagogicalPhases.size)
+
+        // Estado matemático real de s6_c2: 0 pares em todas as 4 faces laterais
+        assertTrue("s6_c2 inicial não deve ter nenhum par de faróis", s6c2Init.findSidesWithCornerPairs().isEmpty())
+        assertEquals(HighlightMode.YELLOW_CORNERS_PERMUTE, CurriculumRepository.resolveStage6DynamicHighlightMode(s6c2Init))
+
+        // Títulos, resumos, descrições e notas em PT-BR e EN-US para s6_c2
+        assertEquals("Caso 2: Nenhum par de cantos iguais (Permutação Diagonal)", s6c2.localizedCaseTitle(pt))
+        assertEquals("Case 2: No matching corner pairs (Diagonal Swap)", s6c2.localizedCaseTitle(en))
+        assertEquals("Nenhum par de cantos iguais (Permutação Diagonal)", s6c2.localizedSituationTitle(pt))
+        assertEquals("No matching corner pairs (Diagonal Swap)", s6c2.localizedSituationTitle(en))
+
+        assertEquals(
+            "Sem par igual: aplique a fórmula p/ criar par na esquerda, gire U e repita.",
+            s6c2.localizedCompactSummary(pt)
+        )
+        assertEquals(
+            "No matching pair: apply the formula to create a pair on the left, turn U, and repeat.",
+            s6c2.localizedCompactSummary(en)
+        )
+
+        assertTrue(s6c2.localizedDescription(pt).contains("Neste Caso 2, nenhuma das quatro faces laterais possui um par assim inicialmente"))
+        assertTrue(s6c2.localizedDescription(pt).contains("criar um par na face da ESQUERDA (L, par verde neste exemplo)"))
+        assertTrue(s6c2.localizedDescription(en).contains("In Case 2, none of the four side faces has a matching pair initially"))
+        assertTrue(s6c2.localizedDescription(en).contains("create a pair on the LEFT face (L, green pair in this example)"))
+
+        assertTrue(s6c2.localizedPedagogicalNote(pt).contains("em nenhuma delas os 2 cantos superiores têm a mesma cor"))
+        assertTrue(s6c2.localizedPedagogicalNote(en).contains("none of them has matching upper corner stickers"))
+
+        assertTrue(s6c2.localizedPdfValidationNote(pt)!!.contains("Como aplicar no cubo físico (Caso 2)"))
+        assertTrue(s6c2.localizedPdfValidationNote(pt)!!.contains("Se nenhuma das 4 faces laterais tiver duas cores iguais, você está no Caso 2"))
+        assertTrue(s6c2.localizedPdfValidationNote(en)!!.contains("How to apply on a physical cube (Case 2)"))
+        assertTrue(s6c2.localizedPdfValidationNote(en)!!.contains("If none of the 4 sides has matching corner colors, you have Case 2"))
+
+        // Verificação das 4 fases pedagógicas de s6_c2 em PT-BR e EN-US + sincronia com os marcos matemáticos
+        val p1 = s6c2.pedagogicalPhases[0]
+        val p2 = s6c2.pedagogicalPhases[1]
+        val p3 = s6c2.pedagogicalPhases[2]
+        val p4 = s6c2.pedagogicalPhases[3]
+
+        assertEquals("Fase 1 — Criar um par ('faróis')", p1.localizedTitle(pt))
+        assertEquals("Phase 1 — Create a pair ('headlights')", p1.localizedTitle(en))
+        assertEquals("Fase 2 — Posicionar o par atrás", p2.localizedTitle(pt))
+        assertEquals("Phase 2 — Place the pair at the back", p2.localizedTitle(en))
+        assertEquals("Fase 3 — Posicionar os cantos", p3.localizedTitle(pt))
+        assertEquals("Phase 3 — Position the corners", p3.localizedTitle(en))
+        assertEquals("Fase 4 — Conferir e alinhar", p4.localizedTitle(pt))
+        assertEquals("Phase 4 — Check and align", p4.localizedTitle(en))
+
+        // Diagnóstico em tempo real de s6_c2 em todos os 5 estados (inicial + após cada uma das 4 fases) em PT-BR e EN-US
+        assertEquals(
+            "Nenhum par nas laterais • 9 mov. criam par na Esquerda (L)",
+            CurriculumRepository.describeStage6CornerState(s6c2Init, pt)
+        )
+        assertEquals(
+            "No pairs on sides • 9 moves create pair on Left (L)",
+            CurriculumRepository.describeStage6CornerState(s6c2Init, en)
+        )
+
+        val afterPhase1 = s6c2Init.applyMoves(s6c2.fullMoveList.subList(0, 9))
+        assertEquals(listOf(CubeFace.LEFT), afterPhase1.findSidesWithCornerPairs())
+        assertEquals(CubeColor.GREEN, afterPhase1.cornerPairColorOnSide(CubeFace.LEFT))
+        assertEquals(
+            "Par Verde na Esquerda (L) • Gire U p/ Trás",
+            CurriculumRepository.describeStage6CornerState(afterPhase1, pt)
+        )
+        assertEquals(
+            "Green pair on Left (L) • Turn U to Back",
+            CurriculumRepository.describeStage6CornerState(afterPhase1, en)
+        )
+
+        val afterPhase2 = s6c2Init.applyMoves(s6c2.fullMoveList.subList(0, 10))
+        assertEquals(listOf(CubeFace.BACK), afterPhase2.findSidesWithCornerPairs())
+        assertEquals(CubeColor.GREEN, afterPhase2.cornerPairColorOnSide(CubeFace.BACK))
+        assertEquals(
+            "Par Verde em Trás (B) • Pronto p/ os 9 mov.",
+            CurriculumRepository.describeStage6CornerState(afterPhase2, pt)
+        )
+        assertEquals(
+            "Green pair on Back (B) • Ready for 9 moves",
+            CurriculumRepository.describeStage6CornerState(afterPhase2, en)
+        )
+
+        val afterPhase3 = s6c2Init.applyMoves(s6c2.fullMoveList.subList(0, 19))
+        assertEquals(4, afterPhase3.findSidesWithCornerPairs().size)
+        assertFalse(afterPhase3.areTopCornersPermuted())
+        assertEquals(
+            "4 pares formados: gire U' p/ alinhar aos centros",
+            CurriculumRepository.describeStage6CornerState(afterPhase3, pt)
+        )
+        assertEquals(
+            "4 pairs formed: turn U' to align with centers",
+            CurriculumRepository.describeStage6CornerState(afterPhase3, en)
+        )
+
+        val afterPhase4 = s6c2Init.applyMoves(s6c2.fullMoveList)
+        assertTrue(afterPhase4.areTopCornersPermuted())
+        assertEquals(
+            "4 pares alinhados aos centros! (Meios: Etapa 7)",
+            CurriculumRepository.describeStage6CornerState(afterPhase4, pt)
+        )
+        assertEquals(
+            "4 pairs aligned with centers! (Edges: Stage 7)",
+            CurriculumRepository.describeStage6CornerState(afterPhase4, en)
+        )
+
+        // Guia visual do modal "Entender o caso" para Caso 2 (caseIndex = 1)
+        assertEquals("Exemplo após a Fase 1 do Caso 2: par Verde", stringsPt.stage6HeadlightsCase2FaceTitle)
+        assertEquals("Example after Phase 1 of Case 2: Green pair", stringsEn.stage6HeadlightsCase2FaceTitle)
+        assertTrue(stringsPt.stage6HeadlightsExampleCase2.contains("No Caso 2, inicialmente nenhuma face lateral tem dois adesivos superiores iguais"))
+        assertTrue(stringsEn.stage6HeadlightsExampleCase2.contains("In Case 2, initially no side face has two matching top corner stickers"))
+    }
 }
+
 
 

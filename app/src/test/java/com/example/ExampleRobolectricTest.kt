@@ -3829,6 +3829,56 @@ class ExampleRobolectricTest {
             composeTestRule.onNodeWithTag("return_to_cube_from_detail_button").performClick()
             composeTestRule.waitForIdle()
 
+            // 4b. Seleciona o Caso 2 da Etapa 6 (s6_c2, caseIndex = 1) e comprova na UI real em EN-US e PT-BR
+            //     que o estado matemático (0 pares laterais), o título, o resumo, as 4 fases e o modal "Understand case" / "Entender o caso"
+            //     correspondem ao Caso 2 (Sem par inicial / Permutação Diagonal), sem inversão com s6_c1!
+            composeTestRule.onNodeWithTag("case_chip_1").performClick()
+            composeTestRule.waitForIdle()
+            assertEquals(1, vm.lessonState.value.caseIndex)
+            assertTrue(
+                "Estado matemático de s6_c2 na UI deve iniciar com 0 pares de cantos laterais",
+                vm.lessonState.value.cubeState.findSidesWithCornerPairs().isEmpty()
+            )
+            assertEquals("Case 2 of 2", nodeCombinedText("case_selector_header"))
+            assertEquals("No matching corner pairs (Diagonal Swap)", nodeCombinedText("case_full_title_text"))
+            assertTrue(
+                nodeCombinedText("case_short_description")
+                    .contains("No matching pair: apply the formula to create a pair on the left, turn U, and repeat.")
+            )
+            assertTrue(nodeCombinedText("stage6_corner_pair_text").contains("No pairs on sides"))
+            assertEquals("Phase 1 — Create a pair ('headlights')", nodeCombinedText("active_phase_title_text"))
+
+            composeTestRule.onNodeWithTag("open_case_detail_button").performClick()
+            composeTestRule.waitForIdle()
+            assertEquals(
+                "Case 2 of 2 — No matching corner pairs (Diagonal Swap)",
+                nodeCombinedText("case_detail_full_title")
+            )
+            assertTrue(nodeCombinedText("case_detail_full_description").contains("In Case 2, none of the four side faces has a matching pair initially"))
+            assertTrue(nodeCombinedText("stage6_headlights_example_box").contains("In Case 2, initially no side face has two matching top corner stickers"))
+            composeTestRule.onNodeWithTag("return_to_cube_from_detail_button").performClick()
+            composeTestRule.waitForIdle()
+
+            // Alterna para PT-BR no Caso 2 (s6_c2) e verifica título, resumo, fase e diagnóstico em Português
+            composeTestRule.runOnUiThread {
+                vm.selectAppLanguage(com.example.data.AppLanguage.PT_BR)
+            }
+            composeTestRule.waitForIdle()
+            assertEquals("Caso 2 de 2", nodeCombinedText("case_selector_header"))
+            assertEquals("Nenhum par de cantos iguais (Permutação Diagonal)", nodeCombinedText("case_full_title_text"))
+            assertTrue(
+                nodeCombinedText("case_short_description")
+                    .contains("Sem par igual: aplique a fórmula p/ criar par na esquerda, gire U e repita.")
+            )
+            assertTrue(nodeCombinedText("stage6_corner_pair_text").contains("Nenhum par nas laterais"))
+            assertEquals("Fase 1 — Criar um par ('faróis')", nodeCombinedText("active_phase_title_text"))
+
+            // Volta para EN-US para continuar o restante das verificações em Inglês
+            composeTestRule.runOnUiThread {
+                vm.selectAppLanguage(com.example.data.AppLanguage.EN_US)
+            }
+            composeTestRule.waitForIdle()
+
             // 5. Verifica fases pedagógicas traduzidas na Etapa 4 Caso 2 e Etapa 6 Caso 2
             composeTestRule.runOnUiThread {
                 vm.openLesson(stepNumber = 4, caseIndex = 1, mode = com.example.viewmodel.LearningMode.LEARN)
