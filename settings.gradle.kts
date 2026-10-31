@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Cubo Mestre 3D"
+rootProject.name = "Cube Master 3D"
 
 include(":app")

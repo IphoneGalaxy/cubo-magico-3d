@@ -488,7 +488,7 @@ class ExampleRobolectricTest {
     @Config(qualifiers = "w360dp-h780dp-xxhdpi")
     fun `auditoria completa de UX nativa sem rolagem de pagina painel expansivel 3 estados reproducao pratica e DataStore`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        assertEquals("Cubo Mestre 3D", context.getString(R.string.app_name))
+        assertEquals("Cube Master 3D", context.getString(R.string.app_name))
 
         composeTestRule.waitForIdle()
         ShadowTrace.reset()
@@ -3525,7 +3525,7 @@ class ExampleRobolectricTest {
             composeTestRule.onNodeWithTag("opening_cube_showcase").assertIsDisplayed()
             composeTestRule.onNodeWithTag("opening_title").assertIsDisplayed()
             composeTestRule.onNodeWithTag("opening_continue_button").assertIsDisplayed()
-            assertEquals("Cubo Mestre 3D", nodeCombinedText("opening_title"))
+            assertEquals("Cube Master 3D", nodeCombinedText("opening_title"))
             assertEquals("Enter Experience", nodeCombinedText("opening_continue_button"))
 
             // Comprova que a Tela de Abertura NÃO avança automaticamente por temporizador (mesmo após > 5.000 ms)
@@ -3554,14 +3554,14 @@ class ExampleRobolectricTest {
             composeTestRule.onNodeWithTag("welcome_get_started_button").assertIsDisplayed()
 
             // Verifica textos em Inglês (en-US) inicialmente selecionado
-            assertEquals("Welcome to Cubo Mestre 3D", nodeCombinedText("welcome_title_text"))
+            assertEquals("Welcome to Cube Master 3D", nodeCombinedText("welcome_title_text"))
             assertEquals("Get Started", nodeCombinedText("welcome_get_started_button"))
 
-            // Seleciona Português (pt-BR) na tela de boas-vindas e verifica tradução imediata
+            // Seleciona Português (pt-BR) na tela de boas-vindas e verifica tradução imediata mantendo a marca Cube Master 3D
             composeTestRule.onNodeWithTag("language_option_pt_br").performClick()
             composeTestRule.waitForIdle()
             assertEquals(com.example.data.AppLanguage.PT_BR, vm.progressState.value.appLanguage)
-            assertEquals("Bem-vindo ao Cubo Mestre 3D", nodeCombinedText("welcome_title_text"))
+            assertEquals("Bem-vindo ao Cube Master 3D", nodeCombinedText("welcome_title_text"))
             assertEquals("Começar", nodeCombinedText("welcome_get_started_button"))
 
             // Seleciona English (en-US) e confirma com "Get Started"
@@ -3692,7 +3692,8 @@ class ExampleRobolectricTest {
             composeTestRule.waitForIdle()
             ShadowTrace.reset()
 
-            // Verifica atualização imediata do Menu Principal para Português (pt-BR)
+            // Verifica atualização imediata do Menu Principal para Português (pt-BR) mantendo o nome oficial Cube Master 3D em inglês
+            assertEquals("Cube Master 3D", nodeCombinedText("home_header_title"))
             assertEquals("Cubo 3×3 Interativo", nodeCombinedText("home_interactive_cube_badge"))
             assertEquals("Restaurar", nodeCombinedText("home_restore_cube_button"))
             assertEquals("Começar a aprender", nodeCombinedText("start_learning_button"))
@@ -3726,6 +3727,7 @@ class ExampleRobolectricTest {
             composeTestRule.onNodeWithTag("opening_screen").assertIsDisplayed()
             composeTestRule.onNodeWithTag("opening_cube_showcase").assertIsDisplayed()
             composeTestRule.onNodeWithTag("cube_3d_viewport").assertIsDisplayed()
+            assertEquals("Cube Master 3D", nodeCombinedText("opening_title"))
             assertEquals("Entrar na Experiência", nodeCombinedText("opening_continue_button"))
 
             val openingMountedGlView = com.example.renderer.Cube3DViewAuditHolder.lastActiveGlSurfaceView

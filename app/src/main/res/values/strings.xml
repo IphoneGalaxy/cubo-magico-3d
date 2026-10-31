@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Cubo Mestre 3D</string>
+    <string name="app_name">Cube Master 3D</string>
     <string name="home_subtitle">Learn to solve the Rubik\'s Cube, one move at a time.</string>
     <string name="btn_start_learning">Start learning</string>
     <string name="btn_continue_learning">Continue where you left off</string>
@@ -20,7 +20,7 @@
     <string name="opening_badge">INTERACTIVE 3D LEARNING LAB</string>
     <string name="opening_subtitle">Master the 3×3 Rubik\'s Cube with real-time 3D physics and step-by-step visual guidance.</string>
     <string name="opening_enter_button">Enter Experience</string>
-    <string name="welcome_title">Welcome to Cubo Mestre 3D</string>
+    <string name="welcome_title">Welcome to Cube Master 3D</string>
     <string name="welcome_subtitle">An interactive, colorful 3D journey designed for kids, teens, and adults to master every layer of the Rubik\'s Cube.</string>
     <string name="welcome_choose_language">Choose your preferred language</string>
     <string name="welcome_language_note">You can change the language anytime in the Main Menu or Settings.</string>

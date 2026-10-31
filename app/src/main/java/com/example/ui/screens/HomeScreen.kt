@@ -244,7 +244,7 @@ private fun HomeHeaderBar(
             .testTag("home_header_bar"),
         verticalArrangement = Arrangement.spacedBy(if (isCompact) 6.dp else 8.dp)
     ) {
-        // Linha 1: Identidade do aplicativo com largura total para o título "Cubo Mestre 3D" e subtítulo sem aperto
+        // Linha 1: Identidade do aplicativo com largura total para o título "Cube Master 3D" e subtítulo sem aperto
         Row(
             modifier = Modifier
                 .fillMaxWidth()

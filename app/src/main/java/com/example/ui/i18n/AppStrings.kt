@@ -13,13 +13,15 @@ import com.example.data.AppLanguage
  *
  * Suporta atualização reativa imediata sem reiniciar o aplicativo.
  */
+const val OFFICIAL_APP_NAME = "Cube Master 3D"
+
 @Immutable
 data class AppStrings(
     val language: AppLanguage,
 
-    // Identidade e Cabeçalho
-    val appName: String,
-    val homeAppName: String = appName,
+    // Identidade e Cabeçalho (marca fixa em inglês em todos os idiomas)
+    val appName: String = OFFICIAL_APP_NAME,
+    val homeAppName: String = OFFICIAL_APP_NAME,
     val homeSubtitle: String,
     val interactiveCubeBadge: String,
     val restoreCubeButton: String,
@@ -269,7 +271,7 @@ data class AppStrings(
 
 val PtBrStrings = AppStrings(
     language = AppLanguage.PT_BR,
-    appName = "Cubo Mestre 3D",
+    appName = OFFICIAL_APP_NAME,
     homeSubtitle = "Aprenda, explore e domine o cubo mágico 3×3 passo a passo.",
     interactiveCubeBadge = "Cubo 3×3 Interativo",
     restoreCubeButton = "Restaurar",
@@ -284,8 +286,8 @@ val PtBrStrings = AppStrings(
     openingVersionLabel = "Edição Educacional 3D • OpenGL ES 2.0",
 
     welcomeBadge = "BEM-VINDO • WELCOME",
-    welcomeTitle = "Bem-vindo ao Cubo Mestre 3D",
-    welcomeSubtitle = "Selecione como deseja visualizar a interface do Cubo Mestre 3D. Você poderá alterar o idioma a qualquer momento no menu principal.",
+    welcomeTitle = "Bem-vindo ao Cube Master 3D",
+    welcomeSubtitle = "Selecione como deseja visualizar a interface do Cube Master 3D. Você poderá alterar o idioma a qualquer momento no menu principal.",
     welcomeFeatureInteractive = "Cubo 3D 360° em Tempo Real",
     welcomeFeatureMethod = "Método de Camadas Passo a Passo",
     welcomeSelectLanguageTitle = "Idioma do Aplicativo / App Language",
@@ -310,7 +312,7 @@ val PtBrStrings = AppStrings(
 
     solveModalBadge = "RECURSO DA ETAPA 3 DO PROJETO",
     solveModalTitle = "Resolver Meu Cubo Físico",
-    solveModalDescription = "Na Etapa 3 do roteiro de evolução do Cubo Mestre 3D, você poderá inserir as cores do seu cubo físico para gerar uma solução personalizada passo a passo:",
+    solveModalDescription = "Na Etapa 3 do roteiro de evolução do Cube Master 3D, você poderá inserir as cores do seu cubo físico para gerar uma solução personalizada passo a passo:",
     solveModalCameraTitle = "1. Leitura com a Câmera",
     solveModalCameraBody = "Aponte a câmera para cada uma das 6 faces do cubo 3×3 para reconhecimento automático dos adesivos.",
     solveModalManualTitle = "2. Preenchimento Manual",
@@ -532,7 +534,7 @@ val PtBrStrings = AppStrings(
 
 val EnUsStrings = AppStrings(
     language = AppLanguage.EN_US,
-    appName = "Cubo Mestre 3D",
+    appName = OFFICIAL_APP_NAME,
     homeSubtitle = "Learn, explore, and master the 3×3 Rubik's Cube step by step.",
     interactiveCubeBadge = "Interactive 3×3 Cube",
     restoreCubeButton = "Restore",
@@ -547,8 +549,8 @@ val EnUsStrings = AppStrings(
     openingVersionLabel = "3D Educational Edition • OpenGL ES 2.0",
 
     welcomeBadge = "WELCOME • BEM-VINDO",
-    welcomeTitle = "Welcome to Cubo Mestre 3D",
-    welcomeSubtitle = "Select how you want to view the Cubo Mestre 3D interface. You can switch languages anytime from the main menu.",
+    welcomeTitle = "Welcome to Cube Master 3D",
+    welcomeSubtitle = "Select how you want to view the Cube Master 3D interface. You can switch languages anytime from the main menu.",
     welcomeFeatureInteractive = "Real-Time 360° 3D Cube",
     welcomeFeatureMethod = "Step-by-Step Layer Method",
     welcomeSelectLanguageTitle = "App Language / Idioma do Aplicativo",
@@ -573,7 +575,7 @@ val EnUsStrings = AppStrings(
 
     solveModalBadge = "ROADMAP STAGE 3 FEATURE",
     solveModalTitle = "Solve My Physical Cube",
-    solveModalDescription = "In Stage 3 of the Cubo Mestre 3D roadmap, you will be able to input your physical cube's colors to generate a guided step-by-step solution:",
+    solveModalDescription = "In Stage 3 of the Cube Master 3D roadmap, you will be able to input your physical cube's colors to generate a guided step-by-step solution:",
     solveModalCameraTitle = "1. Camera Scanner",
     solveModalCameraBody = "Point your camera at each of the 6 faces of your 3×3 cube for automatic sticker recognition.",
     solveModalManualTitle = "2. Manual Color Picker",
