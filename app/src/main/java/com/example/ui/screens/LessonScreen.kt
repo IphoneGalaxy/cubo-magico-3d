@@ -516,14 +516,18 @@ private fun LessonCompactHeader(
             .padding(top = 2.dp, bottom = 1.dp)
     ) {
         // Em telas em retrato (< 600dp), separa a barra superior de ações (Linha 1) do título da etapa (Linha 2),
-        // garantindo amplo respiro horizontal entre o grupo esquerdo (Voltar + 1/7) e os 3 controles à direita (1.0x, Olho, Livro).
+        // preservando o tamanho visual original dos botões com espaçamento horizontal confortável entre eles.
         val useDedicatedTitleRow = maxWidth < 600.dp
-        val isUltraNarrow = maxWidth < 350.dp
-        val compactActionSpacing = if (isUltraNarrow) 11.dp else 13.dp
-        val circleButtonSize = if (isUltraNarrow) 28.dp else 30.dp
-        val speedPillHeight = if (isUltraNarrow) 27.dp else 28.dp
-        val cappedSpeedFontSize = with(density) { (11.dp.toPx() * fontScale.coerceAtMost(1.12f)).toSp() }
-        val cappedBadgeFontSize = with(density) { (11.dp.toPx() * fontScale.coerceAtMost(1.15f)).toSp() }
+        val isUltraNarrow = maxWidth < 340.dp
+        val speedToEyeSpacing = if (isUltraNarrow) 11.dp else 13.dp
+        val eyeToBookSpacing = if (isUltraNarrow) 15.dp else 18.dp
+        val circleButtonSize = if (isUltraNarrow) 34.dp else 36.dp
+        val speedPillMinHeight = 34.dp
+        // Escala de fonte responsiva para o rótulo "1.0x" sem bloqueio artificial em 1.12f,
+        // permitindo crescimento legível com a fonte do sistema (até 1.35x) sem estourar em telas de 320dp.
+        val effectiveSpeedFontScale = if (isUltraNarrow) fontScale.coerceAtMost(1.3f) else fontScale.coerceAtMost(1.35f)
+        val speedFontSize = with(density) { (12.dp.toPx() * effectiveSpeedFontScale).toSp() }
+        val badgeFontSize = with(density) { (11.dp.toPx() * effectiveSpeedFontScale).toSp() }
 
         val speedLabel = when {
             speedMultiplier < 0.75f -> "0.5x"
@@ -539,7 +543,7 @@ private fun LessonCompactHeader(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(32.dp)
+                        .heightIn(min = 36.dp)
                         .padding(end = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -549,38 +553,36 @@ private fun LessonCompactHeader(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
-                            shape = CircleShape,
-                            border = BorderStroke(
-                                width = 0.8.dp,
-                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)
-                            ),
+                        IconButton(
+                            onClick = onBackToCourse,
                             modifier = Modifier
                                 .size(circleButtonSize)
                                 .clip(CircleShape)
-                                .clickable(onClick = onBackToCourse)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                                    shape = CircleShape
+                                )
                                 .testTag("lesson_back_button")
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = strings.lessonBackToCourseDesc,
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = strings.lessonBackToCourseDesc,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
 
                         Surface(
-                            color = themeColors.turquoiseAccent.copy(alpha = 0.12f),
-                            shape = RoundedCornerShape(7.dp),
-                            border = BorderStroke(0.8.dp, themeColors.turquoiseAccent.copy(alpha = 0.28f))
+                            color = themeColors.turquoiseAccent.copy(alpha = 0.14f),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, themeColors.turquoiseAccent.copy(alpha = 0.35f))
                         ) {
                             Text(
                                 text = "$stepNumber/7",
                                 fontFamily = JetBrainsMonoFontFamily,
-                                fontSize = cappedBadgeFontSize,
+                                fontSize = badgeFontSize,
                                 color = themeColors.turquoiseAccent,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
@@ -591,20 +593,21 @@ private fun LessonCompactHeader(
 
                     // Grupo Direito: Controle de Velocidade (1.0x), Destaque de Peças (Olho) e Guia de Notação (Livro)
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(compactActionSpacing),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.68f),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
                             shape = RoundedCornerShape(50),
                             border = BorderStroke(
-                                width = 0.8.dp,
-                                color = themeColors.turquoiseAccent.copy(alpha = 0.30f)
+                                width = 1.dp,
+                                color = themeColors.turquoiseAccent.copy(alpha = 0.35f)
                             ),
                             modifier = Modifier
-                                .height(speedPillHeight)
+                                .heightIn(min = speedPillMinHeight)
                                 .clip(RoundedCornerShape(50))
-                                .clickable {
+                                .clickable(
+                                    role = androidx.compose.ui.semantics.Role.Button
+                                ) {
                                     val nextSpeed = when {
                                         speedMultiplier < 0.75f -> 1.0f
                                         speedMultiplier < 1.25f -> 1.5f
@@ -616,82 +619,84 @@ private fun LessonCompactHeader(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(3.dp),
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Outlined.Speed,
                                     contentDescription = strings.lessonSpeedDesc,
                                     tint = themeColors.turquoiseAccent,
-                                    modifier = Modifier.size(12.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
                                 Text(
                                     text = speedLabel,
                                     fontFamily = JetBrainsMonoFontFamily,
-                                    fontSize = cappedSpeedFontSize,
+                                    fontSize = speedFontSize,
                                     color = MaterialTheme.colorScheme.onSurface,
-                                    fontWeight = FontWeight.SemiBold,
+                                    fontWeight = FontWeight.Bold,
                                     maxLines = 1
                                 )
                             }
                         }
 
-                        Surface(
-                            color = if (highlightTargetPieces) {
-                                themeColors.turquoiseAccent.copy(alpha = 0.16f)
-                            } else {
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.68f)
-                            },
-                            shape = CircleShape,
-                            border = BorderStroke(
-                                width = 0.8.dp,
-                                color = if (highlightTargetPieces) {
-                                    themeColors.turquoiseAccent.copy(alpha = 0.45f)
-                                } else {
-                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)
-                                }
-                            ),
+                        Spacer(modifier = Modifier.width(speedToEyeSpacing))
+
+                        IconButton(
+                            onClick = onToggleHighlightPieces,
                             modifier = Modifier
                                 .size(circleButtonSize)
                                 .clip(CircleShape)
-                                .clickable(onClick = onToggleHighlightPieces)
-                                .testTag("highlight_pieces_button")
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Visibility,
-                                    contentDescription = strings.lessonHighlightPiecesDesc,
-                                    tint = if (highlightTargetPieces) {
+                                .background(
+                                    if (highlightTargetPieces) {
+                                        themeColors.turquoiseAccent.copy(alpha = 0.2f)
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                    }
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (highlightTargetPieces) {
                                         themeColors.turquoiseAccent
                                     } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
                                     },
-                                    modifier = Modifier.size(15.dp)
+                                    shape = CircleShape
                                 )
-                            }
+                                .testTag("highlight_pieces_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Visibility,
+                                contentDescription = strings.lessonHighlightPiecesDesc,
+                                tint = if (highlightTargetPieces) {
+                                    themeColors.turquoiseAccent
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
 
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.68f),
-                            shape = CircleShape,
-                            border = BorderStroke(
-                                width = 0.8.dp,
-                                color = themeColors.violetAccent.copy(alpha = 0.34f)
-                            ),
+                        Spacer(modifier = Modifier.width(eyeToBookSpacing))
+
+                        IconButton(
+                            onClick = onOpenNotationGuide,
                             modifier = Modifier
                                 .size(circleButtonSize)
                                 .clip(CircleShape)
-                                .clickable(onClick = onOpenNotationGuide)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .border(
+                                    width = 1.dp,
+                                    color = themeColors.violetAccent.copy(alpha = 0.4f),
+                                    shape = CircleShape
+                                )
                                 .testTag("lesson_notation_button")
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Outlined.MenuBook,
-                                    contentDescription = strings.lessonNotationGuideDesc,
-                                    tint = themeColors.violetAccent,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.MenuBook,
+                                contentDescription = strings.lessonNotationGuideDesc,
+                                tint = themeColors.violetAccent,
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     }
                 }
@@ -713,7 +718,7 @@ private fun LessonCompactHeader(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 36.dp)
+                    .heightIn(min = 38.dp)
                     .padding(end = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -723,38 +728,36 @@ private fun LessonCompactHeader(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
-                        shape = CircleShape,
-                        border = BorderStroke(
-                            width = 0.8.dp,
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)
-                        ),
+                    IconButton(
+                        onClick = onBackToCourse,
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(36.dp)
                             .clip(CircleShape)
-                            .clickable(onClick = onBackToCourse)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                                shape = CircleShape
+                            )
                             .testTag("lesson_back_button")
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = strings.lessonBackToCourseDesc,
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(17.dp)
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = strings.lessonBackToCourseDesc,
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
 
                     Surface(
-                        color = themeColors.turquoiseAccent.copy(alpha = 0.12f),
-                        shape = RoundedCornerShape(7.dp),
-                        border = BorderStroke(0.8.dp, themeColors.turquoiseAccent.copy(alpha = 0.28f))
+                        color = themeColors.turquoiseAccent.copy(alpha = 0.14f),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, themeColors.turquoiseAccent.copy(alpha = 0.35f))
                     ) {
                         Text(
                             text = "$stepNumber/7",
                             fontFamily = JetBrainsMonoFontFamily,
-                            fontSize = cappedBadgeFontSize,
+                            fontSize = badgeFontSize,
                             color = themeColors.turquoiseAccent,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
@@ -779,20 +782,21 @@ private fun LessonCompactHeader(
                 Spacer(modifier = Modifier.width(16.dp))
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.68f),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(50),
                         border = BorderStroke(
-                            width = 0.8.dp,
-                            color = themeColors.turquoiseAccent.copy(alpha = 0.30f)
+                            width = 1.dp,
+                            color = themeColors.turquoiseAccent.copy(alpha = 0.35f)
                         ),
                         modifier = Modifier
-                            .height(30.dp)
+                            .heightIn(min = 36.dp)
                             .clip(RoundedCornerShape(50))
-                            .clickable {
+                            .clickable(
+                                role = androidx.compose.ui.semantics.Role.Button
+                            ) {
                                 val nextSpeed = when {
                                     speedMultiplier < 0.75f -> 1.0f
                                     speedMultiplier < 1.25f -> 1.5f
@@ -805,81 +809,83 @@ private fun LessonCompactHeader(
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.padding(horizontal = 9.dp)
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.Speed,
                                 contentDescription = strings.lessonSpeedDesc,
                                 tint = themeColors.turquoiseAccent,
-                                modifier = Modifier.size(13.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                             Text(
                                 text = speedLabel,
                                 fontFamily = JetBrainsMonoFontFamily,
-                                fontSize = cappedSpeedFontSize,
+                                fontSize = speedFontSize,
                                 color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.SemiBold,
+                                fontWeight = FontWeight.Bold,
                                 maxLines = 1
                             )
                         }
                     }
 
-                    Surface(
-                        color = if (highlightTargetPieces) {
-                            themeColors.turquoiseAccent.copy(alpha = 0.16f)
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.68f)
-                        },
-                        shape = CircleShape,
-                        border = BorderStroke(
-                            width = 0.8.dp,
-                            color = if (highlightTargetPieces) {
-                                themeColors.turquoiseAccent.copy(alpha = 0.45f)
-                            } else {
-                                MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)
-                            }
-                        ),
+                    Spacer(modifier = Modifier.width(13.dp))
+
+                    IconButton(
+                        onClick = onToggleHighlightPieces,
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(36.dp)
                             .clip(CircleShape)
-                            .clickable(onClick = onToggleHighlightPieces)
-                            .testTag("highlight_pieces_button")
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Visibility,
-                                contentDescription = strings.lessonHighlightPiecesDesc,
-                                tint = if (highlightTargetPieces) {
+                            .background(
+                                if (highlightTargetPieces) {
+                                    themeColors.turquoiseAccent.copy(alpha = 0.2f)
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                }
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = if (highlightTargetPieces) {
                                     themeColors.turquoiseAccent
                                 } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
                                 },
-                                modifier = Modifier.size(16.dp)
+                                shape = CircleShape
                             )
-                        }
+                            .testTag("highlight_pieces_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Visibility,
+                            contentDescription = strings.lessonHighlightPiecesDesc,
+                            tint = if (highlightTargetPieces) {
+                                themeColors.turquoiseAccent
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
 
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.68f),
-                        shape = CircleShape,
-                        border = BorderStroke(
-                            width = 0.8.dp,
-                            color = themeColors.violetAccent.copy(alpha = 0.34f)
-                        ),
+                    Spacer(modifier = Modifier.width(18.dp))
+
+                    IconButton(
+                        onClick = onOpenNotationGuide,
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(36.dp)
                             .clip(CircleShape)
-                            .clickable(onClick = onOpenNotationGuide)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(
+                                width = 1.dp,
+                                color = themeColors.violetAccent.copy(alpha = 0.4f),
+                                shape = CircleShape
+                            )
                             .testTag("lesson_notation_button")
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Outlined.MenuBook,
-                                contentDescription = strings.lessonNotationGuideDesc,
-                                tint = themeColors.violetAccent,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.MenuBook,
+                            contentDescription = strings.lessonNotationGuideDesc,
+                            tint = themeColors.violetAccent,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
             }

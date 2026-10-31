@@ -1221,15 +1221,37 @@ class ExampleRobolectricTest {
                 val speedBtnBounds = composeTestRule.onNodeWithTag("speed_toggle_button").fetchSemanticsNode().boundsInRoot
                 val highlightBtnBounds = composeTestRule.onNodeWithTag("highlight_pieces_button").fetchSemanticsNode().boundsInRoot
                 val notationBtnBounds = composeTestRule.onNodeWithTag("lesson_notation_button").fetchSemanticsNode().boundsInRoot
+                val stepTitleBounds = composeTestRule.onNodeWithTag("lesson_step_title").fetchSemanticsNode().boundsInRoot
                 val gapSpeedToHighlightPx = highlightBtnBounds.left - speedBtnBounds.right
                 val gapHighlightToNotationPx = notationBtnBounds.left - highlightBtnBounds.right
                 assertTrue(
-                    "Controles superiores direitos (velocidade -> olho) devem ter espaçamento horizontal amplo e sem colagem em $ctx (gapPx=$gapSpeedToHighlightPx)",
-                    gapSpeedToHighlightPx >= 14f
+                    "Botão de velocidade 1.0x deve manter altura visual confortável (>= 34dp / 68px em xhdpi) em $ctx (h=${speedBtnBounds.height})",
+                    speedBtnBounds.height >= 66f
                 )
                 assertTrue(
-                    "Controles superiores direitos (olho -> livro) devem ter espaçamento horizontal amplo e sem colagem em $ctx (gapPx=$gapHighlightToNotationPx)",
-                    gapHighlightToNotationPx >= 14f
+                    "Botão do olho deve manter diâmetro visual restaurado (34dp-36dp / 68px-72px em xhdpi) em $ctx (w=${highlightBtnBounds.width}, h=${highlightBtnBounds.height})",
+                    highlightBtnBounds.width >= 66f && highlightBtnBounds.height >= 66f
+                )
+                assertTrue(
+                    "Botão do livro deve manter diâmetro visual restaurado (34dp-36dp / 68px-72px em xhdpi) em $ctx (w=${notationBtnBounds.width}, h=${notationBtnBounds.height})",
+                    notationBtnBounds.width >= 66f && notationBtnBounds.height >= 66f
+                )
+                assertTrue(
+                    "Controles superiores direitos (velocidade -> olho) devem ter espaçamento horizontal amplo e sem colagem em $ctx (gapPx=$gapSpeedToHighlightPx)",
+                    gapSpeedToHighlightPx >= 18f
+                )
+                assertTrue(
+                    "Controles superiores direitos (olho -> livro) devem ter espaçamento horizontal ajustado (+3dp em relação a velocidade -> olho) em $ctx (gapSpeedToHighlightPx=$gapSpeedToHighlightPx, gapHighlightToNotationPx=$gapHighlightToNotationPx)",
+                    gapHighlightToNotationPx >= 24f && gapHighlightToNotationPx > gapSpeedToHighlightPx
+                )
+                assertTrue(
+                    "Os três controles superiores devem permanecer alinhados na mesma linha em $ctx",
+                    kotlin.math.abs(speedBtnBounds.center.y - highlightBtnBounds.center.y) <= 2f &&
+                        kotlin.math.abs(highlightBtnBounds.center.y - notationBtnBounds.center.y) <= 2f
+                )
+                assertTrue(
+                    "Título da etapa deve permanecer na segunda linha abaixo dos controles superiores em $ctx (titleTop=${stepTitleBounds.top}, btnBottom=${highlightBtnBounds.bottom})",
+                    stepTitleBounds.top >= highlightBtnBounds.bottom
                 )
                 assertTrue(
                     "Grupo de ações superiores direitas jamais deve invadir o grupo esquerdo em $ctx (backRight=${backBtnBounds.right}, speedLeft=${speedBtnBounds.left})",
