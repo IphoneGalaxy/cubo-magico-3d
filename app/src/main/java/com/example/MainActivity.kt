@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -89,6 +90,7 @@ fun CuboMestreApp(
         ) { innerPadding ->
             Crossfade(
                 targetState = currentScreen,
+                animationSpec = tween(durationMillis = 160),
                 label = "screen_transition",
                 modifier = Modifier
                     .fillMaxSize()
@@ -98,6 +100,7 @@ fun CuboMestreApp(
                     AppScreen.OPENING -> {
                         OpeningScreen(
                             isDarkTheme = progressState.isDarkTheme,
+                            isActive = (currentScreen == AppScreen.OPENING),
                             onContinue = { viewModel.completeOpeningScreen() }
                         )
                     }

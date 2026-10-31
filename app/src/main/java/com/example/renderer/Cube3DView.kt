@@ -732,54 +732,60 @@ fun InteractiveCube3DView(
             }
         }
 
-        if (!isRobolectric) {
-            AndroidView(
-                factory = { ctx ->
-                    renderer.syncSceneState(
-                        newCubeState = cubeState,
-                        newAnimation = activeAnimation,
-                        newGuidedMove = guidedMove,
-                        newHighlightMode = highlightMode,
-                        newHighlightEnabled = highlightEnabled,
-                        newIsDarkBackground = isDarkTheme,
-                        newAutoRotateIdle = autoRotateIdle && isLifecycleResumed,
-                        newCelebrationPulse = celebrationPulse,
-                        newTransparentBackground = transparentBackground,
-                        newInitialCameraDistance = initialCameraDistance
-                    )
-                    CubeTouchGLSurfaceView(
-                        context = ctx,
-                        cubeRenderer = renderer,
-                        allowFaceSwipeProvider = { currentAllowFaceSwipe },
-                        isAnimatingProvider = { currentIsAnimating },
-                        touchModeProvider = { currentTouchMode },
-                        gesturesEnabledProvider = { currentGesturesEnabled },
-                        transparentSurface = transparentBackground,
-                        onSwipeMove = { move -> currentOnMoveSwiped(move) }
-                    ).also { glView ->
-                        val initialDesiredMode = if (autoRotateIdle || activeAnimation != null || celebrationPulse > 0f) {
-                            GLSurfaceView.RENDERMODE_CONTINUOUSLY
-                        } else {
-                            GLSurfaceView.RENDERMODE_WHEN_DIRTY
-                        }
-                        glView.updateDesiredRenderMode(initialDesiredMode)
-                        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-                            glView.handleLifecycleResume()
-                        }
-                        glSurfaceViewRef = glView
+        AndroidView(
+            factory = { ctx ->
+                renderer.syncSceneState(
+                    newCubeState = cubeState,
+                    newAnimation = activeAnimation,
+                    newGuidedMove = guidedMove,
+                    newHighlightMode = highlightMode,
+                    newHighlightEnabled = highlightEnabled,
+                    newIsDarkBackground = isDarkTheme,
+                    newAutoRotateIdle = autoRotateIdle && isLifecycleResumed,
+                    newCelebrationPulse = celebrationPulse,
+                    newTransparentBackground = transparentBackground,
+                    newInitialCameraDistance = initialCameraDistance
+                )
+                CubeTouchGLSurfaceView(
+                    context = ctx,
+                    cubeRenderer = renderer,
+                    allowFaceSwipeProvider = { currentAllowFaceSwipe },
+                    isAnimatingProvider = { currentIsAnimating },
+                    touchModeProvider = { currentTouchMode },
+                    gesturesEnabledProvider = { currentGesturesEnabled },
+                    transparentSurface = transparentBackground,
+                    onSwipeMove = { move -> currentOnMoveSwiped(move) }
+                ).also { glView ->
+                    glView.visibility = android.view.View.VISIBLE
+                    val initialDesiredMode = if (autoRotateIdle || activeAnimation != null || celebrationPulse > 0f) {
+                        GLSurfaceView.RENDERMODE_CONTINUOUSLY
+                    } else {
+                        GLSurfaceView.RENDERMODE_WHEN_DIRTY
                     }
-                },
-                update = { glView ->
-                    glView.gesturesEnabledProvider = { currentGesturesEnabled }
-                    glView.arbiter.gesturesEnabledProvider = { currentGesturesEnabled }
-                    glView.arbiter.allowFaceSwipeProvider = { currentAllowFaceSwipe }
-                    glView.arbiter.isAnimatingProvider = { currentIsAnimating }
-                    glView.arbiter.touchModeProvider = { currentTouchMode }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            // Ambiente de teste local JVM (Robolectric): exibe marcador determinístico sem exigir GPU EGL nativa
+                    glView.updateDesiredRenderMode(initialDesiredMode)
+                    if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                        glView.handleLifecycleResume()
+                    }
+                    glSurfaceViewRef = glView
+                    Cube3DViewAuditHolder.lastActiveGlSurfaceView = glView
+                }
+            },
+            update = { glView ->
+                if (isLifecycleResumed && glView.visibility != android.view.View.VISIBLE) {
+                    glView.visibility = android.view.View.VISIBLE
+                }
+                glView.gesturesEnabledProvider = { currentGesturesEnabled }
+                glView.arbiter.gesturesEnabledProvider = { currentGesturesEnabled }
+                glView.arbiter.allowFaceSwipeProvider = { currentAllowFaceSwipe }
+                glView.arbiter.isAnimatingProvider = { currentIsAnimating }
+                glView.arbiter.touchModeProvider = { currentTouchMode }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        if (isRobolectric) {
+            // Ambiente de teste local JVM (Robolectric): mantém marcador semântico determinístico
+            // sem impedir a montagem do AndroidView/CubeTouchGLSurfaceView acima.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -793,7 +799,12 @@ fun InteractiveCube3DView(
             }
         }
 
-        DisposableEffect(lifecycleOwner, glSurfaceViewRef) {
+        //IMPORTANTE: A chave do DisposableEffect deve ser APENAS lifecycleOwner (e NUNCA glSurfaceViewRef).
+        // No Compose, AndroidView.factory executa na fase Applier (atribuindo glSurfaceViewRef = glView)
+        // antes de RememberEventDispatcher disparar o DisposableEffect no Quadro 1. Se glSurfaceViewRef
+        // fosse chave do DisposableEffect, o Quadro 2 detectaria mudança de chave (null -> glView) e
+        // invocaria onDispose prematuramente sobre a própria glView ativa recém-criada.
+        DisposableEffect(lifecycleOwner) {
             val observer = LifecycleEventObserver { _, event ->
                 when (event) {
                     Lifecycle.Event.ON_START, Lifecycle.Event.ON_RESUME -> {
@@ -829,7 +840,13 @@ fun InteractiveCube3DView(
                     Cube3DViewAuditHolder.lastActiveRenderer = null
                 }
                 lifecycleOwner.lifecycle.removeObserver(observer)
-                glSurfaceViewRef?.handleLifecyclePause()
+                glSurfaceViewRef?.let { glView ->
+                    glView.handleLifecyclePause()
+                    glView.visibility = android.view.View.GONE
+                    if (Cube3DViewAuditHolder.lastActiveGlSurfaceView === glView) {
+                        Cube3DViewAuditHolder.lastActiveGlSurfaceView = null
+                    }
+                }
             }
         }
 
@@ -991,6 +1008,9 @@ fun InteractiveCube3DView(
 object Cube3DViewAuditHolder {
     @Volatile
     var lastActiveRenderer: CubeGLRenderer? = null
+
+    @Volatile
+    var lastActiveGlSurfaceView: CubeTouchGLSurfaceView? = null
 }
 
 @Composable
@@ -1194,6 +1214,9 @@ class CubeTouchGLSurfaceView(
      * e restaurando o modo de renderização adequado ao primeiro plano.
      */
     fun handleLifecycleResume() {
+        if (visibility != android.view.View.VISIBLE) {
+            visibility = android.view.View.VISIBLE
+        }
         if (isGlSurfaceResumed) {
             applyRenderModeInternal(desiredForegroundRenderMode)
             return

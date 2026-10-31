@@ -74,12 +74,15 @@ import com.example.ui.theme.VioletAccent
 @Composable
 fun OpeningScreen(
     isDarkTheme: Boolean,
+    isActive: Boolean = true,
     onContinue: () -> Unit
 ) {
     val strings = CuboMestreTheme.strings
     val themeColors = CuboMestreTheme.colors
     val showcaseCube = remember { CubeState.createSolved() }
     var entranceVisible by remember { mutableStateOf(false) }
+    var isExiting by remember(isActive) { mutableStateOf(false) }
+    val shouldRenderShowcaseCube = isActive && !isExiting
 
     LaunchedEffect(Unit) {
         entranceVisible = true
@@ -237,25 +240,29 @@ fun OpeningScreen(
                     }
 
                     // Cubo 3D flutuando livremente:
+                    // - Desmontado imediatamente ao sair da abertura (shouldRenderShowcaseCube = false)
+                    //   para evitar que o SurfaceView (setZOrderOnTop = true) permaneça visível durante o Crossfade.
                     // - transparentBackground = true (sem preenchimento retangular opaco e sem clip de cantos)
                     // - gesturesEnabled = false (ignora 100% de toques, arrastes, pinça e torção)
                     // - initialCameraDistance = 8.2f (folga espacial generosa para que nenhum vértice encoste nas bordas durante o giro)
                     // - autoRotateIdle = true (rotação contínua suave)
-                    InteractiveCube3DView(
-                        cubeState = showcaseCube,
-                        activeAnimation = null,
-                        modifier = Modifier.fillMaxSize(),
-                        highlightMode = HighlightMode.ALL_VIVID,
-                        highlightEnabled = false,
-                        isDarkTheme = isDarkTheme,
-                        autoRotateIdle = true,
-                        allowFaceSwipeMoves = false,
-                        gesturesEnabled = false,
-                        transparentBackground = true,
-                        initialCameraDistance = 8.2f,
-                        showCameraControlsOverlay = false,
-                        showActiveMoveBanner = false
-                    )
+                    if (shouldRenderShowcaseCube) {
+                        InteractiveCube3DView(
+                            cubeState = showcaseCube,
+                            activeAnimation = null,
+                            modifier = Modifier.fillMaxSize(),
+                            highlightMode = HighlightMode.ALL_VIVID,
+                            highlightEnabled = false,
+                            isDarkTheme = isDarkTheme,
+                            autoRotateIdle = true,
+                            allowFaceSwipeMoves = false,
+                            gesturesEnabled = false,
+                            transparentBackground = true,
+                            initialCameraDistance = 8.2f,
+                            showCameraControlsOverlay = false,
+                            showActiveMoveBanner = false
+                        )
+                    }
                 }
 
                 // Título e Subtítulo da Marca com tipografia Space Grotesk & Plus Jakarta Sans
@@ -326,7 +333,12 @@ fun OpeningScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Button(
-                    onClick = onContinue,
+                    onClick = {
+                        if (!isExiting) {
+                            isExiting = true
+                            onContinue()
+                        }
+                    },
                     shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = themeColors.turquoiseAccent,

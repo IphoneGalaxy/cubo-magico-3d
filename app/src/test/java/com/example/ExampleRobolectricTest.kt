@@ -1215,6 +1215,27 @@ class ExampleRobolectricTest {
                 val cubeBounds = composeTestRule.onNodeWithTag("cube_3d_viewport").fetchSemanticsNode().boundsInRoot
                 assertTrue("Cubo 3D deve ter altura e largura amplas em $ctx (w=${cubeBounds.width}, h=${cubeBounds.height})", cubeBounds.width > 120f && cubeBounds.height > 100f)
 
+                // Verifica espaçamento generoso e ausência de sobreposição entre os 3 controles superiores direitos
+                // (velocidade 1.0x, destacar peças / olho e guia de notação / livro) em todas as larguras (320dp..412dp) e fontes (1.0x..1.5x)
+                val backBtnBounds = composeTestRule.onNodeWithTag("lesson_back_button").fetchSemanticsNode().boundsInRoot
+                val speedBtnBounds = composeTestRule.onNodeWithTag("speed_toggle_button").fetchSemanticsNode().boundsInRoot
+                val highlightBtnBounds = composeTestRule.onNodeWithTag("highlight_pieces_button").fetchSemanticsNode().boundsInRoot
+                val notationBtnBounds = composeTestRule.onNodeWithTag("lesson_notation_button").fetchSemanticsNode().boundsInRoot
+                val gapSpeedToHighlightPx = highlightBtnBounds.left - speedBtnBounds.right
+                val gapHighlightToNotationPx = notationBtnBounds.left - highlightBtnBounds.right
+                assertTrue(
+                    "Controles superiores direitos (velocidade -> olho) devem ter espaçamento horizontal amplo e sem colagem em $ctx (gapPx=$gapSpeedToHighlightPx)",
+                    gapSpeedToHighlightPx >= 14f
+                )
+                assertTrue(
+                    "Controles superiores direitos (olho -> livro) devem ter espaçamento horizontal amplo e sem colagem em $ctx (gapPx=$gapHighlightToNotationPx)",
+                    gapHighlightToNotationPx >= 14f
+                )
+                assertTrue(
+                    "Grupo de ações superiores direitas jamais deve invadir o grupo esquerdo em $ctx (backRight=${backBtnBounds.right}, speedLeft=${speedBtnBounds.left})",
+                    speedBtnBounds.left > backBtnBounds.right + 20f
+                )
+
                 // Verifica legibilidade integral (zero overflow visual) dos textos pedagógicos principais
                 val renderedStepTitle = assertNoVisualTextOverflow("lesson_step_title", ctx)
                 val renderedCaseHeader = assertNoVisualTextOverflow("case_selector_header", ctx)
@@ -3692,16 +3713,48 @@ class ExampleRobolectricTest {
             assertEquals(com.example.viewmodel.AppScreen.HOME, nextLaunchVmPt.currentScreen.value)
 
             // Comprova também na UI real (com hasCompletedOnboarding == true) que a OpeningScreen em pt-BR:
-            // 1. Exibe "Entrar na Experiência"
-            // 2. Permanece aberta sem avanço automático após > 5.000 ms
-            // 3. Ao tocar no botão, vai diretamente para o Menu Principal (HOME) sem repetir WELCOME_LANGUAGE
+            // 1. Ao abrir a OpeningScreen, tanto o nó Compose (cube_3d_viewport) quanto a CubeTouchGLSurfaceView real estão presentes e VISÍVEIS (View.VISIBLE)
+            // 2. Permanece visível (View.VISIBLE), ativa (isGlSurfaceResumed == true, pauseCallCountForAudit == 0) e girando antes de qualquer interação e após o 2º quadro de recomposição
+            // 3. A passagem do tempo (> 5.000 ms) NÃO remove nem oculta o cubo
+            // 4. Somente o clique em "Entrar na Experiência" dispara a desmontagem da superfície da abertura
+            // 5. Os cubos das demais telas (Home e Lesson) montam suas próprias superfícies com visibility == View.VISIBLE
             composeTestRule.runOnUiThread {
                 vm.openOpeningScreen()
             }
             composeTestRule.waitForIdle()
             assertEquals(com.example.viewmodel.AppScreen.OPENING, vm.currentScreen.value)
             composeTestRule.onNodeWithTag("opening_screen").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("opening_cube_showcase").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("cube_3d_viewport").assertIsDisplayed()
             assertEquals("Entrar na Experiência", nodeCombinedText("opening_continue_button"))
+
+            val openingMountedGlView = com.example.renderer.Cube3DViewAuditHolder.lastActiveGlSurfaceView
+            val openingMountedRenderer = com.example.renderer.Cube3DViewAuditHolder.lastActiveRenderer
+            org.junit.Assert.assertNotNull("CubeTouchGLSurfaceView da OpeningScreen deve estar montada", openingMountedGlView)
+            org.junit.Assert.assertNotNull("CubeGLRenderer da OpeningScreen deve estar ativo", openingMountedRenderer)
+            assertEquals(
+                "A superfície OpenGL da OpeningScreen deve permanecer View.VISIBLE após recomposições iniciais",
+                android.view.View.VISIBLE,
+                openingMountedGlView!!.visibility
+            )
+            assertTrue(
+                "A superfície OpenGL da OpeningScreen deve estar resumed (isGlSurfaceResumed == true)",
+                openingMountedGlView.isGlSurfaceResumed
+            )
+            assertEquals(
+                "A superfície OpenGL da OpeningScreen não pode ter sido pausada indevidamente no 2º quadro",
+                0,
+                openingMountedGlView.pauseCallCountForAudit
+            )
+            assertEquals(
+                "A superfície OpenGL da OpeningScreen deve operar em RENDERMODE_CONTINUOUSLY para rotação contínua",
+                android.opengl.GLSurfaceView.RENDERMODE_CONTINUOUSLY,
+                openingMountedGlView.effectiveRenderModeForAudit
+            )
+            assertTrue("Renderer da OpeningScreen deve ter autoRotateIdle = true", openingMountedRenderer!!.autoRotateIdle)
+            assertTrue("Renderer da OpeningScreen deve ter transparentBackground = true", openingMountedRenderer.transparentBackground)
+
+            // Avança 5.000 ms e comprova que a passagem do tempo NÃO remove, NÃO pausa e NÃO oculta o cubo da abertura
             composeTestRule.mainClock.advanceTimeBy(5000L)
             composeTestRule.waitForIdle()
             assertEquals(
@@ -3709,7 +3762,50 @@ class ExampleRobolectricTest {
                 com.example.viewmodel.AppScreen.OPENING,
                 vm.currentScreen.value
             )
+            composeTestRule.onNodeWithTag("cube_3d_viewport").assertIsDisplayed()
+            assertEquals(
+                "Após 5.000 ms na OpeningScreen, a superfície OpenGL deve continuar View.VISIBLE",
+                android.view.View.VISIBLE,
+                openingMountedGlView.visibility
+            )
+            assertTrue(
+                "Após 5.000 ms na OpeningScreen, a superfície OpenGL deve continuar resumed",
+                openingMountedGlView.isGlSurfaceResumed
+            )
+            assertEquals(
+                "Após 5.000 ms na OpeningScreen, pauseCallCountForAudit deve continuar 0",
+                0,
+                openingMountedGlView.pauseCallCountForAudit
+            )
+
+            // Comprova que SOMENTE no clique em "Entrar na Experiência" (mesmo no quadro 0 do Crossfade),
+            // o cubo 3D da abertura é desmontado e sua superfície anterior é pausada/ocultada sem deixar
+            // "cubo pequeno" residual durante a transição para a próxima tela.
+            composeTestRule.mainClock.autoAdvance = false
             composeTestRule.onNodeWithTag("opening_continue_button").performClick()
+            composeTestRule.mainClock.advanceTimeByFrame()
+            val showcaseNodesDuringTransition = composeTestRule
+                .onAllNodes(hasTestTag("opening_cube_showcase"), useUnmergedTree = true)
+                .fetchSemanticsNodes()
+            for (showcaseNode in showcaseNodesDuringTransition) {
+                val hasResidualCubeInsideOpening = showcaseNode.children.any { child ->
+                    child.config.getOrElse(androidx.compose.ui.semantics.SemanticsProperties.TestTag) { "" } == "cube_3d_viewport"
+                }
+                assertFalse(
+                    "O cubo 3D da tela de abertura deve ser desmontado imediatamente no início da transição para evitar o artefato de 'cubo pequeno'",
+                    hasResidualCubeInsideOpening
+                )
+            }
+            assertFalse(
+                "Após clicar em Entrar, a superfície OpenGL da abertura deve ser pausada imediatamente",
+                openingMountedGlView.isGlSurfaceResumed
+            )
+            assertEquals(
+                "Após clicar em Entrar, a superfície OpenGL da abertura deve receber View.GONE ao desmontar",
+                android.view.View.GONE,
+                openingMountedGlView.visibility
+            )
+            composeTestRule.mainClock.autoAdvance = true
             composeTestRule.waitForIdle()
             assertEquals(
                 "Em execução seguinte, o toque no botão de entrada deve levar diretamente ao Menu Principal (HOME)",
@@ -3717,12 +3813,31 @@ class ExampleRobolectricTest {
                 vm.currentScreen.value
             )
             assertEquals("Começar a aprender", nodeCombinedText("start_learning_button"))
+
+            // Comprova que o cubo 3D interativo da Home está montado, View.VISIBLE e ativo
+            val homeMountedGlView = com.example.renderer.Cube3DViewAuditHolder.lastActiveGlSurfaceView
+            org.junit.Assert.assertNotNull("CubeTouchGLSurfaceView da Home deve estar montada", homeMountedGlView)
+            org.junit.Assert.assertNotSame("Superfície da Home deve ser uma nova instância distinta da OpeningScreen", openingMountedGlView, homeMountedGlView)
+            assertEquals(
+                "Superfície OpenGL da Home deve estar View.VISIBLE",
+                android.view.View.VISIBLE,
+                homeMountedGlView!!.visibility
+            )
+            assertTrue("Superfície OpenGL da Home deve estar resumed", homeMountedGlView.isGlSurfaceResumed)
             ShadowTrace.reset()
 
-            // G. Testa botão rápido "Praticar" do Menu Principal
+            // G. Testa botão rápido "Praticar" do Menu Principal e comprova que o cubo 3D da LessonScreen também fica View.VISIBLE
             composeTestRule.onNodeWithTag("home_practice_button").performClick()
             composeTestRule.waitForIdle()
             assertEquals(com.example.viewmodel.AppScreen.LESSON, vm.currentScreen.value)
+            val lessonMountedGlView = com.example.renderer.Cube3DViewAuditHolder.lastActiveGlSurfaceView
+            org.junit.Assert.assertNotNull("CubeTouchGLSurfaceView da LessonScreen deve estar montada", lessonMountedGlView)
+            assertEquals(
+                "Superfície OpenGL da LessonScreen deve estar View.VISIBLE",
+                android.view.View.VISIBLE,
+                lessonMountedGlView!!.visibility
+            )
+            assertTrue("Superfície OpenGL da LessonScreen deve estar resumed", lessonMountedGlView.isGlSurfaceResumed)
             assertEquals(com.example.viewmodel.LearningMode.PRACTICE, vm.lessonState.value.mode)
         } finally {
             ProgressRepository.simulateFirstLaunchInHeadlessTest = false

@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -508,10 +509,11 @@ private fun LessonCompactHeader(
     val strings = CuboMestreTheme.strings
     val fontScale = LocalDensity.current.fontScale
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        // Quando a tela é estreita (< 460dp, ou seja, qualquer celular em retrato),
-        // posiciona os controles superiores na Linha 1 e dedica 100% da largura da Linha 2 ao título completo da etapa,
-        // eliminando qualquer corte ou reticências ("Fazer a Cruz Bran...") mesmo em 320dp e fonte 1.5x.
-        val useDedicatedTitleRow = maxWidth < 460.dp
+        // Em telas de celular em retrato (< 540dp), posiciona a navegação e ações rápidas na Linha 1
+        // com espaçamento generoso e dedica 100% da largura da Linha 2 ao título completo da etapa,
+        // evitando qualquer aperto visual entre os botões do topo direito mesmo em 320dp e fonte 1.5x.
+        val useDedicatedTitleRow = maxWidth < 540.dp
+        val compactActionSpacing = if (maxWidth < 350.dp) 9.dp else 11.dp
 
         val speedLabel = when {
             speedMultiplier < 0.75f -> "0.5x"
@@ -533,7 +535,7 @@ private fun LessonCompactHeader(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         IconButton(
                             onClick = onBackToCourse,
@@ -541,6 +543,11 @@ private fun LessonCompactHeader(
                                 .size(34.dp)
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
+                                    shape = CircleShape
+                                )
                                 .testTag("lesson_back_button")
                         ) {
                             Icon(
@@ -553,7 +560,8 @@ private fun LessonCompactHeader(
 
                         Surface(
                             color = themeColors.turquoiseAccent.copy(alpha = 0.14f),
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, themeColors.turquoiseAccent.copy(alpha = 0.28f))
                         ) {
                             Text(
                                 text = "$stepNumber/7",
@@ -561,20 +569,24 @@ private fun LessonCompactHeader(
                                 color = themeColors.turquoiseAccent,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                             )
                         }
                     }
 
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        horizontalArrangement = Arrangement.spacedBy(compactActionSpacing),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
                             color = MaterialTheme.colorScheme.surfaceVariant,
                             shape = RoundedCornerShape(50),
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = themeColors.turquoiseAccent.copy(alpha = 0.28f)
+                            ),
                             modifier = Modifier
-                                .height(32.dp)
+                                .height(34.dp)
                                 .clickable {
                                     val nextSpeed = when {
                                         speedMultiplier < 0.75f -> 1.0f
@@ -587,8 +599,8 @@ private fun LessonCompactHeader(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(3.dp),
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Outlined.Speed,
@@ -618,6 +630,15 @@ private fun LessonCompactHeader(
                                         MaterialTheme.colorScheme.surfaceVariant
                                     }
                                 )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (highlightTargetPieces) {
+                                        themeColors.turquoiseAccent.copy(alpha = 0.45f)
+                                    } else {
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.24f)
+                                    },
+                                    shape = CircleShape
+                                )
                                 .testTag("highlight_pieces_button")
                         ) {
                             Icon(
@@ -638,6 +659,11 @@ private fun LessonCompactHeader(
                                 .size(34.dp)
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .border(
+                                    width = 1.dp,
+                                    color = themeColors.violetAccent.copy(alpha = 0.35f),
+                                    shape = CircleShape
+                                )
                                 .testTag("lesson_notation_button")
                         ) {
                             Icon(
@@ -673,7 +699,7 @@ private fun LessonCompactHeader(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     IconButton(
@@ -682,6 +708,11 @@ private fun LessonCompactHeader(
                             .size(38.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
+                                shape = CircleShape
+                            )
                             .testTag("lesson_back_button")
                     ) {
                         Icon(
@@ -694,7 +725,8 @@ private fun LessonCompactHeader(
 
                     Surface(
                         color = themeColors.turquoiseAccent.copy(alpha = 0.14f),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, themeColors.turquoiseAccent.copy(alpha = 0.28f))
                     ) {
                         Text(
                             text = "$stepNumber/7",
@@ -702,7 +734,7 @@ private fun LessonCompactHeader(
                             color = themeColors.turquoiseAccent,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
 
@@ -720,15 +752,21 @@ private fun LessonCompactHeader(
                     )
                 }
 
+                Spacer(modifier = Modifier.width(14.dp))
+
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(50),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = themeColors.turquoiseAccent.copy(alpha = 0.28f)
+                        ),
                         modifier = Modifier
-                            .height(36.dp)
+                            .height(38.dp)
                             .clickable {
                                 val nextSpeed = when {
                                     speedMultiplier < 0.75f -> 1.0f
@@ -741,8 +779,8 @@ private fun LessonCompactHeader(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(3.dp),
-                            modifier = Modifier.padding(horizontal = 9.dp)
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(horizontal = 11.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.Speed,
@@ -772,6 +810,15 @@ private fun LessonCompactHeader(
                                     MaterialTheme.colorScheme.surfaceVariant
                                 }
                             )
+                            .border(
+                                width = 1.dp,
+                                color = if (highlightTargetPieces) {
+                                    themeColors.turquoiseAccent.copy(alpha = 0.45f)
+                                } else {
+                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.24f)
+                                },
+                                shape = CircleShape
+                            )
                             .testTag("highlight_pieces_button")
                     ) {
                         Icon(
@@ -792,6 +839,11 @@ private fun LessonCompactHeader(
                             .size(38.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(
+                                width = 1.dp,
+                                color = themeColors.violetAccent.copy(alpha = 0.35f),
+                                shape = CircleShape
+                            )
                             .testTag("lesson_notation_button")
                     ) {
                         Icon(
