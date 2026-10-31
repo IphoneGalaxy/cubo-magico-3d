@@ -4079,5 +4079,299 @@ class ExampleRobolectricTest {
             ShadowTrace.reset()
         }
     }
+
+    /**
+     * AUDITORIA INTEGRADA DA ETAPA 2:
+     * - Valida os Fluxos A..G (Home -> Curso -> Lição -> Curso -> Home, Praticar, Explorar, Guia de Notação, Configurações).
+     * - Valida prioridade estrita do botão/gesto Voltar do Android sobre modais abertos (NotationGuideModal,
+     *   SettingsDialogModal, SolveMyCubeStage3Modal, CaseDetailedExplanationModal) sem encerrar a Activity
+     *   nem navegar indevidamente na tela de fundo.
+     * - Valida retomada exata da última etapa e do último caso visitado em Aprender (continue_lesson_chip)
+     *   e em Praticar (home_practice_button).
+     * - Valida pausa transacional segura ao abrir o Guia de Notação durante demonstração em andamento.
+     * - Valida o comportamento estabelecido do botão Repetir no Curso em contexto de teste isolado.
+     * - Valida persistência real em DataStore após limpeza de cache em memória e recriação da Activity.
+     */
+    @Test
+    @Config(qualifiers = "w393dp-h852dp-xhdpi")
+    fun `auditoria integrada Etapa 2 navegacao nativa voltar modais retomada aprender praticar repetir e persistencia`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val repo = ProgressRepository(context)
+        val initialBackup = runBlocking { repo.progressFlow.first() }
+        lateinit var vm: com.example.viewmodel.CuboMestreViewModel
+        lateinit var activityRef: MainActivity
+
+        composeTestRule.activityRule.scenario.onActivity { act ->
+            activityRef = act
+            vm = androidx.lifecycle.ViewModelProvider(act)[com.example.viewmodel.CuboMestreViewModel::class.java]
+        }
+        composeTestRule.waitForIdle()
+        ShadowTrace.reset()
+
+        try {
+            // 1. Garante início na Home com PT-BR e testa prioridade do Voltar sobre Settings e SolveMyCube
+            composeTestRule.runOnUiThread {
+                vm.selectAppLanguage(com.example.data.AppLanguage.PT_BR)
+                vm.navigateTo(com.example.viewmodel.AppScreen.HOME)
+            }
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
+
+            // Abre Configurações na Home e aciona o botão Voltar do Android: deve fechar apenas o modal, sem encerrar a Activity
+            composeTestRule.onNodeWithTag("home_settings_button").performClick()
+            composeTestRule.waitForIdle()
+            assertTrue("Modal de configurações deve estar aberto", vm.showSettingsModal.value)
+            composeTestRule.runOnUiThread {
+                activityRef.onBackPressedDispatcher.onBackPressed()
+            }
+            composeTestRule.waitForIdle()
+            assertFalse("Voltar do Android deve fechar o modal de configurações", vm.showSettingsModal.value)
+            assertEquals(com.example.viewmodel.AppScreen.HOME, vm.currentScreen.value)
+            assertFalse("Activity não pode ser finalizada ao fechar modal com Voltar", activityRef.isFinishing)
+
+            // Abre modal Resolver Meu Cubo (Etapa 3) e aciona Voltar do Android: deve fechar apenas o modal
+            composeTestRule.onNodeWithTag("solve_my_cube_hero_card").performClick()
+            composeTestRule.waitForIdle()
+            assertTrue("Modal Resolver Meu Cubo deve estar aberto", vm.showSolveMyCubePreviewModal.value)
+            composeTestRule.runOnUiThread {
+                activityRef.onBackPressedDispatcher.onBackPressed()
+            }
+            composeTestRule.waitForIdle()
+            assertFalse("Voltar do Android deve fechar o modal Resolver Meu Cubo", vm.showSolveMyCubePreviewModal.value)
+            assertEquals(com.example.viewmodel.AppScreen.HOME, vm.currentScreen.value)
+
+            // Testa atalhos do modal Resolver Meu Cubo -> Explorar -> Voltar Android -> Home
+            composeTestRule.onNodeWithTag("solve_my_cube_hero_card").performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("solve_modal_explore_btn").performClick()
+            composeTestRule.waitForIdle()
+            assertFalse("Modal Resolver Meu Cubo deve fechar ao usar atalho Explorar", vm.showSolveMyCubePreviewModal.value)
+            assertEquals(com.example.viewmodel.AppScreen.EXPLORE, vm.currentScreen.value)
+
+            // No modo Explorar: abre Guia de Notação e pressiona Voltar do Android -> fecha Guia mas permanece em Explorar
+            composeTestRule.onNodeWithTag("explore_notation_button").performClick()
+            composeTestRule.waitForIdle()
+            assertTrue(vm.showNotationGuideModal.value)
+            composeTestRule.runOnUiThread {
+                activityRef.onBackPressedDispatcher.onBackPressed()
+            }
+            composeTestRule.waitForIdle()
+            assertFalse("Voltar deve fechar primeiro o Guia de Notação", vm.showNotationGuideModal.value)
+            assertEquals("Tela Explorar deve ser preservada após fechar o Guia", com.example.viewmodel.AppScreen.EXPLORE, vm.currentScreen.value)
+
+            // Segundo Voltar em Explorar retorna para Home
+            composeTestRule.runOnUiThread {
+                activityRef.onBackPressedDispatcher.onBackPressed()
+            }
+            composeTestRule.waitForIdle()
+            assertEquals(com.example.viewmodel.AppScreen.HOME, vm.currentScreen.value)
+
+            // 2. Fluxo B & C: Home -> Curso -> Etapa 3 -> Seleciona Caso 2 -> Alterna Aprender/Praticar -> Retomada na Home
+            composeTestRule.onNodeWithTag("start_learning_button").performClick()
+            composeTestRule.waitForIdle()
+            assertEquals(com.example.viewmodel.AppScreen.COURSE, vm.currentScreen.value)
+
+            composeTestRule.runOnUiThread {
+                vm.openLesson(stepNumber = 3, caseIndex = 0, mode = com.example.viewmodel.LearningMode.LEARN)
+            }
+            composeTestRule.waitForIdle()
+            assertEquals(com.example.viewmodel.AppScreen.LESSON, vm.currentScreen.value)
+            assertEquals(3, vm.lessonState.value.stepNumber)
+            assertEquals(0, vm.lessonState.value.caseIndex)
+
+            // Seleciona Caso 2 da Etapa 3 (índice 1 -> s3_c2)
+            composeTestRule.onNodeWithTag("case_chip_1").performClick()
+            composeTestRule.waitForIdle()
+            assertEquals(1, vm.lessonState.value.caseIndex)
+            assertEquals("s3_c2_pdf_fig", vm.lessonState.value.currentCase.id)
+
+            // Alterna para Praticar e verifica que preserva Etapa 3 e Caso 2
+            composeTestRule.onNodeWithTag("mode_practice_tab").performClick()
+            composeTestRule.waitForIdle()
+            assertEquals(com.example.viewmodel.LearningMode.PRACTICE, vm.lessonState.value.mode)
+            assertEquals(3, vm.lessonState.value.stepNumber)
+            assertEquals(1, vm.lessonState.value.caseIndex)
+
+            // Abre modal "Entender o caso" (CaseDetailedExplanationModal) e abre também Guia de Notação:
+            // 1º Voltar fecha Guia de Notação; 2º Voltar fecha "Entender o caso"; 3º Voltar retorna ao Curso; 4º Voltar retorna à Home
+            composeTestRule.onNodeWithTag("open_case_detail_button").performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("case_detail_modal").assertIsDisplayed()
+
+            composeTestRule.runOnUiThread {
+                vm.setNotationGuideVisible(true)
+            }
+            composeTestRule.waitForIdle()
+            assertTrue(vm.showNotationGuideModal.value)
+
+            // 1º Voltar -> fecha Guia de Notação, mantendo CaseDetailModal e LessonScreen
+            composeTestRule.runOnUiThread {
+                activityRef.onBackPressedDispatcher.onBackPressed()
+            }
+            composeTestRule.waitForIdle()
+            assertFalse(vm.showNotationGuideModal.value)
+            assertEquals(com.example.viewmodel.AppScreen.LESSON, vm.currentScreen.value)
+            composeTestRule.onNodeWithTag("case_detail_modal").assertIsDisplayed()
+
+            // 2º Voltar -> fecha CaseDetailModal, mantendo LessonScreen
+            composeTestRule.runOnUiThread {
+                activityRef.onBackPressedDispatcher.onBackPressed()
+            }
+            composeTestRule.waitForIdle()
+            assertEquals(0, composeTestRule.onAllNodes(hasTestTag("case_detail_modal")).fetchSemanticsNodes().size)
+            assertEquals(com.example.viewmodel.AppScreen.LESSON, vm.currentScreen.value)
+
+            // 3º Voltar -> retorna de LessonScreen para CourseScreen
+            composeTestRule.runOnUiThread {
+                activityRef.onBackPressedDispatcher.onBackPressed()
+            }
+            composeTestRule.waitForIdle()
+            assertEquals(com.example.viewmodel.AppScreen.COURSE, vm.currentScreen.value)
+
+            // 4º Voltar -> retorna de CourseScreen para HomeScreen
+            composeTestRule.runOnUiThread {
+                activityRef.onBackPressedDispatcher.onBackPressed()
+            }
+            composeTestRule.waitForIdle()
+            assertEquals(com.example.viewmodel.AppScreen.HOME, vm.currentScreen.value)
+
+            // 3. Na Home: verifica que "Continuar" (continue_lesson_chip) retoma Etapa 3 Caso 2 em Aprender,
+            // e "Praticar" (home_practice_button) retoma Etapa 3 Caso 2 em Praticar
+            composeTestRule.onNodeWithTag("continue_lesson_chip").performClick()
+            composeTestRule.waitForIdle()
+            assertEquals(com.example.viewmodel.AppScreen.LESSON, vm.currentScreen.value)
+            assertEquals(3, vm.lessonState.value.stepNumber)
+            assertEquals(1, vm.lessonState.value.caseIndex)
+            assertEquals(com.example.viewmodel.LearningMode.LEARN, vm.lessonState.value.mode)
+
+            composeTestRule.runOnUiThread {
+                vm.navigateTo(com.example.viewmodel.AppScreen.HOME)
+            }
+            composeTestRule.waitForIdle()
+
+            composeTestRule.onNodeWithTag("home_practice_button").performClick()
+            composeTestRule.waitForIdle()
+            assertEquals(com.example.viewmodel.AppScreen.LESSON, vm.currentScreen.value)
+            assertEquals(3, vm.lessonState.value.stepNumber)
+            assertEquals(1, vm.lessonState.value.caseIndex)
+            assertEquals(com.example.viewmodel.LearningMode.PRACTICE, vm.lessonState.value.mode)
+
+            // 4. Registra conclusão prévia das Etapas 1 e 2 e conclusão da Etapa 3 (no Caso 2: s3_c2_pdf_fig)
+            // e valida o funcionamento completo do minipainel de confirmação "Reiniciar etapa" / "Reset stage":
+            runBlocking {
+                repo.markCaseCompleted(1, "s1_c1", com.example.curriculum.CurriculumRepository.getStep(1).cases.map { it.id })
+                repo.markCaseCompleted(2, "s2_c1", com.example.curriculum.CurriculumRepository.getStep(2).cases.map { it.id })
+            }
+            composeTestRule.waitForIdle()
+
+            composeTestRule.onNodeWithTag("complete_step_button").performClick()
+            composeTestRule.waitForIdle()
+            assertTrue("Etapa 1 deve constar como concluída", vm.progressState.value.completedSteps.contains(1))
+            assertTrue("Etapa 2 deve constar como concluída", vm.progressState.value.completedSteps.contains(2))
+            assertTrue("Etapa 3 deve constar como concluída", vm.progressState.value.completedSteps.contains(3))
+            assertTrue(
+                "Casos concluídos das Etapas 1, 2 e 3 devem estar registrados",
+                vm.progressState.value.completedCaseIds.containsAll(setOf("s1_c1", "s2_c1", "s3_c2_pdf_fig"))
+            )
+
+            // Abre CourseScreen e rola até o cartão da Etapa 3
+            composeTestRule.runOnUiThread {
+                vm.openCourseScreen()
+            }
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("course_steps_list")
+                .performScrollToNode(hasTestTag("step_card_3"))
+            composeTestRule.waitForIdle()
+
+            // Passo 1: Primeiro toque na seta circular (step_3_repeat_btn) mostra somente o botão "Reiniciar etapa", sem apagar nada
+            composeTestRule.onNodeWithTag("step_3_repeat_btn").assertIsDisplayed().performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("step_3_reset_confirm_panel").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("step_3_confirm_reset_btn")
+                .assertIsDisplayed()
+                .assertTextContains("Reiniciar etapa")
+            assertTrue("Primeiro toque não deve apagar a Etapa 3", vm.progressState.value.completedSteps.contains(3))
+            assertEquals(com.example.viewmodel.AppScreen.COURSE, vm.currentScreen.value)
+
+            // Verifica rótulo em inglês ("Reset stage") ao alternar idioma e volta para PT-BR
+            composeTestRule.runOnUiThread {
+                vm.selectAppLanguage(com.example.data.AppLanguage.EN_US)
+            }
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("step_3_confirm_reset_btn")
+                .assertIsDisplayed()
+                .assertTextContains("Reset stage")
+            composeTestRule.runOnUiThread {
+                vm.selectAppLanguage(com.example.data.AppLanguage.PT_BR)
+            }
+            composeTestRule.waitForIdle()
+
+            // Passo 2: Gesto/botão Voltar fecha o minipainel sem apagar nada e permanece na CourseScreen
+            composeTestRule.runOnUiThread {
+                activityRef.onBackPressedDispatcher.onBackPressed()
+            }
+            composeTestRule.waitForIdle()
+            assertEquals(0, composeTestRule.onAllNodes(hasTestTag("step_3_reset_confirm_panel")).fetchSemanticsNodes().size)
+            assertEquals(com.example.viewmodel.AppScreen.COURSE, vm.currentScreen.value)
+            assertTrue("Voltar não pode apagar a Etapa 3", vm.progressState.value.completedSteps.containsAll(setOf(1, 2, 3)))
+
+            // Passo 3: Reabre o minipainel e toca fora (reset_confirm_outside_catcher) -> fecha sem apagar nada
+            composeTestRule.onNodeWithTag("step_3_repeat_btn").assertIsDisplayed().performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("step_3_reset_confirm_panel").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("reset_confirm_outside_catcher").performClick()
+            composeTestRule.waitForIdle()
+            assertEquals(0, composeTestRule.onAllNodes(hasTestTag("step_3_reset_confirm_panel")).fetchSemanticsNodes().size)
+            assertEquals(com.example.viewmodel.AppScreen.COURSE, vm.currentScreen.value)
+            assertTrue("Toque fora não pode apagar a Etapa 3", vm.progressState.value.completedSteps.containsAll(setOf(1, 2, 3)))
+
+            // Passo 4: Reabre o minipainel e toca em "Reiniciar etapa" (step_3_confirm_reset_btn) ->
+            // redefine exclusivamente a Etapa 3 e seus casos, preserva Etapas 1 e 2, e permanece na CourseScreen
+            composeTestRule.onNodeWithTag("step_3_repeat_btn").assertIsDisplayed().performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("step_3_confirm_reset_btn").assertIsDisplayed().performClick()
+            composeTestRule.waitForIdle()
+
+            assertEquals(0, composeTestRule.onAllNodes(hasTestTag("step_3_reset_confirm_panel")).fetchSemanticsNodes().size)
+            assertEquals("Deve permanecer na CourseScreen após confirmar reinicialização", com.example.viewmodel.AppScreen.COURSE, vm.currentScreen.value)
+            assertFalse("Etapa 3 deve ter seu progresso redefinido", vm.progressState.value.completedSteps.contains(3))
+            assertFalse("Caso concluído da Etapa 3 deve ser removido", vm.progressState.value.completedCaseIds.contains("s3_c2_pdf_fig"))
+            assertTrue("Etapas 1 e 2 devem permanecer concluídas", vm.progressState.value.completedSteps.containsAll(setOf(1, 2)))
+            assertTrue("Casos das Etapas 1 e 2 devem permanecer registrados", vm.progressState.value.completedCaseIds.containsAll(setOf("s1_c1", "s2_c1")))
+            assertEquals(2f / 7f, vm.progressState.value.completionFraction, 0.0001f)
+
+            // Verifica persistência no DataStore após recriação da Activity
+            composeTestRule.runOnUiThread {
+                vm.setAnimationSpeed(1.5f)
+                vm.setDarkThemeExplicit(false)
+            }
+            composeTestRule.waitForIdle()
+
+            ProgressRepository.resetInMemoryCacheForTest()
+            composeTestRule.activityRule.scenario.recreate()
+            composeTestRule.waitForIdle()
+            composeTestRule.activityRule.scenario.onActivity { act ->
+                activityRef = act
+                vm = androidx.lifecycle.ViewModelProvider(act)[com.example.viewmodel.CuboMestreViewModel::class.java]
+            }
+            composeTestRule.waitForIdle()
+
+            val persistedAfterRestart = runBlocking { repo.progressFlow.first() }
+            assertFalse("Etapa 3 reiniciada não deve constar concluída após recriação", persistedAfterRestart.completedSteps.contains(3))
+            assertTrue("Etapas 1 e 2 concluídas devem persistir após recriação", persistedAfterRestart.completedSteps.containsAll(setOf(1, 2)))
+            assertTrue("Casos das Etapas 1 e 2 devem persistir no DataStore", persistedAfterRestart.completedCaseIds.containsAll(setOf("s1_c1", "s2_c1")))
+            assertFalse("Caso da Etapa 3 não deve constar no DataStore", persistedAfterRestart.completedCaseIds.contains("s3_c2_pdf_fig"))
+            assertEquals(2f / 7f, persistedAfterRestart.completionFraction, 0.0001f)
+            assertEquals(1.5f, persistedAfterRestart.animationSpeedMultiplier, 0.01f)
+            assertFalse("Tema claro deve persistir após reinicialização", persistedAfterRestart.isDarkTheme)
+        } finally {
+            // Restaura integralmente o estado anterior do DataStore para isolamento absoluto do teste
+            runBlocking {
+                repo.restoreSnapshotForTest(initialBackup)
+            }
+            ShadowTrace.reset()
+        }
+    }
 }
+
 

@@ -2670,6 +2670,12 @@ private fun CaseDetailedExplanationModal(
             .testTag("case_detail_modal"),
         contentAlignment = Alignment.BottomCenter
     ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(onClick = onDismiss)
+                .testTag("case_detail_backdrop")
+        )
         Surface(
             color = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),

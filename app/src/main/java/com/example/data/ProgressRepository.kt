@@ -204,15 +204,20 @@ class ProgressRepository(private val context: Context) {
         resolved
     }
 
+    private fun hasWarmCache(): Boolean =
+        inMemoryOverrideFlow.value != null || cachedProgressState != null
+
     suspend fun recordStepVisited(stepNumber: Int, caseId: String) {
-        val current = initialStateSnapshot()
-        publishImmediateState(
-            current.copy(
-                lastVisitedStep = stepNumber,
-                lastVisitedCaseId = caseId,
-                inProgressSteps = current.inProgressSteps + stepNumber
+        if (hasWarmCache()) {
+            val current = initialStateSnapshot()
+            publishImmediateState(
+                current.copy(
+                    lastVisitedStep = stepNumber,
+                    lastVisitedCaseId = caseId,
+                    inProgressSteps = current.inProgressSteps + stepNumber
+                )
             )
-        )
+        }
         context.cuboMestreDataStore.edit { prefs ->
             prefs[Keys.LAST_STEP] = stepNumber
             prefs[Keys.LAST_CASE] = caseId
@@ -224,22 +229,24 @@ class ProgressRepository(private val context: Context) {
     }
 
     suspend fun markCaseCompleted(stepNumber: Int, caseId: String, allStepCaseIds: List<String>) {
-        val current = initialStateSnapshot()
-        val updatedCases = current.completedCaseIds + caseId
-        val stepDone = allStepCaseIds.any { updatedCases.contains(it) }
-        val updatedCompletedSteps = if (stepDone) current.completedSteps + stepNumber else current.completedSteps
-        val updatedInProgress = buildSet {
-            addAll(current.inProgressSteps)
-            add(stepNumber)
-            if (stepDone && stepNumber < 7) add(stepNumber + 1)
-        }
-        publishImmediateState(
-            current.copy(
-                completedCaseIds = updatedCases,
-                completedSteps = updatedCompletedSteps,
-                inProgressSteps = updatedInProgress
+        if (hasWarmCache()) {
+            val current = initialStateSnapshot()
+            val updatedCases = current.completedCaseIds + caseId
+            val stepDone = allStepCaseIds.any { updatedCases.contains(it) }
+            val updatedCompletedSteps = if (stepDone) current.completedSteps + stepNumber else current.completedSteps
+            val updatedInProgress = buildSet {
+                addAll(current.inProgressSteps)
+                add(stepNumber)
+                if (stepDone && stepNumber < 7) add(stepNumber + 1)
+            }
+            publishImmediateState(
+                current.copy(
+                    completedCaseIds = updatedCases,
+                    completedSteps = updatedCompletedSteps,
+                    inProgressSteps = updatedInProgress
+                )
             )
-        )
+        }
         context.cuboMestreDataStore.edit { prefs ->
             val currentCases = prefs[Keys.COMPLETED_CASES]?.toMutableSet() ?: mutableSetOf()
             currentCases.add(caseId)
@@ -262,14 +269,16 @@ class ProgressRepository(private val context: Context) {
     }
 
     suspend fun markStepCompleted(stepNumber: Int) {
-        val current = initialStateSnapshot()
-        val updatedInProgress = if (stepNumber < 7) current.inProgressSteps + (stepNumber + 1) else current.inProgressSteps
-        publishImmediateState(
-            current.copy(
-                completedSteps = current.completedSteps + stepNumber,
-                inProgressSteps = updatedInProgress
+        if (hasWarmCache()) {
+            val current = initialStateSnapshot()
+            val updatedInProgress = if (stepNumber < 7) current.inProgressSteps + (stepNumber + 1) else current.inProgressSteps
+            publishImmediateState(
+                current.copy(
+                    completedSteps = current.completedSteps + stepNumber,
+                    inProgressSteps = updatedInProgress
+                )
             )
-        )
+        }
         context.cuboMestreDataStore.edit { prefs ->
             val currentCompleted = prefs[Keys.COMPLETED_STEPS]?.toMutableSet() ?: mutableSetOf()
             currentCompleted.add(stepNumber.toString())
@@ -285,13 +294,15 @@ class ProgressRepository(private val context: Context) {
     }
 
     suspend fun resetStepProgress(stepNumber: Int, stepCaseIds: List<String>) {
-        val current = initialStateSnapshot()
-        publishImmediateState(
-            current.copy(
-                completedSteps = current.completedSteps - stepNumber,
-                completedCaseIds = current.completedCaseIds - stepCaseIds.toSet()
+        if (hasWarmCache()) {
+            val current = initialStateSnapshot()
+            publishImmediateState(
+                current.copy(
+                    completedSteps = current.completedSteps - stepNumber,
+                    completedCaseIds = current.completedCaseIds - stepCaseIds.toSet()
+                )
             )
-        )
+        }
         context.cuboMestreDataStore.edit { prefs ->
             val currentCompleted = prefs[Keys.COMPLETED_STEPS]?.toMutableSet() ?: mutableSetOf()
             currentCompleted.remove(stepNumber.toString())
@@ -306,7 +317,9 @@ class ProgressRepository(private val context: Context) {
 
     suspend fun setAnimationSpeed(multiplier: Float) {
         val clamped = multiplier.coerceIn(0.4f, 2.0f)
-        publishImmediateState(initialStateSnapshot().copy(animationSpeedMultiplier = clamped))
+        if (hasWarmCache()) {
+            publishImmediateState(initialStateSnapshot().copy(animationSpeedMultiplier = clamped))
+        }
         context.cuboMestreDataStore.edit { prefs ->
             prefs[Keys.SPEED_MULTIPLIER] = clamped
             publishImmediateState(mapPreferencesToState(prefs))
@@ -314,7 +327,9 @@ class ProgressRepository(private val context: Context) {
     }
 
     suspend fun setDarkTheme(isDark: Boolean) {
-        publishImmediateState(initialStateSnapshot().copy(isDarkTheme = isDark))
+        if (hasWarmCache()) {
+            publishImmediateState(initialStateSnapshot().copy(isDarkTheme = isDark))
+        }
         context.cuboMestreDataStore.edit { prefs ->
             prefs[Keys.IS_DARK_THEME] = isDark
             publishImmediateState(mapPreferencesToState(prefs))
@@ -322,7 +337,9 @@ class ProgressRepository(private val context: Context) {
     }
 
     suspend fun setHighlightTargetPieces(enabled: Boolean) {
-        publishImmediateState(initialStateSnapshot().copy(highlightTargetPieces = enabled))
+        if (hasWarmCache()) {
+            publishImmediateState(initialStateSnapshot().copy(highlightTargetPieces = enabled))
+        }
         context.cuboMestreDataStore.edit { prefs ->
             prefs[Keys.HIGHLIGHT_PIECES] = enabled
             publishImmediateState(mapPreferencesToState(prefs))
@@ -364,6 +381,23 @@ class ProgressRepository(private val context: Context) {
         context.cuboMestreDataStore.edit { prefs ->
             prefs[Keys.APP_LANGUAGE] = initialLanguage.tag
             prefs[Keys.ONBOARDING_COMPLETED] = false
+            publishImmediateState(mapPreferencesToState(prefs))
+        }
+    }
+
+    suspend fun restoreSnapshotForTest(snapshot: UserProgressState) {
+        publishImmediateState(snapshot)
+        context.cuboMestreDataStore.edit { prefs ->
+            prefs[Keys.COMPLETED_STEPS] = snapshot.completedSteps.map { it.toString() }.toSet()
+            prefs[Keys.IN_PROGRESS_STEPS] = snapshot.inProgressSteps.map { it.toString() }.toSet()
+            prefs[Keys.COMPLETED_CASES] = snapshot.completedCaseIds
+            prefs[Keys.LAST_STEP] = snapshot.lastVisitedStep
+            prefs[Keys.LAST_CASE] = snapshot.lastVisitedCaseId
+            prefs[Keys.SPEED_MULTIPLIER] = snapshot.animationSpeedMultiplier
+            prefs[Keys.IS_DARK_THEME] = snapshot.isDarkTheme
+            prefs[Keys.HIGHLIGHT_PIECES] = snapshot.highlightTargetPieces
+            prefs[Keys.APP_LANGUAGE] = snapshot.appLanguage.tag
+            prefs[Keys.ONBOARDING_COMPLETED] = snapshot.hasCompletedOnboarding
             publishImmediateState(mapPreferencesToState(prefs))
         }
     }

@@ -143,9 +143,12 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
 
     val progressState: StateFlow<UserProgressState> = progressRepository.progressFlow.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
+        started = SharingStarted.Eagerly,
         initialValue = progressRepository.initialStateSnapshot()
     )
+
+    private fun latestProgress(): UserProgressState =
+        progressRepository.initialStateSnapshot()
 
     private val _currentScreen = MutableStateFlow(determineInitialScreen())
     val currentScreen: StateFlow<AppScreen> = _currentScreen.asStateFlow()
@@ -288,8 +291,17 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
     // NAVEGAÇÃO ENTRE TELAS E FLUXO INICIAL (ABERTURA, BOAS-VINDAS E IDIOMA)
     // =========================================================================
 
+    private fun dismissAllGlobalModals() {
+        if (_showNotationGuideModal.value) {
+            setNotationGuideVisible(false)
+        }
+        _showSettingsModal.value = false
+        _showSolveMyCubePreviewModal.value = false
+    }
+
     fun navigateTo(screen: AppScreen) {
         stopAllAnimations()
+        dismissAllGlobalModals()
         _currentScreen.value = screen
     }
 
@@ -348,17 +360,19 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun startOrContinueLearning() {
-        val savedStep = progressState.value.lastVisitedStep.coerceIn(1, 7)
+        val current = latestProgress()
+        val savedStep = current.lastVisitedStep.coerceIn(1, 7)
         val step = CurriculumRepository.getStep(savedStep)
-        val savedCaseIdx = step.cases.indexOfFirst { it.id == progressState.value.lastVisitedCaseId }
+        val savedCaseIdx = step.cases.indexOfFirst { it.id == current.lastVisitedCaseId }
             .let { if (it >= 0) it else 0 }
         openLesson(stepNumber = savedStep, caseIndex = savedCaseIdx, mode = LearningMode.LEARN)
     }
 
     fun startOrContinuePractice() {
-        val savedStep = progressState.value.lastVisitedStep.coerceIn(1, 7)
+        val current = latestProgress()
+        val savedStep = current.lastVisitedStep.coerceIn(1, 7)
         val step = CurriculumRepository.getStep(savedStep)
-        val savedCaseIdx = step.cases.indexOfFirst { it.id == progressState.value.lastVisitedCaseId }
+        val savedCaseIdx = step.cases.indexOfFirst { it.id == current.lastVisitedCaseId }
             .let { if (it >= 0) it else 0 }
         openLesson(stepNumber = savedStep, caseIndex = savedCaseIdx, mode = LearningMode.PRACTICE)
     }
@@ -369,6 +383,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         mode: LearningMode = LearningMode.LEARN
     ) {
         stopAllAnimations()
+        dismissAllGlobalModals()
         val validStep = stepNumber.coerceIn(1, 7)
         val step = CurriculumRepository.getStep(validStep)
         val validCaseIndex = caseIndex.coerceIn(0, step.cases.lastIndex)
@@ -405,10 +420,14 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
 
     fun openExploreScreen() {
         stopAllAnimations()
+        dismissAllGlobalModals()
         _currentScreen.value = AppScreen.EXPLORE
     }
 
     fun setNotationGuideVisible(visible: Boolean) {
+        if (visible && _lessonState.value.isPlayingDemo) {
+            pauseDemo()
+        }
         _showNotationGuideModal.value = visible
         if (visible) {
             triggerNotationPreview(_notationPreviewMove.value)
@@ -1278,6 +1297,15 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
         triggerLessonCelebration()
     }
 
+    /**
+     * Repete uma etapa concluída abrindo-a no Caso 1 em modo Aprender (LEARN),
+     * reiniciando apenas o estado temporário da aula e da demonstração sem apagar
+     * etapas concluídas (completedSteps) nem casos concluídos (completedCaseIds).
+     */
+    fun repeatStep(stepNumber: Int) {
+        openLesson(stepNumber = stepNumber, caseIndex = 0, mode = LearningMode.LEARN)
+    }
+
     fun resetStepStatus(stepNumber: Int) {
         val step = CurriculumRepository.getStep(stepNumber)
         viewModelScope.launch {
@@ -1682,7 +1710,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun toggleDarkTheme() {
-        val current = progressState.value.isDarkTheme
+        val current = latestProgress().isDarkTheme
         viewModelScope.launch {
             progressRepository.setDarkTheme(!current)
         }
@@ -1778,7 +1806,7 @@ class CuboMestreViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun toggleHighlightTargetPieces() {
-        val current = progressState.value.highlightTargetPieces
+        val current = latestProgress().highlightTargetPieces
         viewModelScope.launch {
             progressRepository.setHighlightTargetPieces(!current)
         }

@@ -148,6 +148,7 @@ data class AppStrings(
     val courseLearnButton: String,
     val coursePracticeButton: String,
     val courseRepeatStepDesc: String,
+    val courseResetStageConfirmButton: String,
 
     // LessonScreen — Cabeçalho, Modos e Overlays do Viewport
     val lessonBackToCourseDesc: String,
@@ -407,6 +408,7 @@ val PtBrStrings = AppStrings(
     courseLearnButton = "Aprender",
     coursePracticeButton = "Praticar",
     courseRepeatStepDesc = "Repetir etapa concluída",
+    courseResetStageConfirmButton = "Reiniciar etapa",
 
     lessonBackToCourseDesc = "Voltar ao curso",
     lessonSpeedDesc = "Velocidade da demonstração",
@@ -670,6 +672,7 @@ val EnUsStrings = AppStrings(
     courseLearnButton = "Learn",
     coursePracticeButton = "Practice",
     courseRepeatStepDesc = "Repeat completed stage",
+    courseResetStageConfirmButton = "Reset stage",
 
     lessonBackToCourseDesc = "Back to course",
     lessonSpeedDesc = "Demonstration speed",

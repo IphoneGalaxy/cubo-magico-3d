@@ -1,23 +1,28 @@
 package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -36,8 +41,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,9 +56,16 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.curriculum.CurriculumRepository
@@ -65,6 +80,7 @@ import com.example.ui.theme.StickerRed
 import com.example.ui.theme.StickerWhite
 import com.example.ui.theme.StickerYellow
 import com.example.viewmodel.LearningMode
+import kotlin.math.roundToInt
 
 @Composable
 fun CourseScreen(
@@ -75,16 +91,38 @@ fun CourseScreen(
     onBackToHome: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    BackHandler(onBack = onBackToHome)
+    var activeResetConfirmStep by rememberSaveable { mutableStateOf<Int?>(null) }
+
+    LaunchedEffect(progressState.completedSteps, activeResetConfirmStep) {
+        val currentStep = activeResetConfirmStep
+        if (currentStep != null && !progressState.completedSteps.contains(currentStep)) {
+            activeResetConfirmStep = null
+        }
+    }
+
+    BackHandler(enabled = activeResetConfirmStep == null, onBack = onBackToHome)
+    if (activeResetConfirmStep != null) {
+        BackHandler(enabled = true) {
+            activeResetConfirmStep = null
+        }
+    }
 
     val themeColors = CuboMestreTheme.colors
     val strings = CuboMestreTheme.strings
+    val density = LocalDensity.current
     var showStudyFlowGuide by rememberSaveable { mutableStateOf(true) }
+    var rootOffsetInRoot by remember { mutableStateOf(Offset.Zero) }
+    var rootSize by remember { mutableStateOf(IntSize.Zero) }
+    val repeatButtonBoundsInRoot = remember { mutableStateMapOf<Int, IntRect>() }
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .onGloballyPositioned { coords ->
+                rootOffsetInRoot = coords.positionInRoot()
+                rootSize = coords.size
+            }
             .testTag("course_screen"),
         contentAlignment = Alignment.TopCenter
     ) {
@@ -293,13 +331,126 @@ fun CourseScreen(
                     StepCourseCard(
                         step = step,
                         status = status,
-                        onLearnClick = { onSelectStep(step.number, LearningMode.LEARN) },
-                        onPracticeClick = { onSelectStep(step.number, LearningMode.PRACTICE) },
-                        onRepeatClick = {
-                            onResetStepProgress(step.number)
+                        onLearnClick = {
+                            activeResetConfirmStep = null
                             onSelectStep(step.number, LearningMode.LEARN)
+                        },
+                        onPracticeClick = {
+                            activeResetConfirmStep = null
+                            onSelectStep(step.number, LearningMode.PRACTICE)
+                        },
+                        onRepeatClick = {
+                            activeResetConfirmStep = if (activeResetConfirmStep == step.number) {
+                                null
+                            } else {
+                                step.number
+                            }
+                        },
+                        onRepeatButtonPositioned = { rectInRoot ->
+                            repeatButtonBoundsInRoot[step.number] = rectInRoot
                         }
                     )
+                }
+            }
+        }
+
+        val targetStep = activeResetConfirmStep
+        if (targetStep != null && progressState.completedSteps.contains(targetStep)) {
+            var panelSize by remember(targetStep) { mutableStateOf(IntSize.Zero) }
+            val hMarginPx = with(density) { 16.dp.roundToPx() }
+            val vMarginPx = with(density) { 8.dp.roundToPx() }
+            val gapPx = with(density) { 6.dp.roundToPx() }
+            val anchorInRoot = repeatButtonBoundsInRoot[targetStep]
+            val rootLeft = rootOffsetInRoot.x.roundToInt()
+            val rootTop = rootOffsetInRoot.y.roundToInt()
+
+            val panelOffset = if (
+                anchorInRoot != null &&
+                rootSize.width > 0 &&
+                rootSize.height > 0 &&
+                panelSize.width > 0 &&
+                panelSize.height > 0
+            ) {
+                val anchorRightRel = anchorInRoot.right - rootLeft
+                val anchorTopRel = anchorInRoot.top - rootTop
+                val anchorBottomRel = anchorInRoot.bottom - rootTop
+                val maxX = (rootSize.width - panelSize.width - hMarginPx).coerceAtLeast(hMarginPx)
+                val x = (anchorRightRel - panelSize.width).coerceIn(hMarginPx, maxX)
+                val aboveY = anchorTopRel - panelSize.height - gapPx
+                val belowY = anchorBottomRel + gapPx
+                val maxY = (rootSize.height - panelSize.height - vMarginPx).coerceAtLeast(vMarginPx)
+                val y = if (aboveY >= vMarginPx) {
+                    aboveY.coerceAtMost(maxY)
+                } else {
+                    belowY.coerceIn(vMarginPx, maxY)
+                }
+                IntOffset(x, y)
+            } else if (anchorInRoot != null) {
+                val fallbackX = (anchorInRoot.left - rootLeft).coerceAtLeast(hMarginPx)
+                val fallbackY = (anchorInRoot.top - rootTop - with(density) { 52.dp.roundToPx() }).coerceAtLeast(vMarginPx)
+                IntOffset(fallbackX, fallbackY)
+            } else {
+                IntOffset(hMarginPx, vMarginPx)
+            }
+
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopStart
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            activeResetConfirmStep = null
+                        }
+                        .testTag("reset_confirm_outside_catcher")
+                )
+
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = RoundedCornerShape(14.dp),
+                    tonalElevation = 6.dp,
+                    shadowElevation = 8.dp,
+                    border = BorderStroke(1.dp, themeColors.warningText.copy(alpha = 0.6f)),
+                    modifier = Modifier
+                        .onSizeChanged { panelSize = it }
+                        .offset { panelOffset }
+                        .wrapContentSize()
+                        .testTag("step_${targetStep}_reset_confirm_panel")
+                ) {
+                    Button(
+                        onClick = {
+                            activeResetConfirmStep = null
+                            onResetStepProgress(targetStep)
+                        },
+                        shape = RoundedCornerShape(11.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = themeColors.warningText,
+                            contentColor = Color.Black
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                        modifier = Modifier
+                            .padding(4.dp)
+                            .defaultMinSize(minHeight = 40.dp)
+                            .height(40.dp)
+                            .testTag("step_${targetStep}_confirm_reset_btn")
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_refresh),
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = strings.courseResetStageConfirmButton,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
         }
@@ -312,7 +463,8 @@ private fun StepCourseCard(
     status: StepStatus,
     onLearnClick: () -> Unit,
     onPracticeClick: () -> Unit,
-    onRepeatClick: () -> Unit
+    onRepeatClick: () -> Unit,
+    onRepeatButtonPositioned: (IntRect) -> Unit = {}
 ) {
     val themeColors = CuboMestreTheme.colors
     val strings = CuboMestreTheme.strings
@@ -482,6 +634,18 @@ private fun StepCourseCard(
                             .size(48.dp)
                             .clip(RoundedCornerShape(14.dp))
                             .background(MaterialTheme.colorScheme.surface)
+                            .onGloballyPositioned { coords ->
+                                val pos = coords.positionInRoot()
+                                val size = coords.size
+                                onRepeatButtonPositioned(
+                                    IntRect(
+                                        left = pos.x.roundToInt(),
+                                        top = pos.y.roundToInt(),
+                                        right = (pos.x + size.width).roundToInt(),
+                                        bottom = (pos.y + size.height).roundToInt()
+                                    )
+                                )
+                            }
                             .testTag("step_${step.number}_repeat_btn")
                     ) {
                         Icon(

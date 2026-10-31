@@ -217,6 +217,19 @@ fun CuboMestreApp(
                     onDismiss = { viewModel.setSolveMyCubePreviewModalVisible(false) }
                 )
             }
+
+            // Prioridade máxima para o botão/gesto Voltar do Android quando qualquer modal global estiver aberto:
+            // ao entrar em composição no momento da abertura do modal, registra-se no topo da pilha LIFO do
+            // OnBackPressedDispatcher acima dos BackHandlers das telas (Course, Lesson, Explore e submodais).
+            if (showNotationModal || showSettingsModal || showSolvePreviewModal) {
+                BackHandler(enabled = true) {
+                    when {
+                        showNotationModal -> viewModel.setNotationGuideVisible(false)
+                        showSettingsModal -> viewModel.setSettingsModalVisible(false)
+                        showSolvePreviewModal -> viewModel.setSolveMyCubePreviewModalVisible(false)
+                    }
+                }
+            }
         }
     }
 }

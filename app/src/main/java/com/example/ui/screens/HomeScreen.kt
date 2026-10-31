@@ -947,6 +947,7 @@ private fun StudentProgressBannerCard(
                                 color = themeColors.turquoiseAccent.copy(alpha = 0.38f),
                                 shape = RoundedCornerShape(10.dp)
                             )
+                            .clickable { onContinueLessonClick() }
                             .testTag("continue_lesson_chip")
                     ) {
                         Row(
